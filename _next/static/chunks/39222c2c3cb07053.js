@@ -1,0 +1,1 @@
+(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,200138,e=>{"use strict";var i=e.i(687433),t=e.i(647163);function c({children:e,className:c}){return(0,i.jsx)("div",{className:(0,t.cn)("container relative ",c),children:e})}e.s(["Shell",()=>c])}]);
