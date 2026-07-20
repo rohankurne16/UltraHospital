@@ -8,10 +8,23 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Include config files
-include("../config/hospital.php");
-include '../config/superadmin.php';
-include '../config/constants.php';
+echo '<div style="background:#fef3c7;padding:15px;margin:10px;border:1px solid #f59e0b;border-radius:8px;font-family:Arial;">';
+echo '<strong>🔍 DEBUG - Session Data:</strong><br>';
+echo 'User ID: ' . ($_SESSION['id'] ?? 'Not set') . '<br>';
+echo 'User Role: ' . ($_SESSION['role'] ?? 'Not set') . '<br>';
+echo 'User Role ID: ' . ($_SESSION['role_id'] ?? 'Not set') . '<br>';
+echo 'Permissions Count: ' . (isset($_SESSION['permissions']) ? count($_SESSION['permissions']) : 0) . '<br>';
+if (isset($_SESSION['permissions']) && is_array($_SESSION['permissions'])) {
+    echo 'Permissions: <pre style="background:#fff;padding:10px;border:1px solid #ccc;max-height:200px;overflow:auto;font-size:12px;">' . print_r($_SESSION['permissions'], true) . '</pre>';
+} else {
+    echo '⚠️ No permissions found in session!<br>';
+}
+echo '</div>';
+
+// Include config files with correct paths
+require_once '../config/hospital.php';
+require_once '../config/superadmin.php';
+require_once '../config/constants.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['id'])) {
@@ -27,14 +40,52 @@ $user_role = isset($_SESSION['role']) ? strtolower(trim($_SESSION['role'])) : ''
 // ============================================================
 
 // Check if user has dashboard-view permission
-if (!hasPermission('dashboard-view')) {
-    header('Location: access_denied.php');
-    exit();
+if (!function_exists('hasPermission')) {
+    function hasPermission($permission_name) {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        
+        // Super Admin has all permissions
+        if (isset($_SESSION['role']) && (strtolower(trim($_SESSION['role'])) === 'super admin' || strtolower(trim($_SESSION['role'])) === 'superadmin')) {
+            return true;
+        }
+        
+        if (!isset($_SESSION['permissions']) || !is_array($_SESSION['permissions'])) {
+            return false;
+        }
+        
+        return in_array($permission_name, $_SESSION['permissions']);
+    }
+}
+
+if (!function_exists('hasAnyPermission')) {
+    function hasAnyPermission($permissions) {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        
+        // Super Admin has all permissions
+        if (isset($_SESSION['role']) && (strtolower(trim($_SESSION['role'])) === 'super admin' || strtolower(trim($_SESSION['role'])) === 'superadmin')) {
+            return true;
+        }
+        
+        if (!isset($_SESSION['permissions']) || !is_array($_SESSION['permissions'])) {
+            return false;
+        }
+        
+        foreach ($permissions as $permission) {
+            if (in_array($permission, $_SESSION['permissions'])) {
+                return true;
+            }
+        }
+        return false;
+    }
 }
 
 // Check if user is doctor
 if ($user_role != 'doctor') {
-    header('Location: dashboard.php');
+    header('Location: ../dashboard.php');
     exit();
 }
 
@@ -52,6 +103,7 @@ $followupPatients = 0;
 $totalPatients = 0;
 $todayVisits = 0;
 
+// Get doctor info
 $get_all_doctor_info = "SELECT * FROM doctor WHERE register_id='$doctor_register_id' AND (delete_flag=0 OR delete_flag IS NULL)";
 $all_doctor_info = $conn->query($get_all_doctor_info);
 
@@ -66,50 +118,50 @@ if ($all_doctor_info && $all_doctor_info->num_rows > 0) {
     // ============================================================
 
     // Total Appointments (requires appointment-view)
-    if (hasPermission('appointment-view')) {
+    if (function_exists('hasPermission') && hasPermission('appointment-view')) {
         $query_total = mysqli_query($conn, "SELECT COUNT(*) AS total FROM appointments WHERE doctor_id='$doctor_id' AND status NOT IN('Cancelled') AND (delete_flag=0 OR delete_flag IS NULL)");
         if ($query_total) {
-            $totalAppointments = mysqli_fetch_assoc($query_total)['total'];
+            $totalAppointments = mysqli_fetch_assoc($query_total)['total'] ?? 0;
         }
     }
 
     // Today's Appointments (requires appointment-view)
-    if (hasPermission('appointment-view')) {
+    if (function_exists('hasPermission') && hasPermission('appointment-view')) {
         $query_today = mysqli_query($conn, "SELECT COUNT(*) AS today FROM appointments WHERE doctor_id='$doctor_id' AND status NOT IN('Cancelled') AND (delete_flag=0 OR delete_flag IS NULL) AND appointment_date = CURDATE()");
         if ($query_today) {
-            $todayAppointments = mysqli_fetch_assoc($query_today)['today'];
+            $todayAppointments = mysqli_fetch_assoc($query_today)['today'] ?? 0;
         }
     }
 
     // OPD Patients Today (requires opd-view)
-    if (hasPermission('opd-view')) {
+    if (function_exists('hasPermission') && hasPermission('opd-view')) {
         $query_opd = mysqli_query($conn, "SELECT COUNT(*) AS opd FROM opd WHERE doctor_id='$doctor_id' AND visit_date = CURDATE() AND (delete_flag=0 OR delete_flag IS NULL)");
         if ($query_opd) {
-            $opdPatientsToday = mysqli_fetch_assoc($query_opd)['opd'];
+            $opdPatientsToday = mysqli_fetch_assoc($query_opd)['opd'] ?? 0;
         }
     }
 
     // Pending Prescriptions (requires prescription-view)
-    if (hasPermission('prescription-view')) {
+    if (function_exists('hasPermission') && hasPermission('prescription-view')) {
         $query_pending = mysqli_query($conn, "SELECT COUNT(*) AS pending FROM prescriptions WHERE doctor_id='$doctor_id' AND (delete_flag=0 OR delete_flag IS NULL)");
         if ($query_pending) {
-            $pendingPrescriptions = mysqli_fetch_assoc($query_pending)['pending'];
+            $pendingPrescriptions = mysqli_fetch_assoc($query_pending)['pending'] ?? 0;
         }
     }
 
     // Total Patients (requires patient-view)
-    if (hasPermission('patient-view')) {
+    if (function_exists('hasPermission') && hasPermission('patient-view')) {
         $query_patients = mysqli_query($conn, "SELECT COUNT(*) AS total FROM patients WHERE (delete_flag=0 OR delete_flag IS NULL)");
         if ($query_patients) {
-            $totalPatients = mysqli_fetch_assoc($query_patients)['total'];
+            $totalPatients = mysqli_fetch_assoc($query_patients)['total'] ?? 0;
         }
     }
 
     // Follow-up Patients (requires prescription-view)
-    if (hasPermission('prescription-view')) {
+    if (function_exists('hasPermission') && hasPermission('prescription-view')) {
         $query_followup = mysqli_query($conn, "SELECT COUNT(*) AS followup_date FROM prescriptions WHERE doctor_id='$doctor_id' AND followup_date = CURDATE() + INTERVAL 1 DAY AND (delete_flag=0 OR delete_flag IS NULL)");
         if ($query_followup) {
-            $followupPatients = mysqli_fetch_assoc($query_followup)['followup_date'];
+            $followupPatients = mysqli_fetch_assoc($query_followup)['followup_date'] ?? 0;
         }
     }
 }
@@ -133,7 +185,6 @@ if (function_exists('logAudit')) {
     <link rel="icon" type="image/png" href="../<?php echo htmlspecialchars($hospital_logo); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: #f8fafc; }
@@ -320,9 +371,15 @@ if (function_exists('logAudit')) {
 <!-- ============================================================
 SIDEBAR OVERLAY
 ============================================================ -->
-<<div id="sidebar-container">
-    <?php include 'sidebar.php'; ?>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- ============================================================
+SIDEBAR
+============================================================ -->
+<div id="sidebar-container">
+    <?php include '../Sidebar.php'; ?>
 </div>
+
 <!-- ============================================================
 MAIN WRAPPER
 ============================================================ -->
@@ -341,7 +398,7 @@ MAIN WRAPPER
                     <h1 style="font-size:1.25rem; font-weight:700; color:#1e293b;">Doctor Dashboard</h1>
                     <p style="font-size:0.875rem; color:#64748b;">
                         Welcome back, <strong><?php echo htmlspecialchars($doctor_name); ?></strong>
-                        <?php if (hasPermission('appointment-view')): ?>
+                        <?php if (function_exists('hasPermission') && hasPermission('appointment-view')): ?>
                             | <span style="color:#3b82f6;"><?php echo $todayAppointments; ?> appointments today</span>
                         <?php endif; ?>
                     </p>
@@ -363,7 +420,7 @@ MAIN WRAPPER
             <!-- Statistics Cards -->
             <div class="grid-cards">
                 
-                <?php if (hasPermission('appointment-view')): ?>
+                <?php if (function_exists('hasPermission') && hasPermission('appointment-view')): ?>
                 <div class="stat-card">
                     <div class="icon bg-blue"><i class="fas fa-calendar-day"></i></div>
                     <div class="count"><?php echo $todayAppointments; ?></div>
@@ -371,7 +428,7 @@ MAIN WRAPPER
                 </div>
                 <?php endif; ?>
 
-                <?php if (hasPermission('appointment-view')): ?>
+                <?php if (function_exists('hasPermission') && hasPermission('appointment-view')): ?>
                 <div class="stat-card">
                     <div class="icon bg-purple"><i class="fas fa-calendar-check"></i></div>
                     <div class="count"><?php echo $totalAppointments; ?></div>
@@ -379,7 +436,7 @@ MAIN WRAPPER
                 </div>
                 <?php endif; ?>
 
-                <?php if (hasPermission('opd-view')): ?>
+                <?php if (function_exists('hasPermission') && hasPermission('opd-view')): ?>
                 <div class="stat-card">
                     <div class="icon bg-orange"><i class="fas fa-stethoscope"></i></div>
                     <div class="count"><?php echo $opdPatientsToday; ?></div>
@@ -387,7 +444,7 @@ MAIN WRAPPER
                 </div>
                 <?php endif; ?>
 
-                <?php if (hasPermission('prescription-view')): ?>
+                <?php if (function_exists('hasPermission') && hasPermission('prescription-view')): ?>
                 <div class="stat-card">
                     <div class="icon bg-red"><i class="fas fa-prescription"></i></div>
                     <div class="count"><?php echo $pendingPrescriptions; ?></div>
@@ -395,7 +452,7 @@ MAIN WRAPPER
                 </div>
                 <?php endif; ?>
 
-                <?php if (hasPermission('prescription-view')): ?>
+                <?php if (function_exists('hasPermission') && hasPermission('prescription-view')): ?>
                 <div class="stat-card">
                     <div class="icon bg-green"><i class="fas fa-user-check"></i></div>
                     <div class="count"><?php echo $followupPatients; ?></div>
@@ -403,7 +460,7 @@ MAIN WRAPPER
                 </div>
                 <?php endif; ?>
 
-                <?php if (hasPermission('patient-view')): ?>
+                <?php if (function_exists('hasPermission') && hasPermission('patient-view')): ?>
                 <div class="stat-card">
                     <div class="icon bg-cyan"><i class="fas fa-users"></i></div>
                     <div class="count"><?php echo $totalPatients; ?></div>
@@ -414,7 +471,7 @@ MAIN WRAPPER
             </div>
 
             <!-- No Permission Message -->
-            <?php if (!hasPermission('appointment-view') && !hasPermission('opd-view') && !hasPermission('prescription-view') && !hasPermission('patient-view')): ?>
+            <?php if (!function_exists('hasPermission') || (!hasPermission('appointment-view') && !hasPermission('opd-view') && !hasPermission('prescription-view') && !hasPermission('patient-view'))): ?>
             <div class="no-permission-msg">
                 <i class="fas fa-lock"></i>
                 <h3>No Module Permissions</h3>
@@ -426,10 +483,10 @@ MAIN WRAPPER
             <?php endif; ?>
 
             <!-- Recent Activities -->
-            <?php if (hasPermission('appointment-view') || hasPermission('opd-view') || hasPermission('prescription-view')): ?>
+            <?php if (function_exists('hasPermission') && (hasPermission('appointment-view') || hasPermission('opd-view') || hasPermission('prescription-view'))): ?>
             <div class="grid-2col" style="margin-top:1.5rem;">
                 
-                <?php if (hasPermission('opd-view')): ?>
+                <?php if (function_exists('hasPermission') && hasPermission('opd-view')): ?>
                 <div class="widget-card">
                     <div class="widget-title">
                         <i class="fas fa-stethoscope" style="color:#3b82f6;"></i>
@@ -467,7 +524,7 @@ MAIN WRAPPER
                 </div>
                 <?php endif; ?>
 
-                <?php if (hasPermission('prescription-view')): ?>
+                <?php if (function_exists('hasPermission') && hasPermission('prescription-view')): ?>
                 <div class="widget-card">
                     <div class="widget-title">
                         <i class="fas fa-prescription" style="color:#dc2626;"></i>
@@ -511,7 +568,7 @@ MAIN WRAPPER
             <?php endif; ?>
 
             <!-- Today's Appointments Queue -->
-            <?php if (hasPermission('appointment-view')): ?>
+            <?php if (function_exists('hasPermission') && hasPermission('appointment-view')): ?>
             <div class="widget-card" style="margin-top:1.5rem;">
                 <div class="widget-title">
                     <i class="fas fa-calendar-alt" style="color:#3b82f6;"></i>
@@ -585,4 +642,4 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 </body>
-</html>
+</html> 

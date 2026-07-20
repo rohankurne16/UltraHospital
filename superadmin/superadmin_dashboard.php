@@ -1,6 +1,6 @@
 <?php
 // Include superadmin config
-include '../config/superadmin.php';
+include '../config/permission.php';
 
 // Check if user is Super Admin
 checkSuperAdminLogin();

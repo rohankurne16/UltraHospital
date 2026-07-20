@@ -1,5 +1,5 @@
 <?php
-include '../config/superadmin.php';
+include '../config/permission.php';
 
 
 
@@ -21,17 +21,49 @@ $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['searc
 $hospital_filter = isset($_GET['hospital']) ? mysqli_real_escape_string($conn, $_GET['hospital']) : '';
 $role_filter = isset($_GET['role']) ? mysqli_real_escape_string($conn, $_GET['role']) : '';
 
-// Update user role
 if (isset($_POST['update_role']) && isset($_POST['user_id']) && isset($_POST['role_id'])) {
-    $user_id = mysqli_real_escape_string($conn, $_POST['user_id']);
-    $role_id = mysqli_real_escape_string($conn, $_POST['role_id']);
-    
-    $update_query = "UPDATE register SET role_id = '$role_id' WHERE id = '$user_id'";
-    if (mysqli_query($conn, $update_query)) {
-        logAudit('User', 'Updated role for user ID: ' . $user_id . ' to role ID: ' . $role_id);
-        $success = "User role updated successfully!";
+
+    $user_id = (int)$_POST['user_id'];
+    $role_id = (int)$_POST['role_id'];
+
+    // Get role name from roles table
+    $role_query = "SELECT role_name
+                   FROM roles
+                   WHERE role_id = $role_id
+                   AND (delete_flag = 0 OR delete_flag IS NULL)";
+
+    $role_result = mysqli_query($conn, $role_query);
+
+    if ($role_result && mysqli_num_rows($role_result) > 0) {
+
+        $role_data = mysqli_fetch_assoc($role_result);
+        $role_name = mysqli_real_escape_string($conn, $role_data['role_name']);
+
+        // Update both role_id and role
+        $update_query = "UPDATE register
+                         SET role_id = '$role_id',
+                             role = '$role_name'
+                         WHERE id = '$user_id'";
+
+        if (mysqli_query($conn, $update_query)) {
+
+            logAudit(
+                'User',
+                "Updated role of User ID $user_id to $role_name"
+            );
+
+            $success = "User role updated successfully!";
+
+        } else {
+
+            $error = "Update Error : " . mysqli_error($conn);
+
+        }
+
     } else {
-        $error = "Error updating user role: " . mysqli_error($conn);
+
+        $error = "Selected role not found.";
+
     }
 }
 

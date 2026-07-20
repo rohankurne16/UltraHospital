@@ -5,8 +5,8 @@
 
 session_start();
 include "config/hospital.php";
-include "config/superadmin.php";
-include "config/constants.php";
+
+
 
 // Check if user is logged in
 if (!isset($_SESSION['id'])) {

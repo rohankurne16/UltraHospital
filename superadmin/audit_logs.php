@@ -10,7 +10,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // Include config files
 include_once '../config/hospital.php';
-include_once '../config/superadmin.php';
+include_once '../config/permission.php';
 
 // Check Super Admin login
 checkSuperAdminLogin();

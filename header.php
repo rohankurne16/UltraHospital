@@ -1,771 +1,587 @@
 <?php
 // ============================================================
-// HEADER - PROFESSIONAL WITH PERMISSION CHECK
+// DYNAMIC HEADER - ENTERPRISE LEVEL
 // ============================================================
 
-// Ensure session is started
+// Start session if not started
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Include config files for permission checks
-include_once 'config/hospital.php';
-include_once 'config/superadmin.php';
-include_once 'config/constants.php';
+// ============================================================
+// FIX: Include required config files
+// ============================================================
+require_once 'config/hospital.php';
 
-// Check if user is logged in
-if (!isset($_SESSION['id'])) {
-    return;
+// ============================================================
+// FIX: Define missing functions if they don't exist
+// ============================================================
+
+if (!function_exists('getUserProfile')) {
+    function getUserProfile($user_id) {
+        global $conn;
+        
+        if (!isset($conn) || $conn === null) {
+            return ['name' => $_SESSION['name'] ?? 'User', 'profile_image' => ''];
+        }
+        
+        $query = "SELECT u.*, r.role_name, h.hospital_name 
+                  FROM register u
+                  LEFT JOIN roles r ON u.role_id = r.role_id
+                  LEFT JOIN hospital_master h ON u.hospital_id = h.hospital_id
+                  WHERE u.id = '$user_id' AND (u.delete_flag = 0 OR u.delete_flag IS NULL)";
+        
+        $result = mysqli_query($conn, $query);
+        if ($result && mysqli_num_rows($result) > 0) {
+            return mysqli_fetch_assoc($result);
+        }
+        return ['name' => $_SESSION['name'] ?? 'User', 'profile_image' => ''];
+    }
 }
 
-// Get user profile information
-$profile_image = $_SESSION['profile_image'] ?? '';
-$user_name = $_SESSION['name'] ?? 'User';
-$user_role = $_SESSION['role'] ?? 'Guest';
-$hospital_name = isset($hospital['hospital_name']) ? $hospital['hospital_name'] : 'Hospital';
-$hospital_logo = isset($hospital['hospital_logo']) ? $hospital['hospital_logo'] : '';
+if (!function_exists('getNotificationCount')) {
+    function getNotificationCount($user_id) {
+        global $conn;
+        
+        if (!isset($conn) || $conn === null) {
+            return 0;
+        }
+        
+        // Check if audit_logs table has is_read column
+        $check_query = "SHOW COLUMNS FROM audit_logs LIKE 'is_read'";
+        $check_result = mysqli_query($conn, $check_query);
+        $has_is_read = ($check_result && mysqli_num_rows($check_result) > 0);
+        
+        if ($has_is_read) {
+            $query = "SELECT COUNT(*) as count FROM audit_logs 
+                      WHERE user_id = '$user_id' AND is_read = 0 
+                      AND (delete_flag = 0 OR delete_flag IS NULL)";
+        } else {
+            $query = "SELECT COUNT(*) as count FROM audit_logs 
+                      WHERE user_id = '$user_id' 
+                      AND (delete_flag = 0 OR delete_flag IS NULL)";
+        }
+        
+        $result = mysqli_query($conn, $query);
+        if ($result && mysqli_num_rows($result) > 0) {
+            $row = mysqli_fetch_assoc($result);
+            return $row['count'] ?? 0;
+        }
+        return 0;
+    }
+}
+
+if (!function_exists('getUserPermissions')) {
+    function getUserPermissions($role_id) {
+        global $conn;
+        
+        if (!isset($conn) || $conn === null || $role_id == 0) {
+            return [];
+        }
+        
+        $permissions = [];
+        $query = "SELECT p.permission_id, p.permission_name, p.permission_group, p.permission_icon 
+                  FROM permissions p
+                  INNER JOIN role_permissions rp ON p.permission_id = rp.permission_id
+                  WHERE rp.role_id = '$role_id' 
+                  AND (rp.delete_flag = 0 OR rp.delete_flag IS NULL)
+                  AND (p.delete_flag = 0 OR p.delete_flag IS NULL)
+                  ORDER BY p.permission_group ASC, p.permission_name ASC";
+        
+        $result = mysqli_query($conn, $query);
+        if ($result && mysqli_num_rows($result) > 0) {
+            while ($row = mysqli_fetch_assoc($result)) {
+                $permissions[] = $row;
+            }
+        }
+        return $permissions;
+    }
+}
+
+if (!function_exists('hasPermission')) {
+    function hasPermission($permission_name) {
+        global $permission_names;
+        
+        // If $permission_names is not set, get from session
+        if (!isset($permission_names)) {
+            if (isset($_SESSION['permissions']) && !empty($_SESSION['permissions'])) {
+                $session_perms = $_SESSION['permissions'];
+                if (is_array($session_perms)) {
+                    foreach ($session_perms as $perm) {
+                        if (is_array($perm) && isset($perm['permission_name'])) {
+                            $permission_names[] = $perm['permission_name'];
+                        } elseif (is_string($perm)) {
+                            $permission_names[] = $perm;
+                        }
+                    }
+                }
+            } else {
+                $permission_names = [];
+            }
+        }
+        
+        // Super Admin has all permissions
+        if (isset($_SESSION['role']) && strtolower($_SESSION['role']) === 'super admin') {
+            return true;
+        }
+        
+        return in_array($permission_name, $permission_names);
+    }
+}
+
+// ============================================================
+// Get user data
+// ============================================================
+$user_id = $_SESSION['id'] ?? 0;
+$role_id = $_SESSION['role_id'] ?? 0;
+$role_name = $_SESSION['role'] ?? '';
+$user_profile = getUserProfile($user_id);
+$notification_count = getNotificationCount($user_id);
+$user_permissions = getUserPermissions($role_id);
+$permission_names = array_column($user_permissions, 'permission_name');
 $theme = $_SESSION['theme'] ?? 'light';
 
-// Check if Super Admin
-$is_super_admin = isset($_SESSION['role']) && $_SESSION['role'] === SUPER_ADMIN_ROLE;
-
-// Check if Admin
-$is_admin = isset($_SESSION['role']) && ($_SESSION['role'] === ADMIN_ROLE || $_SESSION['role'] === 'admin');
-
-// Get current page
-$current_page = basename($_SERVER['PHP_SELF']);
-
-// Dashboard subtitle based on role
-$dashboard_subtitle = $is_super_admin ? 'Super Admin Dashboard' : ($is_admin ? 'Admin Dashboard' : 'Dashboard');
-
-// Quick actions based on permissions
-$quick_actions = [];
-if (hasPermission('patient-view')) {
-    $quick_actions[] = ['label' => 'Patients', 'icon' => 'fa-user', 'url' => 'patients.php'];
-}
-if (hasPermission('appointment-view')) {
-    $quick_actions[] = ['label' => 'Appointments', 'icon' => 'fa-calendar-check', 'url' => 'appointments.php'];
-}
-if (hasPermission('doctor-view')) {
-    $quick_actions[] = ['label' => 'Doctors', 'icon' => 'fa-user-md', 'url' => 'doctors.php'];
-}
-if (hasPermission('department-view')) {
-    $quick_actions[] = ['label' => 'Departments', 'icon' => 'fa-building', 'url' => 'departments.php'];
+// Store permissions in session for future use
+if (!isset($_SESSION['permissions']) || empty($_SESSION['permissions'])) {
+    $_SESSION['permissions'] = $permission_names;
 }
 ?>
 
 <style>
-    /* ============================================================
-       HEADER STYLES - PROFESSIONAL & RESPONSIVE
-       ============================================================ */
-    .header-container {
-        background: #ffffff;
-        border-bottom: 1px solid #e2e8f0;
-        padding: 0.5rem 1rem;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        min-height: 64px;
-        position: sticky;
-        top: 0;
-        z-index: 100;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-        width: 100%;
-    }
+.dynamic-header {
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 70px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: margin-left 0.3s ease;
+}
 
-    .header-left {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        flex: 1;
-        min-width: 0;
-    }
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
 
-    .header-brand {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        text-decoration: none;
-        flex-shrink: 0;
-    }
+.header-left .hamburger {
+    display: none;
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    color: #475569;
+    cursor: pointer;
+    padding: 8px;
+}
 
-    .header-brand .brand-logo {
-        width: 36px;
-        height: 36px;
-        border-radius: 8px;
-        object-fit: cover;
-        border: 1px solid #e2e8f0;
-        flex-shrink: 0;
-    }
+.header-left .breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
 
-    .header-brand .brand-icon {
-        width: 36px;
-        height: 36px;
-        border-radius: 8px;
-        background: linear-gradient(135deg, #3b82f6, #2563eb);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 1rem;
-        font-weight: 700;
-        flex-shrink: 0;
-        box-shadow: 0 4px 12px rgba(59,130,246,0.25);
-    }
+.header-left .breadcrumb a {
+    color: #3b82f6;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
 
-    .header-brand .brand-icon.superadmin {
-        background: linear-gradient(135deg, #f59e0b, #d97706);
-        box-shadow: 0 4px 12px rgba(245,158,11,0.3);
-    }
+.header-left .breadcrumb a:hover {
+    color: #2563eb;
+}
 
-    .header-brand-text {
-        min-width: 0;
-        flex: 1;
-    }
+.header-left .breadcrumb .separator {
+    color: #cbd5e1;
+    font-size: 0.6rem;
+}
 
-    .header-brand-text h1 {
-        font-size: 1rem;
-        font-weight: 700;
-        color: #1e293b;
-        margin: 0;
-        line-height: 1.2;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
+.header-left .breadcrumb .current {
+    color: #1e293b;
+    font-weight: 500;
+}
 
-    .header-brand-text p {
-        font-size: 0.65rem;
-        color: #94a3b8;
-        margin: 0;
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
 
-    .header-brand-text p.superadmin {
-        color: #f59e0b;
-        font-weight: 600;
-    }
+.header-right .nav-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
 
-    .header-divider {
-        width: 1px;
-        height: 28px;
-        background: #e2e8f0;
-        flex-shrink: 0;
-    }
+.header-right .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: #64748b;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    font-size: 0.85rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+}
 
-    /* Quick Actions */
-    .header-quick-actions {
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        flex-wrap: wrap;
-        flex: 1;
-    }
+.header-right .nav-link:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+}
 
-    .quick-action-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.3rem;
-        padding: 0.3rem 0.6rem;
-        border-radius: 6px;
-        font-size: 0.7rem;
-        font-weight: 500;
-        color: #475569;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        text-decoration: none;
-        transition: all 0.2s ease;
-        white-space: nowrap;
-    }
+.header-right .nav-link i {
+    font-size: 1.1rem;
+}
 
-    .quick-action-btn:hover {
-        background: #eff6ff;
-        border-color: #3b82f6;
-        color: #3b82f6;
-        transform: translateY(-1px);
-    }
+.header-right .nav-link .badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: #dc2626;
+    color: white;
+    font-size: 0.6rem;
+    padding: 2px 6px;
+    border-radius: 10px;
+    min-width: 18px;
+    text-align: center;
+    transform: translate(4px, -4px);
+}
 
-    .quick-action-btn i {
-        font-size: 0.65rem;
-        color: #94a3b8;
-    }
+.header-right .nav-link .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
 
-    .quick-action-btn:hover i {
-        color: #3b82f6;
-    }
+.header-right .nav-link .avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
 
-    .header-right {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-        flex-shrink: 0;
-    }
+.header-right .dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    min-width: 240px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.12);
+    padding: 8px 0;
+    display: none;
+    margin-top: 8px;
+    z-index: 1000;
+}
 
-    .header-date {
-        font-size: 0.75rem;
-        color: #94a3b8;
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-        white-space: nowrap;
-    }
+.header-right .dropdown-menu.open {
+    display: block;
+    animation: slideDown 0.2s ease;
+}
 
-    .header-date i {
-        color: #cbd5e1;
-    }
+.header-right .dropdown-menu .dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    color: #475569;
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+}
 
-    /* Profile Button */
-    .profile-btn {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.25rem 0.5rem 0.25rem 0.25rem;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        text-decoration: none;
-        color: inherit;
-        position: relative;
-        flex-shrink: 0;
-    }
+.header-right .dropdown-menu .dropdown-item:hover {
+    background: #f8fafc;
+    color: #1e293b;
+}
 
-    .profile-btn:hover {
-        background: #f1f5f9;
-        border-color: #cbd5e1;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    }
+.header-right .dropdown-menu .dropdown-item i {
+    width: 20px;
+    text-align: center;
+    color: #94a3b8;
+}
 
-    .profile-btn .avatar {
-        width: 30px;
-        height: 30px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #3b82f6, #2563eb);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-weight: 700;
-        font-size: 0.7rem;
-        flex-shrink: 0;
-        overflow: hidden;
-    }
+.header-right .dropdown-menu .dropdown-divider {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 4px 12px;
+}
 
-    .profile-btn .avatar.superadmin {
-        background: linear-gradient(135deg, #f59e0b, #d97706);
-    }
+.header-right .dropdown-menu .dropdown-header {
+    padding: 8px 16px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #94a3b8;
+}
 
-    .profile-btn .avatar img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
 
-    .profile-btn .info {
-        display: flex;
-        flex-direction: column;
-        gap: 0.05rem;
-        min-width: 0;
+@media (max-width: 768px) {
+    .dynamic-header {
+        padding: 10px 16px;
     }
-
-    .profile-btn .info .name {
-        font-size: 0.75rem;
-        font-weight: 600;
-        color: #1e293b;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 80px;
-    }
-
-    .profile-btn .info .role {
-        font-size: 0.6rem;
-        color: #94a3b8;
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 80px;
-    }
-
-    .profile-btn .info .role.superadmin {
-        color: #f59e0b;
-        font-weight: 600;
-    }
-
-    .profile-btn .chevron {
-        font-size: 0.6rem;
-        color: #94a3b8;
-        transition: transform 0.3s ease;
-    }
-
-    .profile-btn .chevron.open {
-        transform: rotate(180deg);
-    }
-
-    /* Profile Dropdown */
-    .profile-dropdown {
-        position: absolute;
-        top: calc(100% + 8px);
-        right: 0;
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 12px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-        min-width: 220px;
-        z-index: 1000;
-        display: none;
-        overflow: hidden;
-        animation: slideDown 0.2s ease;
-    }
-
-    .profile-dropdown.active {
+    
+    .header-left .hamburger {
         display: block;
     }
-
-    @keyframes slideDown {
-        from {
-            opacity: 0;
-            transform: translateY(-10px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    .profile-dropdown-header {
-        padding: 1rem;
-        border-bottom: 1px solid #e2e8f0;
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-    }
-
-    .profile-dropdown-header .avatar {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #3b82f6, #2563eb);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-weight: 700;
-        font-size: 0.9rem;
-        flex-shrink: 0;
-        overflow: hidden;
-    }
-
-    .profile-dropdown-header .avatar.superadmin {
-        background: linear-gradient(135deg, #f59e0b, #d97706);
-    }
-
-    .profile-dropdown-header .avatar img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-
-    .profile-dropdown-header .info h4 {
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: #1e293b;
-        margin: 0;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    .profile-dropdown-header .info p {
-        font-size: 0.7rem;
-        color: #94a3b8;
-        margin: 0;
-        text-transform: uppercase;
-        letter-spacing: 0.3px;
-    }
-
-    .profile-dropdown-header .info p.superadmin {
-        color: #f59e0b;
-        font-weight: 600;
-    }
-
-    .profile-dropdown-body {
-        padding: 0.25rem 0;
-    }
-
-    .profile-dropdown-item {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.5rem 1rem;
-        color: #475569;
-        text-decoration: none;
-        font-size: 0.8rem;
-        transition: all 0.2s ease;
-        cursor: pointer;
-    }
-
-    .profile-dropdown-item:hover {
-        background: #f8fafc;
-        color: #3b82f6;
-    }
-
-    .profile-dropdown-item i {
-        width: 18px;
-        text-align: center;
-        font-size: 0.85rem;
-        color: #94a3b8;
-    }
-
-    .profile-dropdown-item:hover i {
-        color: #3b82f6;
-    }
-
-    .profile-dropdown-footer {
-        padding: 0.25rem 0;
-        border-top: 1px solid #e2e8f0;
-    }
-
-    .profile-dropdown-logout {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.5rem 1rem;
-        color: #dc2626;
-        text-decoration: none;
-        font-size: 0.8rem;
-        transition: all 0.2s ease;
-        cursor: pointer;
-    }
-
-    .profile-dropdown-logout:hover {
-        background: #fef2f2;
-    }
-
-    .profile-dropdown-logout i {
-        width: 18px;
-        text-align: center;
-        color: #dc2626;
-    }
-
-    .profile-dropdown-divider {
-        height: 1px;
-        background: #e2e8f0;
-        margin: 0.25rem 0;
-    }
-
-    /* ============================================================
-       RESPONSIVE DESIGN
-       ============================================================ */
     
-    /* Tablet */
-    @media (max-width: 1024px) {
-        .header-quick-actions {
-            display: none;
-        }
-        .header-divider {
-            display: none;
-        }
-        .header-brand-text h1 {
-            font-size: 0.9rem;
-        }
-        .header-brand-text p {
-            font-size: 0.6rem;
-        }
-        .header-date {
-            font-size: 0.7rem;
-        }
-        .profile-btn .info .name {
-            max-width: 60px;
-        }
-        .profile-btn .info .role {
-            max-width: 60px;
-        }
+    .header-left .breadcrumb {
+        font-size: 0.7rem;
     }
-
-    /* Mobile */
-    @media (max-width: 768px) {
-        .header-container {
-            padding: 0.4rem 0.75rem;
-            min-height: 56px;
-        }
-        .header-brand .brand-logo {
-            width: 30px;
-            height: 30px;
-        }
-        .header-brand .brand-icon {
-            width: 30px;
-            height: 30px;
-            font-size: 0.85rem;
-        }
-        .header-brand-text h1 {
-            font-size: 0.8rem;
-        }
-        .header-brand-text p {
-            display: none;
-        }
-        .header-date {
-            display: none;
-        }
-        .profile-btn .info {
-            display: none;
-        }
-        .profile-btn {
-            padding: 0.2rem;
-            border: none;
-            background: transparent;
-        }
-        .profile-btn:hover {
-            background: transparent;
-            box-shadow: none;
-        }
-        .profile-btn .avatar {
-            width: 28px;
-            height: 28px;
-            font-size: 0.65rem;
-        }
-        .profile-dropdown {
-            min-width: 200px;
-            right: -5px;
-        }
-        .header-left {
-            gap: 0.5rem;
-        }
-        .header-right {
-            gap: 0.5rem;
-        }
-    }
-
-    /* Small Mobile */
-    @media (max-width: 480px) {
-        .header-container {
-            padding: 0.3rem 0.5rem;
-            min-height: 48px;
-        }
-        .header-brand .brand-logo {
-            width: 26px;
-            height: 26px;
-        }
-        .header-brand .brand-icon {
-            width: 26px;
-            height: 26px;
-            font-size: 0.7rem;
-        }
-        .header-brand-text h1 {
-            font-size: 0.7rem;
-        }
-        .profile-btn .avatar {
-            width: 24px;
-            height: 24px;
-            font-size: 0.55rem;
-        }
-        .profile-dropdown {
-            min-width: 180px;
-            right: -5px;
-        }
-    }
-
-    /* Hamburger Menu Button for Mobile */
-    .mobile-menu-btn {
+    
+    .header-right .nav-link .label {
         display: none;
-        background: none;
-        border: none;
-        color: #475569;
-        font-size: 1.2rem;
-        cursor: pointer;
-        padding: 0.25rem;
     }
-
-    @media (max-width: 768px) {
-        .mobile-menu-btn {
-            display: block;
-        }
-    }
+}
 </style>
 
-<!-- ============================================================
-HEADER HTML
-============================================================ -->
-<header class="header-container">
+<header class="dynamic-header">
     <!-- Left Side -->
     <div class="header-left">
-        <!-- Mobile Menu Button -->
-        <button class="mobile-menu-btn" id="mobileMenuBtn">
+        <button class="hamburger" onclick="toggleMobileSidebar()">
             <i class="fas fa-bars"></i>
         </button>
-
-        <a class="header-brand" href="dashboard.php">
-            <?php if ($hospital_logo): ?>
-                <img alt="Hospital Logo" src="<?php echo htmlspecialchars($hospital_logo); ?>" class="brand-logo" />
-            <?php else: ?>
-                <div class="brand-icon <?php echo $is_super_admin ? 'superadmin' : ''; ?>">
-                    <?php if ($is_super_admin): ?>
-                        <i class="fas fa-crown"></i>
-                    <?php else: ?>
-                        <i class="fas fa-hospital"></i>
-                    <?php endif; ?>
-                </div>
-            <?php endif; ?>
-            <div class="header-brand-text">
-                <h1><?php echo htmlspecialchars($hospital_name); ?></h1>
-                <p class="<?php echo $is_super_admin ? 'superadmin' : ''; ?>">
-                    <?php echo $is_super_admin ? 'Super Admin Panel' : $dashboard_subtitle; ?>
-                </p>
-            </div>
-        </a>
-
-        <?php if (!empty($quick_actions)): ?>
-            <div class="header-divider"></div>
-            <div class="header-quick-actions">
-                <?php foreach ($quick_actions as $action): ?>
-                    <a href="<?php echo htmlspecialchars($action['url']); ?>" class="quick-action-btn">
-                        <i class="fas <?php echo htmlspecialchars($action['icon']); ?>"></i>
-                        <?php echo htmlspecialchars($action['label']); ?>
-                    </a>
-                <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
+        <div class="breadcrumb">
+            <a href="dashboard.php"><i class="fas fa-home"></i></a>
+            <span class="separator">/</span>
+            <?php
+            // Generate breadcrumb from current URL
+            $current_url = $_SERVER['REQUEST_URI'];
+            $current_page = basename($current_url, '.php');
+            $page_title = ucwords(str_replace(['_', '-'], ' ', $current_page));
+            ?>
+            <span class="current"><?php echo $page_title ?: 'Dashboard'; ?></span>
+        </div>
     </div>
 
     <!-- Right Side -->
     <div class="header-right">
-        <div class="header-date">
-            <i class="fas fa-calendar-alt"></i>
-            <?php echo date('M d, Y'); ?>
+        <!-- Theme Toggle -->
+        <div class="nav-item">
+            <button class="nav-link" onclick="toggleTheme()" title="Toggle Theme">
+                <i class="fas <?php echo $theme == 'dark' ? 'fa-sun' : 'fa-moon'; ?>"></i>
+            </button>
         </div>
 
-        <!-- Profile Button -->
-        <div style="position: relative;">
-            <button class="profile-btn" id="profileBtn">
-                <div class="avatar <?php echo $is_super_admin ? 'superadmin' : ''; ?>">
-                    <?php if (!empty($profile_image) && file_exists($profile_image)): ?>
-                        <img src="<?php echo htmlspecialchars($profile_image); ?>" alt="Profile">
-                    <?php else: ?>
-                        <?php echo strtoupper(substr($user_name, 0, 1)); ?>
-                    <?php endif; ?>
-                </div>
-                <div class="info">
-                    <span class="name"><?php echo htmlspecialchars($user_name); ?></span>
-                    <span class="role <?php echo $is_super_admin ? 'superadmin' : ''; ?>">
-                        <?php echo htmlspecialchars($user_role); ?>
-                    </span>
-                </div>
-                <i class="fas fa-chevron-down chevron" id="chevronIcon"></i>
+        <!-- Notifications -->
+        <?php if (hasPermission('notifications-view')): ?>
+        <div class="nav-item">
+            <button class="nav-link" onclick="toggleDropdown('notificationDropdown')" title="Notifications">
+                <i class="fas fa-bell"></i>
+                <?php if ($notification_count > 0): ?>
+                <span class="badge"><?php echo $notification_count; ?></span>
+                <?php endif; ?>
             </button>
-
-            <!-- Profile Dropdown -->
-            <div class="profile-dropdown" id="profileDropdown">
-                <!-- Header -->
-                <div class="profile-dropdown-header">
-                    <div class="avatar <?php echo $is_super_admin ? 'superadmin' : ''; ?>">
-                        <?php if (!empty($profile_image) && file_exists($profile_image)): ?>
-                            <img src="<?php echo htmlspecialchars($profile_image); ?>" alt="Profile">
-                        <?php else: ?>
-                            <?php echo strtoupper(substr($user_name, 0, 1)); ?>
-                        <?php endif; ?>
-                    </div>
-                    <div class="info">
-                        <h4><?php echo htmlspecialchars($user_name); ?></h4>
-                        <p class="<?php echo $is_super_admin ? 'superadmin' : ''; ?>">
-                            <?php echo htmlspecialchars($user_role); ?>
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Body -->
-                <div class="profile-dropdown-body">
-                    <a href="update_adminprofile.php" class="profile-dropdown-item">
-                        <i class="fas fa-user"></i>
-                        <span>My Profile</span>
-                    </a>
-                    
-                    <?php if (hasPermission('system-settings') || $is_super_admin): ?>
-                    <a href="settings.php" class="profile-dropdown-item">
-                        <i class="fas fa-cog"></i>
-                        <span>Settings</span>
-                    </a>
+            <div class="dropdown-menu" id="notificationDropdown">
+                <div class="dropdown-header">
+                    Notifications
+                    <?php if ($notification_count > 0): ?>
+                    <span style="float:right;color:#3b82f6;cursor:pointer;" onclick="markAllRead()">Mark all read</span>
                     <?php endif; ?>
                 </div>
+                <div class="dropdown-divider"></div>
+                <div class="dropdown-item" style="justify-content:center;color:#94a3b8;">
+                    <i class="fas fa-check-circle"></i> No new notifications
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
 
-                <?php if ($is_super_admin): ?>
-                <div class="profile-dropdown-divider"></div>
-                <div class="profile-dropdown-body">
-                    <a href="superadmin/dashboard.php" class="profile-dropdown-item">
-                        <i class="fas fa-crown"></i>
-                        <span>Super Admin Dashboard</span>
-                    </a>
+        <!-- Reports - Only if user has permission -->
+        <?php if (hasPermission('reports-view')): ?>
+        <div class="nav-item">
+            <button class="nav-link" onclick="toggleDropdown('reportsDropdown')" title="Reports">
+                <i class="fas fa-chart-bar"></i>
+                <span class="label">Reports</span>
+            </button>
+            <div class="dropdown-menu" id="reportsDropdown">
+                <div class="dropdown-header">Reports</div>
+                <div class="dropdown-divider"></div>
+                <?php if (hasPermission('reports-patient')): ?>
+                <a href="reports/patients.php" class="dropdown-item">
+                    <i class="fas fa-user-injured"></i> Patient Reports
+                </a>
+                <?php endif; ?>
+                <?php if (hasPermission('reports-appointment')): ?>
+                <a href="reports/appointments.php" class="dropdown-item">
+                    <i class="fas fa-calendar-check"></i> Appointment Reports
+                </a>
+                <?php endif; ?>
+                <?php if (hasPermission('reports-billing')): ?>
+                <a href="reports/billing.php" class="dropdown-item">
+                    <i class="fas fa-file-invoice-dollar"></i> Billing Reports
+                </a>
+                <?php endif; ?>
+                <?php if (hasPermission('reports-financial')): ?>
+                <a href="reports/financial.php" class="dropdown-item">
+                    <i class="fas fa-coins"></i> Financial Reports
+                </a>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- User Profile -->
+        <div class="nav-item">
+            <button class="nav-link" onclick="toggleDropdown('profileDropdown')" title="Profile">
+                <?php if (!empty($user_profile['profile_image'])): ?>
+                <div class="avatar">
+                    <img src="<?php echo htmlspecialchars($user_profile['profile_image']); ?>" alt="Profile">
+                </div>
+                <?php else: ?>
+                <div class="avatar">
+                    <?php echo strtoupper(substr($user_profile['name'] ?? 'U', 0, 1)); ?>
                 </div>
                 <?php endif; ?>
-
-                <!-- Footer -->
-                <div class="profile-dropdown-footer">
-                    <a href="../auth/Logout.php" class="profile-dropdown-logout">
-                        <i class="fas fa-sign-out-alt"></i>
-                        <span>Logout</span>
-                    </a>
+                <span class="label"><?php echo htmlspecialchars($user_profile['name'] ?? 'User'); ?></span>
+                <i class="fas fa-chevron-down" style="font-size:0.6rem;color:#94a3b8;"></i>
+            </button>
+            <div class="dropdown-menu" id="profileDropdown">
+                <div class="dropdown-header">
+                    <?php echo htmlspecialchars($user_profile['name'] ?? 'User'); ?>
+                    <div style="font-weight:400;font-size:0.75rem;color:#94a3b8;text-transform:capitalize;">
+                        <?php echo htmlspecialchars($role_name); ?>
+                    </div>
                 </div>
+                <div class="dropdown-divider"></div>
+                <a href="update_adminprofile.php" class="dropdown-item">
+                    <i class="fas fa-user"></i> My Profile
+                </a>
+                <a href="change_password.php" class="dropdown-item">
+                    <i class="fas fa-key"></i> Change Password
+                </a>
+                <?php if (hasPermission('system-settings') || strtolower($role_name) == 'super admin'): ?>
+                <div class="dropdown-divider"></div>
+                <a href="settings.php" class="dropdown-item">
+                    <i class="fas fa-cog"></i> Settings
+                </a>
+                <?php endif; ?>
+                <?php if (hasPermission('system-users') || strtolower($role_name) == 'super admin'): ?>
+                <a href="register.php" class="dropdown-item">
+                    <i class="fas fa-users-cog"></i> User Management
+                </a>
+                <?php endif; ?>
+                <div class="dropdown-divider"></div>
+                <a href="auth/Logout.php" class="dropdown-item" style="color:#dc2626;">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
             </div>
         </div>
     </div>
 </header>
 
-<!-- ============================================================
-JAVASCRIPT
-============================================================ -->
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Profile Dropdown
-        const profileBtn = document.getElementById('profileBtn');
-        const profileDropdown = document.getElementById('profileDropdown');
-        const chevronIcon = document.getElementById('chevronIcon');
+/**
+ * Toggle dropdown menu
+ */
+function toggleDropdown(id) {
+    const dropdown = document.getElementById(id);
+    if (!dropdown) return;
+    
+    // Close all other dropdowns
+    document.querySelectorAll('.dropdown-menu').forEach(d => {
+        if (d.id !== id) d.classList.remove('open');
+    });
+    
+    dropdown.classList.toggle('open');
+}
 
-        if (profileBtn && profileDropdown) {
-            profileBtn.addEventListener('click', function(e) {
-                e.stopPropagation();
-                profileDropdown.classList.toggle('active');
-                if (chevronIcon) {
-                    chevronIcon.classList.toggle('open');
-                }
-            });
+/**
+ * Close all dropdowns on click outside
+ */
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.nav-item')) {
+        document.querySelectorAll('.dropdown-menu').forEach(d => {
+            d.classList.remove('open');
+        });
+    }
+});
 
-            // Close dropdown when clicking outside
-            document.addEventListener('click', function(event) {
-                if (!profileBtn.contains(event.target) && !profileDropdown.contains(event.target)) {
-                    profileDropdown.classList.remove('active');
-                    if (chevronIcon) {
-                        chevronIcon.classList.remove('open');
-                    }
-                }
-            });
+/**
+ * Toggle theme
+ */
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    
+    document.documentElement.setAttribute('data-theme', newTheme);
+    document.cookie = 'theme=' + newTheme + '; path=/; max-age=31536000';
+    
+    // Update icon
+    const btn = document.querySelector('[onclick="toggleTheme()"]');
+    if (btn) {
+        btn.innerHTML = '<i class="fas fa-' + (newTheme === 'dark' ? 'sun' : 'moon') + '"></i>';
+    }
+    
+    // Apply theme to body
+    if (newTheme === 'dark') {
+        document.body.style.background = '#0f172a';
+        document.body.style.color = '#e2e8f0';
+    } else {
+        document.body.style.background = '#f0f2f5';
+        document.body.style.color = '#1e293b';
+    }
+}
 
-            // Close dropdown on Escape key
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape' && profileDropdown.classList.contains('active')) {
-                    profileDropdown.classList.remove('active');
-                    if (chevronIcon) {
-                        chevronIcon.classList.remove('open');
-                    }
-                }
-            });
-        }
+/**
+ * Toggle mobile sidebar
+ */
+function toggleMobileSidebar() {
+    const sidebar = document.getElementById('sidebar-container');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (sidebar) {
+        sidebar.classList.toggle('active');
+        if (overlay) overlay.classList.toggle('active');
+        document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
+    }
+}
 
-        // Mobile Menu Toggle (for sidebar)
-        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-        const sidebarContainer = document.getElementById('sidebar-container');
-        const sidebarOverlay = document.getElementById('sidebarOverlay');
-
-        if (mobileMenuBtn && sidebarContainer && sidebarOverlay) {
-            mobileMenuBtn.addEventListener('click', function() {
-                sidebarContainer.classList.toggle('active');
-                sidebarOverlay.classList.toggle('active');
-            });
+/**
+ * Mark all notifications as read
+ */
+function markAllRead() {
+    fetch('ajax/mark_notifications_read.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all: true })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const badge = document.querySelector('.badge');
+            if (badge) badge.remove();
+            location.reload();
         }
     });
+}
+
+// Close dropdowns on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.dropdown-menu').forEach(d => d.classList.remove('open'));
+    }
+});
 </script>

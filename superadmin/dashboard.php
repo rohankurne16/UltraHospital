@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// SUPER ADMIN DASHBOARD
+// SUPER ADMIN DASHBOARD - WITHOUT getCount() function
 // ============================================================
 
 // Start session
@@ -8,52 +8,108 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Include superadmin config
-include '../config/superadmin.php';
+// Include config with correct path
+require_once '../config/permission.php';
 
 // Check if user is Super Admin
 checkSuperAdminLogin();
 
 // Log dashboard access
-logAudit('Dashboard', 'Dashboard page accessed by Super Admin');
+logAudit('Dashboard', 'Super Admin accessed dashboard');
 
 // Force light theme
 $_SESSION['theme'] = 'light';
 $theme = 'light';
 
 // ============================================================
-// STATISTICS
+// STATISTICS - Using direct SQL queries
 // ============================================================
-$total_hospitals = getCount('hospital_master');
-$active_hospitals = getCount('hospital_master', null, "status = 'Active'");
-$inactive_hospitals = getCount('hospital_master', null, "status = 'Inactive'");
-$total_admins = getCount('hospital_admin');
-$total_doctors = getCount('doctor');
-$total_departments = getCount('department');
-$total_staff = getCount('staff');
-$total_patients = getCount('patients');
-$total_appointments = getCount('appointments');
-$total_ipd = getCount('ipd_admissions');
-$total_opd = getCount('opd');
-$total_users = getCount('register', null, "role != 'SuperAdmin'");
 
-// Subscriptions
-$active_subscriptions = getCount('subscriptions', null, "status = 'Active'");
-$expiring_subscriptions = getCount('subscriptions', null, "status = 'Active' AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)");
-$expired_subscriptions = getCount('subscriptions', null, "status = 'Expired'");
-$total_subscriptions = getCount('subscriptions');
+// Total Hospitals
+$query = "SELECT COUNT(*) as total FROM hospital_master WHERE delete_flag = 0";
+$result = mysqli_query($conn, $query);
+$total_hospitals = mysqli_fetch_assoc($result)['total'] ?? 0;
+
+// Active Hospitals
+$query = "SELECT COUNT(*) as total FROM hospital_master WHERE delete_flag = 0 AND status = 'Active'";
+$result = mysqli_query($conn, $query);
+$active_hospitals = mysqli_fetch_assoc($result)['total'] ?? 0;
+
+// Inactive Hospitals
+$query = "SELECT COUNT(*) as total FROM hospital_master WHERE delete_flag = 0 AND status = 'Inactive'";
+$result = mysqli_query($conn, $query);
+$inactive_hospitals = mysqli_fetch_assoc($result)['total'] ?? 0;
+
+// Total Admins
+$query = "SELECT COUNT(*) as total FROM hospital_admin WHERE delete_flag = 0";
+$result = mysqli_query($conn, $query);
+$total_admins = mysqli_fetch_assoc($result)['total'] ?? 0;
+
+// Total Doctors
+$query = "SELECT COUNT(*) as total FROM doctor WHERE delete_flag = 0";
+$result = mysqli_query($conn, $query);
+$total_doctors = mysqli_fetch_assoc($result)['total'] ?? 0;
+
+// Total Departments
+$query = "SELECT COUNT(*) as total FROM department WHERE delete_flag = 0";
+$result = mysqli_query($conn, $query);
+$total_departments = mysqli_fetch_assoc($result)['total'] ?? 0;
+
+// Total Staff
+$query = "SELECT COUNT(*) as total FROM staff WHERE delete_flag = 0";
+$result = mysqli_query($conn, $query);
+$total_staff = mysqli_fetch_assoc($result)['total'] ?? 0;
+
+// Total Patients
+$query = "SELECT COUNT(*) as total FROM patients WHERE delete_flag = 0";
+$result = mysqli_query($conn, $query);
+$total_patients = mysqli_fetch_assoc($result)['total'] ?? 0;
+
+// Total Appointments
+$query = "SELECT COUNT(*) as total FROM appointments WHERE delete_flag = 0";
+$result = mysqli_query($conn, $query);
+$total_appointments = mysqli_fetch_assoc($result)['total'] ?? 0;
+
+// Total IPD
+$query = "SELECT COUNT(*) as total FROM ipd_admissions WHERE delete_flag = 0";
+$result = mysqli_query($conn, $query);
+$total_ipd = mysqli_fetch_assoc($result)['total'] ?? 0;
+
+// Total OPD
+$query = "SELECT COUNT(*) as total FROM opd WHERE delete_flag = 0";
+$result = mysqli_query($conn, $query);
+$total_opd = mysqli_fetch_assoc($result)['total'] ?? 0;
+
+// Total Users
+$query = "SELECT COUNT(*) as total FROM register WHERE delete_flag = 0 AND role != 'SuperAdmin'";
+$result = mysqli_query($conn, $query);
+$total_users = mysqli_fetch_assoc($result)['total'] ?? 0;
+
+// Active Subscriptions
+$query = "SELECT COUNT(*) as total FROM subscriptions WHERE delete_flag = 0 AND status = 'Active'";
+$result = mysqli_query($conn, $query);
+$active_subscriptions = mysqli_fetch_assoc($result)['total'] ?? 0;
+
+// Expiring Subscriptions
+$query = "SELECT COUNT(*) as total FROM subscriptions WHERE delete_flag = 0 AND status = 'Active' AND expiry_date <= DATE_ADD(CURDATE(), INTERVAL 30 DAY)";
+$result = mysqli_query($conn, $query);
+$expiring_subscriptions = mysqli_fetch_assoc($result)['total'] ?? 0;
+
+// Expired Subscriptions
+$query = "SELECT COUNT(*) as total FROM subscriptions WHERE delete_flag = 0 AND status = 'Expired'";
+$result = mysqli_query($conn, $query);
+$expired_subscriptions = mysqli_fetch_assoc($result)['total'] ?? 0;
+
+// Total Subscriptions
+$query = "SELECT COUNT(*) as total FROM subscriptions WHERE delete_flag = 0";
+$result = mysqli_query($conn, $query);
+$total_subscriptions = mysqli_fetch_assoc($result)['total'] ?? 0;
 
 // Today's logins
 $today = date('Y-m-d');
-$today_logins_query = "SELECT COUNT(*) as total FROM login_logs WHERE DATE(login_time) = '$today'";
-$today_logins_result = mysqli_query($conn, $today_logins_query);
-
-if ($today_logins_result && mysqli_num_rows($today_logins_result) > 0) {
-    $today_logins_row = mysqli_fetch_assoc($today_logins_result);
-    $today_logins = $today_logins_row['total'] ?? 0;
-} else {
-    $today_logins = 0;
-}
+$query = "SELECT COUNT(*) as total FROM login_logs WHERE DATE(login_time) = '$today'";
+$result = mysqli_query($conn, $query);
+$today_logins = mysqli_fetch_assoc($result)['total'] ?? 0;
 
 // ============================================================
 // HOSPITAL OVERVIEW TABLE DATA
@@ -124,12 +180,7 @@ $audit_logs_query = "SELECT
         WHEN r.name IS NULL THEN CONCAT('User #', a.register_id)
         ELSE r.name 
     END as user_name,
-    COALESCE(h.hospital_name, 'N/A') as hospital_name,
-    CASE 
-        WHEN a.hospital_id IS NULL OR a.hospital_id = 0 THEN 'System'
-        WHEN h.hospital_name IS NULL THEN CONCAT('Hospital #', a.hospital_id)
-        ELSE h.hospital_name 
-    END as hospital_display
+    COALESCE(h.hospital_name, 'N/A') as hospital_name
 FROM audit_logs a
 LEFT JOIN register r ON a.register_id = r.id
 LEFT JOIN hospital_master h ON a.hospital_id = h.hospital_id
@@ -141,6 +192,7 @@ $audit_logs_result = mysqli_query($conn, $audit_logs_query);
 // Get user name
 $user_name = $_SESSION['name'] ?? 'Super Admin';
 ?>
+<!-- Rest of HTML remains the same -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -153,6 +205,7 @@ $user_name = $_SESSION['name'] ?? 'Super Admin';
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1e293b; }
 
+        /* Sidebar */
         .sidebar {
             position: fixed; top: 0; left: 0; height: 100vh; width: 250px; 
             padding: 1rem 0.75rem; overflow-y: auto; z-index: 1000; 
@@ -292,14 +345,12 @@ $user_name = $_SESSION['name'] ?? 'Super Admin';
             font-size: 0.75rem; font-weight: 500; background: #f1f5f9; color: #475569;
         }
         .user-badge.superadmin { background: #fef3c7; color: #b45309; }
-        .user-badge.unknown { background: #fee2e2; color: #dc2626; }
 
         .hospital-badge {
             display: inline-block; padding: 0.2rem 0.7rem; border-radius: 6px;
             font-size: 0.75rem; font-weight: 500; background: #f1f5f9; color: #475569;
         }
         .hospital-badge.system { background: #fef3c7; color: #b45309; }
-        .hospital-badge.unknown { background: #fee2e2; color: #dc2626; }
 
         .btn {
             display: inline-flex; align-items: center; gap: 0.4rem;
@@ -323,10 +374,15 @@ $user_name = $_SESSION['name'] ?? 'Super Admin';
 </head>
 <body>
 
-<?php include 'sidebar.php'; ?>
+<!-- ============================================================
+SIDEBAR - SUPER ADMIN
+============================================================ -->
+<?php include('sidebar.php') ?>
 
-<!-- Main Content -->
-<div class="main-content">
+<!-- ============================================================
+MAIN CONTENT
+============================================================ -->
+<div class="main-content" id="mainContent">
     
     <!-- Header -->
     <div class="header">
@@ -428,9 +484,7 @@ $user_name = $_SESSION['name'] ?? 'Super Admin';
         </div>
     </div>
 
-    <!-- ============================================================
-         HOSPITAL OVERVIEW TABLE
-         ============================================================ -->
+    <!-- Hospital Overview Table -->
     <div class="content-card">
         <div class="card-title"><i class="fas fa-hospital"></i>Hospital Overview</div>
         <div class="table-wrapper">
@@ -497,9 +551,7 @@ $user_name = $_SESSION['name'] ?? 'Super Admin';
         </div>
     </div>
 
-    <!-- ============================================================
-         RECENT HOSPITALS & SUBSCRIPTION SUMMARY
-         ============================================================ -->
+    <!-- Recent Hospitals & Subscription Summary -->
     <div class="grid grid-cols-2">
         <div class="content-card">
             <div class="card-title"><i class="fas fa-clock"></i>Recent Hospitals</div>
@@ -552,9 +604,7 @@ $user_name = $_SESSION['name'] ?? 'Super Admin';
         </div>
     </div>
 
-    <!-- ============================================================
-         RECENT AUDIT LOGS
-         ============================================================ -->
+    <!-- Recent Audit Logs -->
     <div class="content-card">
         <div class="card-title"><i class="fas fa-history"></i>Recent Audit Logs</div>
         <div class="table-wrapper">
@@ -579,7 +629,7 @@ $user_name = $_SESSION['name'] ?? 'Super Admin';
                                     } elseif (!empty($log['user_name'])) {
                                         echo '<span class="user-badge">👤 ' . htmlspecialchars($log['user_name']) . '</span>';
                                     } else {
-                                        echo '<span class="user-badge unknown">❓ User #' . $log['register_id'] . '</span>';
+                                        echo '<span class="user-badge">❓ User #' . $log['register_id'] . '</span>';
                                     }
                                     ?>
                                 </td>
@@ -590,7 +640,7 @@ $user_name = $_SESSION['name'] ?? 'Super Admin';
                                     } elseif (!empty($log['hospital_name']) && $log['hospital_name'] != 'N/A') {
                                         echo '<span class="hospital-badge">🏥 ' . htmlspecialchars($log['hospital_name']) . '</span>';
                                     } else {
-                                        echo '<span class="hospital-badge unknown">🏥 Hospital #' . $log['hospital_id'] . '</span>';
+                                        echo '<span class="hospital-badge">🏥 Hospital #' . $log['hospital_id'] . '</span>';
                                     }
                                     ?>
                                 </td>
@@ -614,7 +664,6 @@ $user_name = $_SESSION['name'] ?? 'Super Admin';
             </table>
         </div>
     </div>
-
 </div>
 
 </body>

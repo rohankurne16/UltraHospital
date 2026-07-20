@@ -1,6 +1,6 @@
 <?php
 session_start();
-include '../config/superadmin.php';
+include '../config/permission.php';
 
 if (!isset($_SESSION['role']) || $_SESSION['role'] != 'SuperAdmin') {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);

@@ -22,15 +22,21 @@ session_start();
             <div class="space-y-3">
                 <a href="<?php 
                     $role = isset($_SESSION['role']) ? strtolower($_SESSION['role']) : '';
-                    if ($role == 'doctor') {
-                        echo 'doctors/dashboard.php';
-                    } elseif ($role == 'admin' || $role == 'superadmin') {
+                   if ($role == 'superadmin') {
+                        echo 'superadmin/dashboard.php';
+
+                    } elseif ($role == 'admin') {
                         echo 'dashboard.php';
+
+                    } elseif ($role == 'doctor') {
+                        echo 'doctors/dashboard.php';
+
                     } elseif (in_array($role, ['nurse', 'receptionist', 'lab_technician', 'pharmacist', 'staff'])) {
                         echo 'staff/staff_dashboard.php';
+
                     } else {
                         echo 'index.php';
-                    }
+                }
                 ?>" class="block w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition">
                     <i class="fas fa-arrow-left mr-2"></i> Go Back to Dashboard
                 </a>

@@ -1,8 +1,9 @@
 <?php
 session_start();
-include '../config/superadmin.php';
 
-if (!isset($_SESSION['role']) || $_SESSION['role'] != 'SuperAdmin') {
+include '../config/permission.php';
+
+if (!isset($_SESSION['role']) || $_SESSION['role'] != 'Super Admin') {
     header("Location: ../login.php");
     exit();
 }

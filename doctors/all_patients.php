@@ -1,4 +1,6 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 session_start();
 include("../config/hospital.php");
 
@@ -35,20 +37,16 @@ $total_pages = ceil($total_records / $records_per_page);
 
 
 
-$sql = "SELECT p.*, 
-               r.name AS register_name, 
-               d.doctor_name,
-               d.doctor_id
-        FROM patients p
-        LEFT JOIN register r ON p.register_id = r.id
-        LEFT JOIN doctor d ON p.doctor_id = d.doctor_id
-        WHERE d.doctor_id = '$doctor_id'
-        ORDER BY p.patient_id DESC
-        LIMIT $offset, $records_per_page";
+$sql = "SELECT *
+        FROM patients
+        WHERE doctor_id = '$doctor_id'
+        AND (delete_flag = 0 OR delete_flag IS NULL)
+        ORDER BY patient_id DESC";
 
-$result = mysqli_query($conn, $sql);
+$patientResult = mysqli_query($conn, $sql);
 
-if (!$result) {
+
+if (!$patientResult) {
     die("Error in main query: " . mysqli_error($conn));
 }
 ?>
@@ -145,6 +143,9 @@ if (!$result) {
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
+    <?php
+echo "<h1 style='color:red'>PAGE LOADED</h1>";
+?>
     <div class="flex min-h-screen flex-col bg-gray-50">
         <!-- Header -->
         <header>
@@ -153,7 +154,7 @@ if (!$result) {
 
         <div class="flex flex-1 items-start">
             <!-- Sidebar Navigation -->
-            <?php include 'Sidebar.php' ?>
+           <?php include 'sidebar.php' ?>
 
             <!-- Main Content -->
             <main class="flex-1 xl:ml-64 p-4 md:p-8">
@@ -263,9 +264,9 @@ if (!$result) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php if(mysqli_num_rows($result) > 0): ?>
+                                    <?php if(mysqli_num_rows($patientResult ) > 0): ?>
                                         <?php $counter = $offset + 1; ?>
-                                        <?php while($row = mysqli_fetch_assoc($result)): ?>
+                                        <?php while($row = mysqli_fetch_assoc($patientResult )): ?>
                                             <tr class="border-b border-gray-100 hover:bg-gray-50 transition-all fade-in">
                                                 <td class="px-4 py-3 font-medium text-gray-500"><?php echo $counter++; ?></td>
                                                 <td class="px-4 py-3">

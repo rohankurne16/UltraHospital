@@ -1,6 +1,6 @@
 <?php
 include_once '../config/hospital.php';
-include_once '../config/superadmin.php';
+include_once '../config/permission.php';
 
 // Check Super Admin login
 checkSuperAdminLogin();
@@ -13,7 +13,7 @@ $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['searc
 $status_filter = isset($_GET['status']) ? mysqli_real_escape_string($conn, $_GET['status']) : '';
 
 // Build WHERE clause
-$where = "h.delete_flag = 0";
+$where = "h.delete_flag = 0 or h.delete_flag is null";
 if ($search) {
     $where .= " AND (h.hospital_name LIKE '%$search%' OR h.hospital_code LIKE '%$search%' OR h.city LIKE '%$search%' OR h.email LIKE '%$search%')";
 }

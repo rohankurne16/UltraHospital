@@ -1,7 +1,7 @@
 <?php
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
-include '../config/superadmin.php';
+include '../config/permission.php';
 checkSuperAdminLogin();
 
 $page_title = 'Edit Hospital Admin';

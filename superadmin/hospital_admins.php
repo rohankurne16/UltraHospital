@@ -1,5 +1,5 @@
 <?php
-include '../config/superadmin.php';
+include '../config/permission.php';
 checkSuperAdminLogin();
 
 $page_title = 'Hospital Admins';
