@@ -124,9 +124,7 @@ $deleted = isset($_GET['deleted']) ? true : false;
             min-height: 100vh;
             transition: all .3s ease;
         }
-        .sidebar:hover ~ .main-content {
-            margin-left: 240px;
-        }
+       
         
         .success-msg {
             background: rgba(34, 197, 94, 0.1);
@@ -138,9 +136,7 @@ $deleted = isset($_GET['deleted']) ? true : false;
         }
         
         @media (max-width: 768px) {
-            .sidebar { width: 56px; }
             .main-content { margin-left: 56px; padding: 1rem; }
-            .sidebar:hover { width: 200px; }
         }
     </style>
 </head>
@@ -259,14 +255,7 @@ $deleted = isset($_GET['deleted']) ? true : false;
         }
     }
 
-    function toggleSidebar() {
-        const sidebar = document.getElementById('sidebar');
-        const mainContent = document.getElementById('mainContent');
-        if (sidebar && mainContent) {
-            sidebar.classList.toggle('closed');
-            mainContent.classList.toggle('collapsed');
-        }
-    }
+   
     </script>
 </body>
 </html>

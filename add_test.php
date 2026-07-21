@@ -7,32 +7,16 @@ if (!isset($_SESSION["id"])) {
     exit();
 }
 
-$hospital_name = $hospital["hospital_name"];
-$hospital_logo = $hospital["hospital_logo"];
-$registered_patients = [];
-$sql_registered = "SELECT patient_id, patient_name FROM patients WHERE (delete_flag = 0 OR delete_flag IS NULL) ORDER BY patient_name";
-$result_registered = $conn->query($sql_registered);
-if ($result_registered && $result_registered->num_rows > 0) {
-    while ($row = $result_registered->fetch_assoc()) {
-        $registered_patients[] = $row;
-    }
+$hospital_data = null;
+$sql_hospital = "SELECT * FROM hospital_master LIMIT 1";
+$result_hospital = $conn->query($sql_hospital);
+if ($result_hospital && $result_hospital->num_rows > 0) {
+    $hospital_data = $result_hospital->fetch_assoc();
 }
+$hospital_name = $hospital_data["hospital_name"] ?? "MedixPro";
+$hospital_logo = $hospital_data["hospital_logo"] ?? "../documents/hospital/logo.png";
 
-$lab_patients = [];
-$sql_lab = "SELECT DISTINCT patient_name FROM lab_tests WHERE (delete_flag = 0 OR delete_flag IS NULL) AND patient_name IS NOT NULL ORDER BY patient_name";
-$result_lab = $conn->query($sql_lab);
-if ($result_lab && $result_lab->num_rows > 0) {
-    while ($row = $result_lab->fetch_assoc()) {
-        $lab_patients[] = $row['patient_name'];
-    }
-}
-
-$all_patient_names = array_unique(array_merge(
-    array_column($registered_patients, 'patient_name'),
-    $lab_patients
-));
-sort($all_patient_names);
-
+// ========== Test Categories with Tests ==========
 $test_categories = [
     'Blood Tests' => [
         'Complete Blood Count (CBC)',
@@ -126,9 +110,8 @@ $test_categories = [
 $errors = [];
 $inserted_tests = [];
 
+// ========== HANDLE FORM SUBMISSION ==========
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $patient_name = mysqli_real_escape_string($conn, trim($_POST['patient_name'] ?? ''));
-    $patient_id = mysqli_real_escape_string($conn, trim($_POST['patient_id'] ?? ''));
     $test_category = mysqli_real_escape_string($conn, trim($_POST['test_category'] ?? ''));
     $test_code = mysqli_real_escape_string($conn, trim($_POST['test_code'] ?? ''));
     $price = trim($_POST['price'] ?? '');
@@ -136,11 +119,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $unit = mysqli_real_escape_string($conn, trim($_POST['unit'] ?? ''));
     $selected_tests = $_POST['selected_tests'] ?? [];
     
-    if (empty($patient_name)) $errors[] = "Patient name is required";
-    if (empty($test_category)) $errors[] = "Test category is required";
+    // Validation
+    if (empty($test_category)) $errors[] = "Test Category is required";
+    if (empty($test_code)) $errors[] = "Test Code is required";
     if (empty($selected_tests)) $errors[] = "Please select at least one test";
-    if (empty($test_code)) $errors[] = "Test code is required";
     
+    // Check for duplicate test_code
+    if (empty($errors)) {
+        $check_sql = "SELECT test_id FROM lab_test_master WHERE test_code = '$test_code' AND (delete_flag = 0 OR delete_flag IS NULL)";
+        $check_result = $conn->query($check_sql);
+        if ($check_result && $check_result->num_rows > 0) {
+            $errors[] = "Test Code '$test_code' already exists. Please use a unique code.";
+        }
+    }
+    
+    // Process price
     if ($price === '' || $price === null) {
         $price_value = 'NULL';
         $price_db = null;
@@ -154,102 +147,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if (empty($errors)) {
         $conn->begin_transaction();
+        $success_count = 0;
         
         try {
-            $sql_tests = "INSERT INTO lab_tests (
-                            test_code,
-                            patient_name, 
-                            test_category, 
-                            test_name,
-                            price, 
-                            normal_range, 
-                            unit,
-                            status
-                        ) VALUES (
-                            '$test_code',
-                            '$patient_name', 
-                            '$test_category', 
-                            '" . mysqli_real_escape_string($conn, $selected_tests[0]) . "',
-                            $price_value, 
-                            " . ($normal_range_db ? "'$normal_range_db'" : "NULL") . ", 
-                            " . ($unit_db ? "'$unit_db'" : "NULL") . ",
-                            'Active'
-                        )";
-            
-            if (!mysqli_query($conn, $sql_tests)) {
-                throw new Exception("Error in lab_tests: " . mysqli_error($conn));
-            }
-            
-            $test_id = mysqli_insert_id($conn);
-            $success_count = 0;
-            
             foreach ($selected_tests as $test_name) {
                 $test_name_escaped = mysqli_real_escape_string($conn, $test_name);
                 
+                // Check if test already exists in master
                 $check_master = mysqli_query($conn, "SELECT test_id FROM lab_test_master WHERE test_name = '$test_name_escaped' AND test_category = '$test_category' AND delete_flag = 0");
                 
                 if (mysqli_num_rows($check_master) > 0) {
+                    // Test already exists, skip or update
                     $master_row = mysqli_fetch_assoc($check_master);
                     $master_test_id = $master_row['test_id'];
+                    
+                    // Update existing test
+                    $sql_update = "UPDATE lab_test_master SET 
+                                    test_code = '$test_code',
+                                    price = $price_value,
+                                    normal_range = " . ($normal_range_db ? "'$normal_range_db'" : "NULL") . ",
+                                    unit = " . ($unit_db ? "'$unit_db'" : "NULL") . ",
+                                    status = 'Active',
+                                    updated_at = CURRENT_TIMESTAMP
+                                   WHERE test_id = $master_test_id";
+                    
+                    if (!mysqli_query($conn, $sql_update)) {
+                        throw new Exception("Error updating test: " . mysqli_error($conn));
+                    }
                 } else {
+                    // Insert new test
                     $sql_master = "INSERT INTO lab_test_master (
                                     test_code,
-                                    test_category, 
-                                    test_name, 
-                                    normal_range, 
-                                    unit, 
-                                    price, 
-                                    status
+                                    test_category,
+                                    test_name,
+                                    price,
+                                    normal_range,
+                                    unit,
+                                    status,
+                                    created_by
                                 ) VALUES (
                                     '$test_code',
-                                    '$test_category', 
-                                    '$test_name_escaped', 
-                                    " . ($normal_range_db ? "'$normal_range_db'" : "NULL") . ", 
+                                    '$test_category',
+                                    '$test_name_escaped',
+                                    $price_value,
+                                    " . ($normal_range_db ? "'$normal_range_db'" : "NULL") . ",
                                     " . ($unit_db ? "'$unit_db'" : "NULL") . ",
-                                    $price_value, 
-                                    'Active'
+                                    'Active',
+                                    " . intval($_SESSION['id']) . "
                                 )";
                     
                     if (!mysqli_query($conn, $sql_master)) {
-                        throw new Exception("Error in lab_test_master: " . mysqli_error($conn));
+                        throw new Exception("Error inserting test '$test_name': " . mysqli_error($conn));
                     }
                     
                     $master_test_id = mysqli_insert_id($conn);
                 }
                 
-                $sql_detail = "INSERT INTO lab_test_details (
-                                test_id,
-                                master_test_id,
-                                test_name, 
-                                normal_range, 
-                                unit, 
-                                price, 
-                                status
-                            ) VALUES (
-                                '$test_id',
-                                '$master_test_id',
-                                '$test_name_escaped',
-                                " . ($normal_range_db ? "'$normal_range_db'" : "NULL") . ",
-                                " . ($unit_db ? "'$unit_db'" : "NULL") . ",
-                                $price_value,
-                                'Pending'
-                            )";
-                
-                if (mysqli_query($conn, $sql_detail)) {
-                    $success_count++;
-                    $inserted_tests[] = $test_name;
-                } else {
-                    throw new Exception("Error inserting test '$test_name': " . mysqli_error($conn));
-                }
+                $success_count++;
+                $inserted_tests[] = $test_name;
             }
             
             $conn->commit();
             
             if ($success_count > 0) {
-                $_SESSION['success'] = $success_count . " test(s) added successfully for patient: " . htmlspecialchars($patient_name) . 
-                                       "<br><strong>Tests:</strong> " . implode(", ", $inserted_tests) .
-                                       "<br><strong>Test Code:</strong> " . htmlspecialchars($test_code);
-                header("Location: lab_test_master.php");
+                $_SESSION['success'] = $success_count . " test(s) added successfully!<br>
+                                        <strong>Category:</strong> " . htmlspecialchars($test_category) . "<br>
+                                        <strong>Tests:</strong> " . implode(", ", $inserted_tests) . "<br>
+                                        <strong>Test Code:</strong> " . htmlspecialchars($test_code);
+                header("Location: lab_admin_master.php");
                 exit();
             }
             
@@ -262,13 +227,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $conn->close();
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($hospital_name); ?> - Add Test</title>
+    <title><?php echo htmlspecialchars($hospital_name); ?> - Add Lab Test</title>
     <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($hospital_logo); ?>">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -403,79 +367,6 @@ $conn->close();
             }
         }
 
-        .autocomplete-container {
-            position: relative;
-        }
-        .autocomplete-list {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 1px solid #d1d5db;
-            border-top: none;
-            border-radius: 0 0 8px 8px;
-            max-height: 200px;
-            overflow-y: auto;
-            z-index: 1000;
-            display: none;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .autocomplete-list.active {
-            display: block;
-        }
-        .autocomplete-item {
-            padding: 10px 14px;
-            cursor: pointer;
-            transition: all 0.2s;
-            border-bottom: 1px solid #f3f4f6;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .autocomplete-item:hover {
-            background: #f3f4f6;
-        }
-        .autocomplete-item .patient-id {
-            font-size: 12px;
-            color: #6b7280;
-            background: #e5e7eb;
-            padding: 2px 8px;
-            border-radius: 12px;
-        }
-        .autocomplete-item .patient-name {
-            font-weight: 500;
-        }
-        .autocomplete-item .registered-tag {
-            font-size: 10px;
-            background: #dbeafe;
-            color: #1e40af;
-            padding: 2px 10px;
-            border-radius: 12px;
-            margin-left: 8px;
-        }
-        .autocomplete-item .new-tag {
-            font-size: 10px;
-            background: #fef3c7;
-            color: #92400e;
-            padding: 2px 10px;
-            border-radius: 12px;
-            margin-left: 8px;
-        }
-        
-        .info-box {
-            background: #f0f9ff;
-            border: 1px solid #bae6fd;
-            border-radius: 8px;
-            padding: 12px 16px;
-            margin-top: 8px;
-            font-size: 13px;
-            color: #0369a1;
-        }
-        .info-box i {
-            margin-right: 8px;
-        }
-
         .test-selection-area {
             border: 1px solid #e5e7eb;
             border-radius: 8px;
@@ -573,6 +464,22 @@ $conn->close();
         .select-all-btn.deselect-all:hover {
             background: #dc2626;
         }
+
+        .status-badge {
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            display: inline-block;
+        }
+        .status-badge.active {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .status-badge.inactive {
+            background: #fecaca;
+            color: #991b1b;
+        }
     </style>
 </head>
 <body>
@@ -583,6 +490,7 @@ $conn->close();
             <?php include 'Sidebar.php'; ?>
 
             <main class="main-content">
+                <!-- Page Header -->
                 <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
                     <div class="flex items-center gap-4">
                         <a href="lab_admin_master.php" class="p-2 border rounded-md hover:bg-gray-100 transition">
@@ -590,26 +498,26 @@ $conn->close();
                         </a>
                         <div>
                             <h1 class="text-2xl lg:text-3xl font-bold tracking-tight text-gray-900">
-                                Add New Test
+                                Add New Lab Test
                             </h1>
-                            <p class="text-gray-500 mt-1">Select category then choose tests</p>
+                            <p class="text-gray-500 mt-1">Select category then choose multiple tests</p>
                         </div>
                     </div>
                 </div>
 
-                <?php if (isset($_SESSION['success'])): ?>
-                    <div class="alert-success">
-                        <i class="fas fa-check-circle mr-2"></i>
-                        <?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?>
-                    </div>
-                <?php endif; ?>
+                <!-- Alerts -->
                 <?php if (!empty($errors)): ?>
                     <div class="alert-error">
                         <i class="fas fa-exclamation-circle mr-2"></i>
-                        <?php echo implode(", ", $errors); ?>
+                        <ul class="list-disc list-inside">
+                            <?php foreach ($errors as $error): ?>
+                                <li><?php echo htmlspecialchars($error); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
                     </div>
                 <?php endif; ?>
 
+                <!-- Add Test Form -->
                 <div class="card">
                     <div class="card-header">
                         <h3>
@@ -620,23 +528,22 @@ $conn->close();
                     </div>
                     <div class="card-body">
                         <form method="POST" id="testForm">
+                            <!-- Test Code -->
                             <div class="mb-4">
                                 <label class="form-label">
-                                    Patient Name <span class="required">*</span>
+                                    Test Code <span class="required">*</span>
                                 </label>
-                                <div class="autocomplete-container">
-                                    <input type="text" name="patient_name" id="patientSearch" class="form-input" 
-                                           placeholder="Type patient name (registered or new)" autocomplete="off"
-                                           onkeyup="filterPatients(this.value)" required>
-                                    <input type="hidden" name="patient_id" id="patientId" value="">
-                                    <div id="autocompleteList" class="autocomplete-list"></div>
-                                </div>
-                                <div class="info-box">
-                                    <i class="fas fa-info-circle"></i>
-                                    <strong>Registered patients</strong> appear with ID. You can also type any <strong>new patient name</strong> directly.
-                                </div>
+                                <input type="text" name="test_code" class="form-input" 
+                                       placeholder="Enter unique test code (e.g., CBC001, LFT001)" 
+                                       value="<?php echo htmlspecialchars($_POST['test_code'] ?? ''); ?>"
+                                       required>
+                                <p class="text-xs text-gray-400 mt-1">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Must be unique. Example: CBC001, LFT001
+                                </p>
                             </div>
 
+                            <!-- Test Category -->
                             <div class="mb-4">
                                 <label class="form-label">
                                     Test Category <span class="required">*</span>
@@ -644,13 +551,15 @@ $conn->close();
                                 <select name="test_category" id="testCategory" class="form-select" required onchange="loadTests()">
                                     <option value="">-- Select Category --</option>
                                     <?php foreach ($test_categories as $category => $tests): ?>
-                                        <option value="<?php echo htmlspecialchars($category); ?>">
+                                        <option value="<?php echo htmlspecialchars($category); ?>"
+                                            <?php echo (isset($_POST['test_category']) && $_POST['test_category'] == $category) ? 'selected' : ''; ?>>
                                             <?php echo htmlspecialchars($category); ?> (<?php echo count($tests); ?> tests)
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
                             </div>
 
+                            <!-- Test Selection -->
                             <div class="test-selection-area" id="testSelectionArea">
                                 <div class="flex items-center justify-between mb-2">
                                     <label class="form-label mb-0">
@@ -668,49 +577,44 @@ $conn->close();
                                 </div>
                             </div>
 
-                            <div class="mb-4">
-                                <label class="form-label">
-                                    Test Code <span class="required">*</span>
-                                </label>
-                                <input type="text" name="test_code" class="form-input" 
-                                       placeholder="Enter test code (e.g., CBC001, LFT001)" required>
-                                <p class="text-xs text-gray-400 mt-1">
-                                    <i class="fas fa-info-circle mr-1"></i>
-                                    Enter a unique test code for identification
-                                </p>
-                            </div>
-
+                            <!-- Price & Unit -->
                             <div class="form-row mb-4">
                                 <div>
                                     <label class="form-label">
                                         Price (₹) <span class="optional">(Optional)</span>
                                     </label>
                                     <input type="number" name="price" class="form-input" 
-                                           placeholder="Leave empty if not set" step="0.01" min="0">
+                                           placeholder="Enter price" step="0.01" min="0"
+                                           value="<?php echo htmlspecialchars($_POST['price'] ?? ''); ?>">
                                 </div>
                                 <div>
                                     <label class="form-label">
                                         Unit <span class="optional">(Optional)</span>
                                     </label>
                                     <input type="text" name="unit" class="form-input" 
-                                           placeholder="e.g., g/dL, mg/dL, µL">
+                                           placeholder="e.g., g/dL, mg/dL, µL"
+                                           value="<?php echo htmlspecialchars($_POST['unit'] ?? ''); ?>">
                                 </div>
                             </div>
 
+                            <!-- Normal Range -->
                             <div class="mb-4">
                                 <label class="form-label">
                                     Normal Range <span class="optional">(Optional)</span>
                                 </label>
                                 <input type="text" name="normal_range" class="form-input" 
-                                       placeholder="e.g., 4.5-11.0, 120-180 mg/dL">
+                                       placeholder="e.g., 4.5-11.0, 120-180 mg/dL"
+                                       value="<?php echo htmlspecialchars($_POST['normal_range'] ?? ''); ?>">
                             </div>
 
+                            <!-- Buttons -->
                             <div class="flex gap-3 pt-4 border-t border-gray-200">
                                 <button type="submit" class="btn-primary flex-1">
                                     <i class="fas fa-save mr-2"></i>
-                                    Save Test
+                                    Save Tests
                                 </button>
-                                <a href="lab_test_master.php" class="btn-outline flex-1 text-center">
+                                <a href="lab_admin_master.php" class="btn-outline flex-1 text-center">
+                                    <i class="fas fa-times mr-2"></i>
                                     Cancel
                                 </a>
                             </div>
@@ -723,103 +627,6 @@ $conn->close();
 
     <script>
         const testCategories = <?php echo json_encode($test_categories); ?>;
-        const registeredPatients = <?php echo json_encode($registered_patients); ?>;
-        const allPatientNames = <?php echo json_encode($all_patient_names); ?>;
-
-        function filterPatients(query) {
-            const list = document.getElementById('autocompleteList');
-            
-            if (query.length === 0) {
-                list.classList.remove('active');
-                return;
-            }
-
-            const matchedRegistered = registeredPatients.filter(p => 
-                p.patient_name.toLowerCase().includes(query.toLowerCase())
-            );
-
-            const matchedNames = allPatientNames.filter(name => 
-                name.toLowerCase().includes(query.toLowerCase()) &&
-                !matchedRegistered.some(p => p.patient_name === name)
-            );
-
-            if (matchedRegistered.length === 0 && matchedNames.length === 0) {
-                list.innerHTML = `
-                    <div class="autocomplete-item" onclick="selectNewPatient('${query}')" style="border-bottom: 2px solid #22c55e;">
-                        <span>
-                            <span class="patient-name">${query}</span>
-                            <span class="new-tag">New Patient</span>
-                        </span>
-                        <span style="color:#22c55e;font-size:12px;">
-                            <i class="fas fa-plus"></i> Add as new
-                        </span>
-                    </div>
-                `;
-                list.classList.add('active');
-                return;
-            }
-
-            let html = '';
-
-            matchedRegistered.forEach(p => {
-                html += `
-                    <div class="autocomplete-item" onclick="selectRegisteredPatient('${p.patient_id}', '${p.patient_name}')">
-                        <span>
-                            <span class="patient-name">${p.patient_name}</span>
-                            <span class="registered-tag">Registered</span>
-                        </span>
-                        <span class="patient-id">ID: ${p.patient_id}</span>
-                    </div>
-                `;
-            });
-
-            matchedNames.forEach(name => {
-                html += `
-                    <div class="autocomplete-item" onclick="selectNewPatient('${name}')">
-                        <span>
-                            <span class="patient-name">${name}</span>
-                            <span class="new-tag">Existing Test</span>
-                        </span>
-                    </div>
-                `;
-            });
-
-            if (!matchedRegistered.some(p => p.patient_name === query) && !matchedNames.includes(query) && query.length > 0) {
-                html += `
-                    <div class="autocomplete-item" onclick="selectNewPatient('${query}')" style="border-top: 2px dashed #d1d5db;">
-                        <span>
-                            <span class="patient-name">"${query}"</span>
-                            <span class="new-tag">Add as New</span>
-                        </span>
-                        <span style="color:#22c55e;font-size:12px;">
-                            <i class="fas fa-plus"></i> New
-                        </span>
-                    </div>
-                `;
-            }
-
-            list.innerHTML = html;
-            list.classList.add('active');
-        }
-
-        function selectRegisteredPatient(id, name) {
-            document.getElementById('patientId').value = id;
-            document.getElementById('patientSearch').value = name;
-            document.getElementById('autocompleteList').classList.remove('active');
-        }
-
-        function selectNewPatient(name) {
-            document.getElementById('patientId').value = '';
-            document.getElementById('patientSearch').value = name;
-            document.getElementById('autocompleteList').classList.remove('active');
-        }
-
-        document.addEventListener('click', function(e) {
-            const container = document.querySelector('.autocomplete-container');
-            if (!container.contains(e.target)) {
-                document.getElementById('autocompleteList').classList.remove('active');
-            }
-        });
 
         function loadTests() {
             const category = document.getElementById('testCategory').value;
@@ -894,9 +701,8 @@ $conn->close();
                 loadTests();
             }
             updateCount();
+            lucide.createIcons();
         });
-
-        lucide.createIcons();
     </script>
 </body>
 </html>

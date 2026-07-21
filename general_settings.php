@@ -243,16 +243,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <div class="sidebar-overlay" id="sidebar-overlay"></div>
     
     <div class="flex min-h-screen">
-        <div id="sidebar-container">
+       
             <?php include 'Sidebar.php'; ?>  
-        </div>
+       
         
         <main class="main-content">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                 <div class="flex items-center gap-4">
-                    <button id="mobile-toggle" class="xl:hidden">
-                        <i class="fas fa-bars"></i>
-                    </button>
+                   
                     <a href="dashboard.php" class="back-btn">
                         <i class="fas fa-arrow-left"></i>
                     </a>

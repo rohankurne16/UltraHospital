@@ -99,6 +99,25 @@
             color: #374151;
             cursor: pointer;
         }
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: white;
+            color: #374151;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .back-btn:hover {
+            background: #f3f4f6;
+            border-color: #d1d5db;
+        }
+
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-[#131212] text-neutral-900 dark:text-neutral-100">
@@ -109,21 +128,19 @@
          <?php include('header.php') ?>
         
         <div class="flex flex-1 items-start">
-            <div id="sidebar-container">
+          
                 <?php include('Sidebar.php') ?>
-            </div>
+            
             
             <main id="main-content" class="flex-1 overflow-x-hidden duration-300 p-4 xl:p-6 xl:ml-64 w-full">
                 <div class="max-w-6xl mx-auto">
                     
                     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                         <div class="flex items-center gap-4">
-                            <button id="mobile-toggle" class="xl:hidden">
-                                <i class="fas fa-bars"></i>
-                            </button>
-                            <a href="departments.php" class="inline-flex items-center justify-center rounded-md border border-input bg-white hover:bg-gray-100 size-10 transition-colors dark:bg-neutral-900 dark:border-neutral-800 dark:hover:bg-neutral-800">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-                            </a>
+                           
+                             <a href="departments.php" class="back-btn">
+                                <i class="fas fa-arrow-left"></i>
+                        </a>
                             <div>
                                 <h1 class="text-2xl lg:text-3xl font-bold tracking-tight mb-1"><?php echo $dept['department_name']; ?></h1>
                                 <p class="text-gray-500 text-sm md:text-base">Department Overview and Staff Directory</p>

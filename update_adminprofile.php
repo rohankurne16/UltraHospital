@@ -598,13 +598,11 @@ MAIN WRAPPER
                 <span style="font-size:0.9rem; color:#94a3b8;">Back to Dashboard</span>
             </div>
 
-            <!-- No Permission Warning -->
-            <?php if (!$has_any_permission): ?>
-            <div class="alert-warning">
+            <!-- No Permission Warning - Will be hidden when permissions exist -->
+            <div id="permissionWarning" class="alert-warning" style="<?php echo $has_any_permission ? 'display:none;' : 'display:flex;'; ?>">
                 <i class="fas fa-exclamation-triangle"></i>
                 <span>You don't have any permissions assigned. Please contact your administrator.</span>
             </div>
-            <?php endif; ?>
 
             <!-- ============================================================
             PROFILE FORM
@@ -721,14 +719,12 @@ MAIN WRAPPER
             </div>
 
             <!-- ============================================================
-            NO PERMISSION BOX
+            NO PERMISSION BOX - Will be hidden when permissions exist
             ============================================================ -->
-            <?php if (!$has_any_permission): ?>
-            <div class="no-permission-box">
+            <div id="noPermissionBox" class="no-permission-box" style="<?php echo $has_any_permission ? 'display:none;' : 'display:block;'; ?>">
                 <i class="fas fa-shield-alt"></i>
                 <p>You don't have any permissions assigned. Please contact your administrator to get access.</p>
             </div>
-            <?php endif; ?>
 
         </div>
 
@@ -776,6 +772,58 @@ function togglePassword(element) {
         icon.className = 'fas fa-eye';
     }
 }
+
+// ============================================================
+// PERMISSION WARNING - AUTO HIDE/SHOW (WITH AJAX)
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    const permissionWarning = document.getElementById('permissionWarning');
+    const noPermissionBox = document.getElementById('noPermissionBox');
+    
+    // Function to check permissions via AJAX
+    function checkPermissions() {
+        // Create AJAX request to check permissions
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', 'check_permissions.php', true);
+        xhr.onload = function() {
+            if (this.status === 200) {
+                try {
+                    const response = JSON.parse(this.responseText);
+                    // Update visibility based on AJAX response
+                    if (response.has_permissions) {
+                        // Hide warning messages
+                        if (permissionWarning) {
+                            permissionWarning.style.display = 'none';
+                        }
+                        if (noPermissionBox) {
+                            noPermissionBox.style.display = 'none';
+                        }
+                    } else {
+                        // Show warning messages
+                        if (permissionWarning) {
+                            permissionWarning.style.display = 'flex';
+                        }
+                        if (noPermissionBox) {
+                            noPermissionBox.style.display = 'block';
+                        }
+                    }
+                } catch(e) {
+                    console.error('Error parsing JSON:', e);
+                }
+            }
+        };
+        xhr.onerror = function() {
+            console.error('Error checking permissions');
+        };
+        xhr.send();
+    }
+    
+    // Check permissions immediately
+    checkPermissions();
+    
+    // Check permissions every 3 seconds (for real-time updates)
+    setInterval(checkPermissions, 3000);
+});
 </script>
 
 </body>

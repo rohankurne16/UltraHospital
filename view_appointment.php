@@ -2,8 +2,8 @@
 session_start();
 include 'config/hospital.php';
 
-include 'config/permission_check.php';
-    checkPermission('appointment-view'); 
+include 'config/permission.php';
+     checkPermission('appointment-view');
 
 $conn->set_charset("utf8");
 

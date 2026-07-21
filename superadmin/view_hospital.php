@@ -67,52 +67,7 @@ $page_subtitle = 'View complete details of ' . htmlspecialchars($hospital['hospi
         
         body.dark { background: #0a0a0a; }
         body.light { background: #f1f5f9; }
-        
-        /* ============================================
-           SIDEBAR STYLES
-           ============================================ */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 250px;
-            padding: 1rem 0.5rem;
-            overflow-y: auto;
-            z-index: 1000;
-            transition: width 0.3s ease;
-        }
-        body.dark .sidebar { background: #1a1a1a; border-right: 1px solid #2a2a2a; }
-        body.light .sidebar { background: #ffffff; border-right: 1px solid #e2e8f0; }
-        .sidebar.closed { width: 70px; }
-        
-        .sidebar-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.7rem 0.8rem;
-            border-radius: 0.75rem;
-            transition: all 0.2s ease;
-            text-decoration: none;
-            cursor: pointer;
-            font-size: 0.85rem;
-            margin: 2px 0;
-            color: <?php echo $theme == 'dark' ? '#d1d5db' : '#475569'; ?>;
-        }
-        .sidebar-item i { width: 1.25rem; text-align: center; }
-        .sidebar-item:hover { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-        .sidebar-item.active { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-        .sidebar.closed .sidebar-item span { display: none; }
-        
-        .sidebar-brand {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>;
-            padding: 0 0.5rem 1rem 0.5rem;
-        }
+      
         .brand-icon {
             width: 40px;
             height: 40px;
@@ -317,8 +272,7 @@ $page_subtitle = 'View complete details of ' . htmlspecialchars($hospital['hospi
         }
         
         @media (max-width: 768px) {
-            .sidebar { width: 200px; }
-            .sidebar.closed { width: 60px; }
+          
             .main-content { margin-left: 200px; padding: 1rem; }
             .main-content.collapsed { margin-left: 60px; }
             .info-grid {
@@ -364,11 +318,26 @@ $page_subtitle = 'View complete details of ' . htmlspecialchars($hospital['hospi
         </div>
     </div>
 
+    
+
     <!-- Hospital Header -->
     <div class="content-card">
         <div style="display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
             <div style="width:80px;height:80px;border-radius:20px;background:rgba(59,130,246,0.1);display:flex;align-items:center;justify-content:center;color:#3b82f6;font-size:2.5rem;">
-                <i class="fas fa-hospital"></i>
+               <?php if(!empty($hospital['hospital_logo'])) { ?>
+        
+                    <img src="../<?php echo $hospital['hospital_logo']; ?>"
+                        alt="Hospital Logo"
+                        style="width:100%;height:100%;object-fit:cover;">
+
+                <?php } else { ?>
+
+                    <i class="fas fa-hospital"
+                    style="font-size:24px;color:#3b82f6;"></i>
+
+                <?php } ?>
+
+
             </div>
             <div style="flex:1;">
                 <h2 style="font-size:1.8rem;font-weight:700;color:<?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>;margin:0;">
@@ -427,7 +396,6 @@ $page_subtitle = 'View complete details of ' . htmlspecialchars($hospital['hospi
             </div>
             <div class="stat-card">
                 <a href="hospital_ipdadm.php?hospital_id=<?php echo $hospital['hospital_id']; ?>" style="text-decoration:none;color:inherit;">
-                <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
                 <div class="stat-icon"><i class="fas fa-procedures"></i></div>
                 <div class="number"><?php echo $hospital['total_ipd'] ?? 0; ?></div>
                 <div class="stat-label">IPD Admissions</div>
@@ -436,7 +404,6 @@ $page_subtitle = 'View complete details of ' . htmlspecialchars($hospital['hospi
             </div>
             <div class="stat-card">
                 <a href="hospital_opd.php?hospital_id=<?php echo $hospital['hospital_id']; ?>" style="text-decoration:none;color:inherit;">
-                <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
                 <div class="stat-icon"><i class="fas fa-clinic-medical"></i></div>
                 <div class="number"><?php echo $hospital['total_opd'] ?? 0; ?></div>
                 <div class="stat-label">OPD Visits</div>
@@ -531,15 +498,7 @@ $page_subtitle = 'View complete details of ' . htmlspecialchars($hospital['hospi
 </div>
 
 <script>
-// ============================================================
-// SIDEBAR TOGGLE
-// ============================================================
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const mainContent = document.getElementById('mainContent');
-    sidebar.classList.toggle('closed');
-    mainContent.classList.toggle('collapsed');
-}
+
 
 // ============================================================
 // THEME TOGGLE

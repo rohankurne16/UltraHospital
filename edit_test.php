@@ -356,7 +356,7 @@ if (isset($_GET['delete_detail']) && is_numeric($_GET['delete_detail'])) {
     exit();
 }
 
-$conn->close();
+
 
 
 
@@ -1080,7 +1080,7 @@ function getStatusLabel($status) {
             </main>
         </div>
     </div>
-
+                                                <?php $conn->close(); ?>
     <script>
         lucide.createIcons();
     </script>

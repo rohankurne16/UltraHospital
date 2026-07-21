@@ -170,17 +170,11 @@ $result = mysqli_query($conn, $query);
         <!-- Header -->
         <?php include 'header.php'; ?>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-            <div>
-                <h1 class="text-2xl font-bold" style="color: <?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>;"><?php echo $page_title; ?></h1>
-                <p style="color: #94a3b8; font-size: 0.9rem;"><?php echo $page_subtitle; ?></p>
-            </div>
-            <a href="add_staff.php" class="btn-primary">
-                <i class="fas fa-plus"></i> Add New Staff
-            </a>
-        </div>
-
-        <?php if(isset($success)): ?>
+        <a href="dashboard.php" class="btn btn-primary" style="margin-bottom:2%;">
+    <i class="fas fa-arrow-left"></i> Back
+</a>
+       
+       <?php if (!empty($success)): ?>
             <div class="success-msg"><i class="fas fa-check-circle mr-2"></i> <?php echo $success; ?></div>
         <?php endif; ?>
 
@@ -220,7 +214,7 @@ $result = mysqli_query($conn, $query);
                             <th>Role / Designation</th>
                             <th>Hospital</th>
                             <th>Status</th>
-                            <th style="text-align: right;">Actions</th>
+                         
                         </tr>
                     </thead>
                     <tbody>
@@ -230,7 +224,7 @@ $result = mysqli_query($conn, $query);
                                     <td>
                                         <div style="display: flex; align-items: center; gap: 0.75rem;">
                                             <?php if($row['profile_image']): ?>
-                                                <img src="<?php echo htmlspecialchars($row['profile_image']); ?>" class="staff-img" alt="">
+                                                <img src="../<?php echo htmlspecialchars($row['profile_image']); ?>" class="staff-img" alt="">
                                             <?php else: ?>
                                                 <div class="staff-img flex items-center justify-center text-blue-500 font-bold bg-blue-50">
                                                     <?php echo strtoupper(substr($row['name'], 0, 1)); ?>
@@ -265,23 +259,7 @@ $result = mysqli_query($conn, $query);
                                             <?php echo ucfirst($row['status']); ?>
                                         </span>
                                     </td>
-                                    <td style="text-align: right;">
-                                        <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-                                            <a href="edit_staff.php?id=<?php echo $row['staff_id']; ?>" class="p-2 rounded-lg hover:bg-blue-50 text-blue-500 transition-all" title="Edit">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
-                                            <form method="POST" onsubmit="return confirm('Change status for this staff member?');">
-                                                <input type="hidden" name="staff_id" value="<?php echo $row['staff_id']; ?>">
-                                                <input type="hidden" name="new_status" value="<?php echo strtolower($row['status']) == 'active' ? 'Inactive' : 'Active'; ?>">
-                                                <button type="submit" name="toggle_status" class="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-all" title="Toggle Status">
-                                                    <i class="fas <?php echo strtolower($row['status']) == 'active' ? 'fa-user-slash' : 'fa-user-check'; ?>"></i>
-                                                </button>
-                                            </form>
-                                            <a href="delete_staff.php?id=<?php echo $row['staff_id']; ?>" class="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-all" title="Delete" onclick="return confirm('Are you sure you want to delete this staff record?');">
-                                                <i class="fas fa-trash"></i>
-                                            </a>
-                                        </div>
-                                    </td>
+                                    
                                 </tr>
                             <?php endwhile; ?>
                         <?php else: ?>

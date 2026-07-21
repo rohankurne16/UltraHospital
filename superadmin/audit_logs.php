@@ -57,9 +57,10 @@ if ($count_result) {
 }
 $total_pages = ceil($total_records / $per_page);
 
-// Get audit logs
+// Get audit logs with proper hospital name
 $query = "SELECT 
             a.log_id,
+            a.hospital_id,
             a.register_id,
             a.module,
             a.action,
@@ -69,11 +70,12 @@ $query = "SELECT
                 WHEN r.name IS NULL THEN CONCAT('User #', a.register_id)
                 ELSE r.name 
             END as user_name,
+            COALESCE(h.hospital_name, 'N/A') as hospital_name,
             CASE 
                 WHEN a.hospital_id IS NULL OR a.hospital_id = 0 THEN 'System'
                 WHEN h.hospital_name IS NULL THEN CONCAT('Hospital #', a.hospital_id)
                 ELSE h.hospital_name 
-            END as hospital_name
+            END as hospital_display
           FROM audit_logs a
           LEFT JOIN register r ON a.register_id = r.id
           LEFT JOIN hospital_master h ON a.hospital_id = h.hospital_id
@@ -98,7 +100,9 @@ $user_name = $_SESSION['name'] ?? 'Super Admin';
 $hospital_name = isset($hospital['hospital_name']) ? $hospital['hospital_name'] : 'UltraHospital';
 
 // Log this page access
-logAudit('Audit Logs', 'User viewed audit logs');
+if (function_exists('logAudit')) {
+    logAudit('Audit Logs', 'User viewed audit logs');
+}
 ?>
 
 <!DOCTYPE html>
@@ -113,80 +117,66 @@ logAudit('Audit Logs', 'User viewed audit logs');
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: #f1f5f9; }
 
-        /* Sidebar */
-        .sidebar {
-            position: fixed; top: 0; left: 0; height: 100vh; width: 250px; 
-            padding: 1rem 0.75rem; overflow-y: auto; overflow-x: hidden;
-            z-index: 1000; background: #ffffff;
-            border-right: 1px solid #e2e8f0;
-            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 2px 0 12px rgba(0,0,0,0.04);
-        }
-        .sidebar::-webkit-scrollbar { width: 4px; }
-        .sidebar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-
-        .sidebar-brand {
-            display: flex; align-items: center; gap: 0.75rem;
-            padding: 0 0.5rem 1rem 0.5rem;
-            border-bottom: 1px solid #e2e8f0;
-            margin-bottom: 1rem;
-        }
-        .sidebar-brand .brand-icon {
-            width: 42px; height: 42px; border-radius: 12px;
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
-            display: flex; align-items: center; justify-content: center;
-            color: white; font-size: 1.2rem;
-            box-shadow: 0 4px 12px rgba(59,130,246,0.3);
-        }
-        .sidebar-brand .brand-text h2 { font-size: 1rem; font-weight: 700; color: #1e293b; }
-        .sidebar-brand .brand-text p { font-size: 0.6rem; color: #94a3b8; }
-
-        .sidebar-item {
-            display: flex; align-items: center; gap: 0.75rem; padding: 0.7rem 0.8rem; 
-            border-radius: 10px; text-decoration: none; font-size: 0.85rem;
-            margin: 2px 0; color: #475569; cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        .sidebar-item i { width: 1.25rem; text-align: center; color: #94a3b8; }
-        .sidebar-item:hover { background: #f1f5f9; color: #1e293b; }
-        .sidebar-item:hover i { color: #3b82f6; }
-        .sidebar-item.active { background: #eff6ff; color: #3b82f6; }
-        .sidebar-item.active i { color: #3b82f6; }
-
-        .sidebar-label {
-            font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.5px;
-            padding: 0.5rem 0.8rem 0.3rem; color: #94a3b8; font-weight: 600;
-        }
+       
 
         /* Main Content */
         .main-content {
-            margin-left: 250px; padding: 1.5rem; min-height: 100vh;
+            margin-left: 250px;
+            padding: 1.5rem;
+            min-height: 100vh;
             width: calc(100% - 250px);
             transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         @media (max-width: 1279px) {
-            .main-content { margin-left: 0; padding: 1rem; width: 100%; }
-            .sidebar { width: 70px; }
-            .sidebar-brand .brand-text { display: none; }
-            .sidebar-label { display: none; }
-            .sidebar-item span { display: none; }
+            .main-content {
+                margin-left: 0;
+                padding: 1rem;
+                width: 100%;
+            }
         }
 
-        /* Header */
-        .header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;
+        /* Top Header */
+        .top-header {
+            background: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            min-height: 64px;
         }
-        .header-left h1 { font-size: 1.5rem; font-weight: 700; color: #1e293b; }
-        .header-left p { color: #94a3b8; font-size: 0.85rem; margin-top: 4px; }
-        .header-right { display: flex; align-items: center; gap: 1rem; }
-        .header-right .date { color: #94a3b8; font-size: 0.85rem; }
-        .header-right .avatar {
-            width: 40px; height: 40px; border-radius: 50%;
+
+        .top-header .header-left { display: flex; align-items: center; gap: 1rem; }
+        .top-header .header-right { display: flex; align-items: center; gap: 1rem; }
+        .top-header .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
             background: linear-gradient(135deg, #3b82f6, #2563eb);
-            display: flex; align-items: center; justify-content: center;
-            color: white; font-weight: 700; font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 0.8rem;
+        }
+
+        .mobile-toggle {
+            display: none;
+            padding: 0.5rem 0.75rem;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.25rem;
+        }
+        .mobile-toggle:hover { background: #f8fafc; }
+        @media (max-width: 1279px) {
+            .mobile-toggle { display: inline-flex; align-items: center; justify-content: center; }
         }
 
         /* Card */
@@ -344,6 +334,7 @@ logAudit('Audit Logs', 'User viewed audit logs');
             color: #475569;
         }
         .hospital-badge.system { background: #fef3c7; color: #b45309; }
+        .hospital-badge.unknown { background: #fee2e2; color: #dc2626; }
 
         /* Pagination */
         .pagination {
@@ -395,7 +386,6 @@ logAudit('Audit Logs', 'User viewed audit logs');
         }
 
         @media (max-width: 768px) {
-            .header { flex-direction: column; align-items: flex-start; }
             .filter-row { grid-template-columns: 1fr; }
             table { font-size: 0.8rem; }
             th, td { padding: 0.75rem; }
@@ -404,233 +394,231 @@ logAudit('Audit Logs', 'User viewed audit logs');
 </head>
 <body>
 
-<!-- Sidebar -->
-<div class="sidebar" id="sidebar">
-    <div class="sidebar-brand">
-        <div class="brand-icon"><i class="fas fa-crown"></i></div>
-        <div class="brand-text">
-            <h2>Super Admin</h2>
-            <p>Full Access</p>
-        </div>
-    </div>
-    
-    <nav>
-        <a href="dashboard.php" class="sidebar-item <?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>">
-            <i class="fas fa-chart-pie"></i><span>Dashboard</span>
-        </a>
-        <div class="sidebar-label">Management</div>
-        <a href="hospitals.php" class="sidebar-item">
-            <i class="fas fa-hospital"></i><span>Hospitals</span>
-        </a>
-        <a href="hospital_admins.php" class="sidebar-item">
-            <i class="fas fa-user-shield"></i><span>Hospital Admins</span>
-        </a>
-        <a href="users.php" class="sidebar-item">
-            <i class="fas fa-users"></i><span>Users</span>
-        </a>
-        <div class="sidebar-label">Administration</div>
-        <a href="role_list.php" class="sidebar-item">
-            <i class="fas fa-user-tag"></i><span>Roles</span>
-        </a>
-        <a href="permissions.php" class="sidebar-item">
-            <i class="fas fa-lock"></i><span>Permissions</span>
-        </a>
-        <div class="sidebar-label">System</div>
-        <a href="audit_logs.php" class="sidebar-item active">
-            <i class="fas fa-history"></i><span>Audit Logs</span>
-        </a>
-        <a href="login_logs.php" class="sidebar-item">
-            <i class="fas fa-sign-in-alt"></i><span>Login Logs</span>
-        </a>
-        <a href="settings.php" class="sidebar-item">
-            <i class="fas fa-cog"></i><span>Settings</span>
-        </a>
-        <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #e2e8f0;">
-            <a href="../auth/logout.php" class="sidebar-item" style="color:#ef4444;">
-                <i class="fas fa-sign-out-alt"></i><span>Logout</span>
-            </a>
-        </div>
-    </nav>
-</div>
 
-<!-- Main Content -->
-<div class="main-content" id="mainContent">
-    
-    <!-- Header -->
-    <div class="header">
-        <div class="header-left">
-            <h1><i class="fas fa-history" style="color:#3b82f6; margin-right:0.5rem;"></i>Audit Logs</h1>
-            <p>Track all user activities and system changes</p>
-        </div>
-        <div class="header-right">
-            <span class="date"><?php echo date('l, d M Y'); ?></span>
-            <div class="avatar"><?php echo strtoupper(substr($user_name, 0, 2)); ?></div>
-        </div>
-    </div>
+    <?php include 'sidebar.php'; ?>
 
-    <!-- Filters -->
-    <div class="card">
-        <form method="GET" action="">
-            <div class="filter-row">
-                <div class="filter-field">
-                    <label>User Name</label>
-                    <input type="text" name="user" placeholder="Search user..." value="<?php echo htmlspecialchars($filter_user); ?>">
-                </div>
-                <div class="filter-field">
-                    <label>Module</label>
-                    <select name="module">
-                        <option value="">All Modules</option>
-                        <?php if ($modules_result && mysqli_num_rows($modules_result) > 0): ?>
-                            <?php while($module_row = mysqli_fetch_assoc($modules_result)): ?>
-                                <option value="<?php echo htmlspecialchars($module_row['module']); ?>" <?php echo $filter_module == $module_row['module'] ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($module_row['module']); ?>
-                                </option>
-                            <?php endwhile; ?>
-                        <?php endif; ?>
-                    </select>
-                </div>
-                <div class="filter-field">
-                    <label>Action</label>
-                    <input type="text" name="action" placeholder="Search action..." value="<?php echo htmlspecialchars($filter_action); ?>">
-                </div>
-                <div class="filter-field">
-                    <label>Date</label>
-                    <input type="date" name="date" value="<?php echo htmlspecialchars($filter_date); ?>">
-                </div>
-            </div>
-            <div class="filter-buttons">
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-search"></i> Filter
-                </button>
-                <a href="audit_logs.php" class="btn btn-secondary">
-                    <i class="fas fa-redo"></i> Reset
-                </a>
-            </div>
-        </form>
-    </div>
 
-    <!-- Audit Logs Table -->
-    <div class="card">
-        <div class="card-title">
-            <i class="fas fa-list"></i> Audit Logs
-            <span style="font-size:0.8rem; font-weight:400; color:#94a3b8; margin-left:0.5rem;">
-                (Total: <?php echo $total_records; ?> records)
-            </span>
-        </div>
+<!-- ============================================================
+MAIN WRAPPER
+============================================================ -->
+<div style="display:flex; min-height:100vh;">
+    <main class="main-content" id="mainContent">
         
-        <?php if (!empty($audit_logs)): ?>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>User</th>
-                            <th>Hospital</th>
-                            <th>Module</th>
-                            <th>Action</th>
-                            <th>Date & Time</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($audit_logs as $log): ?>
-                            <tr>
-                                <td>
-                                    <?php 
-                                    if ($log['register_id'] == 999) {
-                                        echo '<span class="user-badge superadmin">👑 ' . htmlspecialchars($log['user_name']) . '</span>';
-                                    } elseif (!empty($log['user_name'])) {
-                                        echo '<span class="user-badge">👤 ' . htmlspecialchars($log['user_name']) . '</span>';
-                                    } else {
-                                        echo '<span class="user-badge">❓ User #' . $log['register_id'] . '</span>';
-                                    }
-                                    ?>
-                                </td>
-                                <td>
-                                    <?php 
-                                    if ($log['hospital_name'] == 'System') {
-                                        echo '<span class="hospital-badge system">🏢 System</span>';
-                                    } else {
-                                        echo '<span class="hospital-badge">🏥 ' . htmlspecialchars($log['hospital_name']) . '</span>';
-                                    }
-                                    ?>
-                                </td>
-                                <td>
-                                    <span class="badge badge-blue"><?php echo htmlspecialchars($log['module']); ?></span>
-                                </td>
-                                <td>
-                                    <?php
-                                    $action = $log['action'];
-                                    $badge_class = 'badge-gray';
-                                    if (strpos($action, 'Login') !== false || strpos($action, 'login') !== false) {
-                                        $badge_class = 'badge-blue';
-                                    } elseif (strpos($action, 'Create') !== false || strpos($action, 'create') !== false || strpos($action, 'Add') !== false) {
-                                        $badge_class = 'badge-green';
-                                    } elseif (strpos($action, 'Update') !== false || strpos($action, 'update') !== false || strpos($action, 'Edit') !== false) {
-                                        $badge_class = 'badge-yellow';
-                                    } elseif (strpos($action, 'Delete') !== false || strpos($action, 'delete') !== false || strpos($action, 'Remove') !== false) {
-                                        $badge_class = 'badge-red';
-                                    } elseif (strpos($action, 'Permission') !== false || strpos($action, 'permission') !== false) {
-                                        $badge_class = 'badge-purple';
-                                    }
-                                    ?>
-                                    <span class="badge <?php echo $badge_class; ?>">
-                                        <?php echo htmlspecialchars(substr($action, 0, 60) . (strlen($action) > 60 ? '...' : '')); ?>
-                                    </span>
-                                </td>
-                                <td style="white-space:nowrap; font-size:0.8rem; color:#94a3b8;">
-                                    <?php echo date('d M Y H:i:s', strtotime($log['created_at'])); ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+        <!-- ============================================================
+        TOP HEADER
+        ============================================================ -->
+        <div class="top-header">
+            <div class="header-left">
+                <button class="mobile-toggle" id="mobileToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div>
+                    <h1 style="font-size:1.25rem; font-weight:700; color:#1e293b;">Audit Logs</h1>
+                    <p style="font-size:0.875rem; color:#64748b;">Track all user activities and system changes</p>
+                </div>
             </div>
+            <div class="header-right">
+                <span style="font-size:0.875rem; color:#64748b;"><?php echo date('M d, Y'); ?></span>
+                <div class="user-avatar">
+                    <?php echo strtoupper(substr($user_name, 0, 2)); ?>
+                </div>
+            </div>
+        </div>
 
-            <!-- Pagination -->
-            <?php if ($total_pages > 1): ?>
-                <div class="pagination">
-                    <?php if ($page > 1): ?>
-                        <a href="?page=1&user=<?php echo urlencode($filter_user); ?>&module=<?php echo urlencode($filter_module); ?>&action=<?php echo urlencode($filter_action); ?>&date=<?php echo urlencode($filter_date); ?>">
-                            <i class="fas fa-angle-double-left"></i> First
-                        </a>
-                        <a href="?page=<?php echo $page - 1; ?>&user=<?php echo urlencode($filter_user); ?>&module=<?php echo urlencode($filter_module); ?>&action=<?php echo urlencode($filter_action); ?>&date=<?php echo urlencode($filter_date); ?>">
-                            <i class="fas fa-angle-left"></i> Prev
-                        </a>
-                    <?php endif; ?>
+        <!-- ============================================================
+        BACK BUTTON
+        ============================================================ -->
+        <a href="dashboard.php" class="btn btn-primary" style="margin-bottom:1.5rem;">
+            <i class="fas fa-arrow-left"></i> Back to Dashboard
+        </a>
 
-                    <?php 
-                    $start_page = max(1, $page - 2);
-                    $end_page = min($total_pages, $page + 2);
-                    for ($i = $start_page; $i <= $end_page; $i++): 
-                    ?>
-                        <?php if ($i == $page): ?>
-                            <span class="active"><?php echo $i; ?></span>
-                        <?php else: ?>
-                            <a href="?page=<?php echo $i; ?>&user=<?php echo urlencode($filter_user); ?>&module=<?php echo urlencode($filter_module); ?>&action=<?php echo urlencode($filter_action); ?>&date=<?php echo urlencode($filter_date); ?>">
-                                <?php echo $i; ?>
+        <!-- ============================================================
+        FILTERS
+        ============================================================ -->
+        <div class="card">
+            <form method="GET" action="audit_logs.php">
+                <div class="filter-row">
+                    <div class="filter-field">
+                        <label>User Name</label>
+                        <input type="text" name="user" placeholder="Search user..." value="<?php echo htmlspecialchars($filter_user); ?>">
+                    </div>
+                    <div class="filter-field">
+                        <label>Module</label>
+                        <select name="module">
+                            <option value="">All Modules</option>
+                            <?php if ($modules_result && mysqli_num_rows($modules_result) > 0): ?>
+                                <?php while($module_row = mysqli_fetch_assoc($modules_result)): ?>
+                                    <option value="<?php echo htmlspecialchars($module_row['module']); ?>" <?php echo $filter_module == $module_row['module'] ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($module_row['module']); ?>
+                                    </option>
+                                <?php endwhile; ?>
+                            <?php endif; ?>
+                        </select>
+                    </div>
+                    <div class="filter-field">
+                        <label>Action</label>
+                        <input type="text" name="action" placeholder="Search action..." value="<?php echo htmlspecialchars($filter_action); ?>">
+                    </div>
+                    <div class="filter-field">
+                        <label>Date</label>
+                        <input type="date" name="date" value="<?php echo htmlspecialchars($filter_date); ?>">
+                    </div>
+                </div>
+                <div class="filter-buttons">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search"></i> Filter
+                    </button>
+                    <a href="audit_logs.php" class="btn btn-secondary">
+                        <i class="fas fa-redo"></i> Reset
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        <!-- ============================================================
+        AUDIT LOGS TABLE
+        ============================================================ -->
+        <div class="card">
+            <div class="card-title">
+                <i class="fas fa-list"></i> Audit Logs
+                <span style="font-size:0.8rem; font-weight:400; color:#94a3b8; margin-left:0.5rem;">
+                    (Total: <?php echo $total_records; ?> records)
+                </span>
+            </div>
+            
+            <?php if (!empty($audit_logs)): ?>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Hospital</th>
+                                <th>Module</th>
+                                <th>Action</th>
+                                <th>Date & Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($audit_logs as $log): ?>
+                                <tr>
+                                    <td>
+                                        <?php 
+                                        if ($log['register_id'] == 999) {
+                                            echo '<span class="user-badge superadmin">👑 ' . htmlspecialchars($log['user_name']) . '</span>';
+                                        } elseif (!empty($log['user_name'])) {
+                                            echo '<span class="user-badge">👤 ' . htmlspecialchars($log['user_name']) . '</span>';
+                                        } else {
+                                            echo '<span class="user-badge">❓ User #' . $log['register_id'] . '</span>';
+                                        }
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <?php 
+                                        // ============================================================
+                                        // FIX: Hospital Name Display - Dynamic from hospital_master table
+                                        // ============================================================
+                                        if (isset($log['hospital_id']) && !empty($log['hospital_id']) && $log['hospital_id'] > 0) {
+                                            // Check if we have hospital_name from query
+                                            if (!empty($log['hospital_name']) && $log['hospital_name'] != 'N/A') {
+                                                echo '<span class="hospital-badge">🏥 ' . htmlspecialchars($log['hospital_name']) . '</span>';
+                                            } else {
+                                                // Try to fetch hospital name from database
+                                                $hid = $log['hospital_id'];
+                                                $hosp_q = "SELECT hospital_name FROM hospital_master WHERE hospital_id = '$hid' AND delete_flag = 0";
+                                                $hosp_r = mysqli_query($conn, $hosp_q);
+                                                if ($hosp_r && mysqli_num_rows($hosp_r) > 0) {
+                                                    $hosp_row = mysqli_fetch_assoc($hosp_r);
+                                                    echo '<span class="hospital-badge">🏥 ' . htmlspecialchars($hosp_row['hospital_name']) . '</span>';
+                                                } else {
+                                                    echo '<span class="hospital-badge unknown">🏥 Hospital #' . $log['hospital_id'] . '</span>';
+                                                }
+                                            }
+                                        } else {
+                                            echo '<span class="hospital-badge system">🏢 System</span>';
+                                        }
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-blue"><?php echo htmlspecialchars($log['module']); ?></span>
+                                    </td>
+                                    <td>
+                                        <?php
+                                        $action = $log['action'];
+                                        $badge_class = 'badge-gray';
+                                        if (strpos($action, 'Login') !== false || strpos($action, 'login') !== false) {
+                                            $badge_class = 'badge-blue';
+                                        } elseif (strpos($action, 'Create') !== false || strpos($action, 'create') !== false || strpos($action, 'Add') !== false) {
+                                            $badge_class = 'badge-green';
+                                        } elseif (strpos($action, 'Update') !== false || strpos($action, 'update') !== false || strpos($action, 'Edit') !== false) {
+                                            $badge_class = 'badge-yellow';
+                                        } elseif (strpos($action, 'Delete') !== false || strpos($action, 'delete') !== false || strpos($action, 'Remove') !== false) {
+                                            $badge_class = 'badge-red';
+                                        } elseif (strpos($action, 'Permission') !== false || strpos($action, 'permission') !== false) {
+                                            $badge_class = 'badge-purple';
+                                        }
+                                        ?>
+                                        <span class="badge <?php echo $badge_class; ?>">
+                                            <?php echo htmlspecialchars(substr($action, 0, 60) . (strlen($action) > 60 ? '...' : '')); ?>
+                                        </span>
+                                    </td>
+                                    <td style="white-space:nowrap; font-size:0.8rem; color:#94a3b8;">
+                                        <?php echo date('d M Y H:i:s', strtotime($log['created_at'])); ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <?php if ($total_pages > 1): ?>
+                    <div class="pagination">
+                        <?php if ($page > 1): ?>
+                            <a href="?page=1&user=<?php echo urlencode($filter_user); ?>&module=<?php echo urlencode($filter_module); ?>&action=<?php echo urlencode($filter_action); ?>&date=<?php echo urlencode($filter_date); ?>">
+                                <i class="fas fa-angle-double-left"></i> First
+                            </a>
+                            <a href="?page=<?php echo $page - 1; ?>&user=<?php echo urlencode($filter_user); ?>&module=<?php echo urlencode($filter_module); ?>&action=<?php echo urlencode($filter_action); ?>&date=<?php echo urlencode($filter_date); ?>">
+                                <i class="fas fa-angle-left"></i> Prev
                             </a>
                         <?php endif; ?>
-                    <?php endfor; ?>
 
-                    <?php if ($page < $total_pages): ?>
-                        <a href="?page=<?php echo $page + 1; ?>&user=<?php echo urlencode($filter_user); ?>&module=<?php echo urlencode($filter_module); ?>&action=<?php echo urlencode($filter_action); ?>&date=<?php echo urlencode($filter_date); ?>">
-                            Next <i class="fas fa-angle-right"></i>
-                        </a>
-                        <a href="?page=<?php echo $total_pages; ?>&user=<?php echo urlencode($filter_user); ?>&module=<?php echo urlencode($filter_module); ?>&action=<?php echo urlencode($filter_action); ?>&date=<?php echo urlencode($filter_date); ?>">
-                            Last <i class="fas fa-angle-double-right"></i>
-                        </a>
-                    <?php endif; ?>
+                        <?php 
+                        $start_page = max(1, $page - 2);
+                        $end_page = min($total_pages, $page + 2);
+                        for ($i = $start_page; $i <= $end_page; $i++): 
+                        ?>
+                            <?php if ($i == $page): ?>
+                                <span class="active"><?php echo $i; ?></span>
+                            <?php else: ?>
+                                <a href="?page=<?php echo $i; ?>&user=<?php echo urlencode($filter_user); ?>&module=<?php echo urlencode($filter_module); ?>&action=<?php echo urlencode($filter_action); ?>&date=<?php echo urlencode($filter_date); ?>">
+                                    <?php echo $i; ?>
+                                </a>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+
+                        <?php if ($page < $total_pages): ?>
+                            <a href="?page=<?php echo $page + 1; ?>&user=<?php echo urlencode($filter_user); ?>&module=<?php echo urlencode($filter_module); ?>&action=<?php echo urlencode($filter_action); ?>&date=<?php echo urlencode($filter_date); ?>">
+                                Next <i class="fas fa-angle-right"></i>
+                            </a>
+                            <a href="?page=<?php echo $total_pages; ?>&user=<?php echo urlencode($filter_user); ?>&module=<?php echo urlencode($filter_module); ?>&action=<?php echo urlencode($filter_action); ?>&date=<?php echo urlencode($filter_date); ?>">
+                                Last <i class="fas fa-angle-double-right"></i>
+                            </a>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+            <?php else: ?>
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <h3>No Audit Logs Found</h3>
+                    <p>No activities match your filter criteria.</p>
                 </div>
             <?php endif; ?>
-        <?php else: ?>
-            <div class="empty-state">
-                <i class="fas fa-inbox"></i>
-                <h3>No Audit Logs Found</h3>
-                <p>No activities match your filter criteria.</p>
-            </div>
-        <?php endif; ?>
-    </div>
+        </div>
 
+    </main>
 </div>
+
+
 
 </body>
 </html>

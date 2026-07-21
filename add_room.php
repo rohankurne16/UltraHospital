@@ -9,6 +9,8 @@ if (!isset($_SESSION["id"]) && empty($_SESSION["id"])) {
 
 // Get ward_id from URL
 $selected_ward_id = isset($_GET['ward_id']) ? (int)$_GET['ward_id'] : 0;
+$error_message = "";
+$success_message = "";
 
 if(isset($_POST['save'])){
     $ward_id = mysqli_real_escape_string($conn, $_POST['ward_id']);
@@ -16,20 +18,36 @@ if(isset($_POST['save'])){
     $capacity = mysqli_real_escape_string($conn, $_POST['capacity']);
     $status = mysqli_real_escape_string($conn, $_POST['status']);
 
-    $check = mysqli_query($conn, "SELECT * FROM room_master WHERE room_no='$room_no' AND ward_id='$ward_id' AND (delete_flag=0 OR delete_flag IS NULL)");
-
-    if(mysqli_num_rows($check) > 0){
-        echo "<script>alert('Room Number already exists in this ward.');</script>";
+    // Server-side Validation with Regex
+    if (empty($ward_id) || $ward_id == 0) {
+        $error_message = "Please select a ward.";
+    } elseif (empty($room_no)) {
+        $error_message = "Room number is required.";
+    } elseif (!preg_match('/^[A-Za-z0-9\s\-\'&.]+$/', $room_no)) {
+        $error_message = "Invalid Room Number. Only letters, numbers, spaces, hyphens, apostrophes, ampersands, and periods are allowed.";
+    } elseif (!preg_match('/^[0-9]+$/', $capacity) || $capacity < 1) {
+        $error_message = "Invalid Capacity. Must be a positive number (at least 1).";
+    } elseif (!in_array($status, ['Available', 'Occupied', 'Maintenance'])) {
+        $error_message = "Invalid Status selected.";
     } else {
-        $sql = "INSERT INTO room_master (ward_id, room_no, capacity, status) VALUES ('$ward_id','$room_no','$capacity','$status')";
+        // Check if room already exists in this ward
+        $check = mysqli_query($conn, "SELECT * FROM room_master WHERE room_no='$room_no' AND ward_id='$ward_id' AND (delete_flag=0 OR delete_flag IS NULL)");
 
-        if(mysqli_query($conn, $sql)){
-            echo "<script>
-                alert('Room Added Successfully');
-                window.location='view_ward.php?id=$ward_id';
-            </script>";
+        if(mysqli_num_rows($check) > 0){
+            $error_message = "Room Number already exists in this ward. Please use a different room number.";
         } else {
-            echo "<script>alert('".mysqli_error($conn)."');</script>";
+            $sql = "INSERT INTO room_master (ward_id, room_no, capacity, status) VALUES ('$ward_id','$room_no','$capacity','$status')";
+
+            if(mysqli_query($conn, $sql)){
+                $success_message = "Room Added Successfully!";
+                echo "<script>
+                    setTimeout(function() {
+                        window.location='view_ward.php?id=$ward_id';
+                    }, 1500);
+                </script>";
+            } else {
+                $error_message = "Error: " . mysqli_error($conn);
+            }
         }
     }
 }
@@ -232,7 +250,50 @@ $wards = mysqli_query($conn, "SELECT * FROM ward_master WHERE (delete_flag=0 OR 
             font-size: 12px;
             color: #64748b;
             margin-top: 6px;
+            transition: all 0.3s ease;
         }
+
+        .form-hint.error {
+            color: #ef4444;
+        }
+
+        .form-hint.success {
+            color: #22c55e;
+        }
+
+        .form-input.error,
+        .form-select.error {
+            border-color: #ef4444;
+            background: #fef2f2;
+        }
+
+        .form-input.error:focus,
+        .form-select.error:focus {
+            border-color: #ef4444;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+        }
+
+        .form-input.success {
+            border-color: #22c55e;
+            background: #f0fdf4;
+        }
+
+        .form-input.success:focus {
+            border-color: #22c55e;
+            box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+        }
+
+        .validation-message {
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.3s ease;
+        }
+        .validation-message.show { display: flex; }
+        .validation-message.error { color: #ef4444; }
+        .validation-message.success { color: #22c55e; }
 
         /* Ward info box - professional styling */
         .ward-info-box {
@@ -277,6 +338,34 @@ $wards = mysqli_query($conn, "SELECT * FROM ward_master WHERE (delete_flag=0 OR 
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
+        }
+
+        /* Alert messages */
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .alert-success {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+        }
+
+        .alert-error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+        }
+
+        .alert i {
+            font-size: 18px;
         }
 
         @media (max-width: 1024px) {
@@ -337,7 +426,22 @@ $wards = mysqli_query($conn, "SELECT * FROM ward_master WHERE (delete_flag=0 OR 
                             <h2>Room Information</h2>
                         </div>
                         
-                        <form method="post" class="form-body">
+                        <form method="post" class="form-body" id="roomForm" novalidate>
+                            <!-- Display Success/Error Messages -->
+                            <?php if (!empty($success_message)): ?>
+                                <div class="alert alert-success">
+                                    <i class="fas fa-check-circle"></i>
+                                    <?php echo $success_message; ?>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if (!empty($error_message)): ?>
+                                <div class="alert alert-error">
+                                    <i class="fas fa-exclamation-circle"></i>
+                                    <?php echo $error_message; ?>
+                                </div>
+                            <?php endif; ?>
+
                             <!-- Ward Info Box (when ward_id is passed) -->
                             <?php if ($selected_ward_id > 0 && !empty($ward_name)): ?>
                             <div class="ward-info-box">
@@ -365,7 +469,7 @@ $wards = mysqli_query($conn, "SELECT * FROM ward_master WHERE (delete_flag=0 OR 
                                         <p class="form-hint">Ward is locked</p>
                                     <?php else: ?>
                                         <!-- Regular dropdown when no ward_id is passed -->
-                                        <select name="ward_id" required class="form-select">
+                                        <select name="ward_id" id="ward_id" required class="form-select">
                                             <option value="">Select Ward</option>
                                             <?php 
                                             mysqli_data_seek($wards, 0);
@@ -385,13 +489,29 @@ $wards = mysqli_query($conn, "SELECT * FROM ward_master WHERE (delete_flag=0 OR 
                                     <label class="form-label">
                                         Room Number <span class="required">*</span>
                                     </label>
-                                    <input 
-                                        type="text"
-                                        name="room_no"
-                                        required
-                                        placeholder="e.g., 101, A-101, ICU-01"
-                                        class="form-input">
-                                    <p class="form-hint">Enter a unique room number within this ward</p>
+                                    <div class="input-wrapper">
+                                        <input 
+                                            type="text"
+                                            name="room_no"
+                                            id="room_no"
+                                            required
+                                            placeholder="e.g., 101, A-101, ICU-01"
+                                            class="form-input"
+                                            pattern="^[A-Za-z0-9\s\-\'&.]+$"
+                                            data-validation="room_no"
+                                            title="Only letters, numbers, spaces, hyphens, apostrophes, ampersands, and periods are allowed.">
+                                    </div>
+                                    <p class="form-hint" id="room_no_hint">
+                                        <i class="fas fa-info-circle"></i> Enter a unique room number within this ward
+                                    </p>
+                                    <div class="validation-message error" id="room_no_error">
+                                        <i class="fas fa-exclamation-circle"></i>
+                                        <span>Only letters, numbers, spaces, hyphens, apostrophes, ampersands, and periods are allowed.</span>
+                                    </div>
+                                    <div class="validation-message success" id="room_no_success">
+                                        <i class="fas fa-check-circle"></i>
+                                        <span>Valid room number</span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -402,14 +522,29 @@ $wards = mysqli_query($conn, "SELECT * FROM ward_master WHERE (delete_flag=0 OR 
                                     <label class="form-label">
                                         Capacity <span class="required">*</span>
                                     </label>
-                                    <input 
-                                        type="number"
-                                        name="capacity"
-                                        required
-                                        min="1"
-                                        placeholder="Number of beds in room"
-                                        class="form-input">
-                                    <p class="form-hint">Enter the maximum number of beds in this room</p>
+                                    <div class="input-wrapper">
+                                        <input 
+                                            type="number"
+                                            name="capacity"
+                                            id="capacity"
+                                            required
+                                            min="1"
+                                            placeholder="Number of beds in room"
+                                            class="form-input"
+                                            data-validation="capacity"
+                                            title="Must be a positive number (at least 1)">
+                                    </div>
+                                    <p class="form-hint" id="capacity_hint">
+                                        <i class="fas fa-info-circle"></i> Enter the maximum number of beds in this room
+                                    </p>
+                                    <div class="validation-message error" id="capacity_error">
+                                        <i class="fas fa-exclamation-circle"></i>
+                                        <span>Must be a positive number (at least 1)</span>
+                                    </div>
+                                    <div class="validation-message success" id="capacity_success">
+                                        <i class="fas fa-check-circle"></i>
+                                        <span>Valid capacity</span>
+                                    </div>
                                 </div>
 
                                 <!-- Status -->
@@ -417,22 +552,24 @@ $wards = mysqli_query($conn, "SELECT * FROM ward_master WHERE (delete_flag=0 OR 
                                     <label class="form-label">
                                         Status <span class="required">*</span>
                                     </label>
-                                    <select name="status" class="form-select">
-                                         <option value="Available">Available</option>
+                                    <select name="status" id="status" class="form-select">
+                                        <option value="Available">Available</option>
                                         <option value="Occupied">Occupied</option>
                                         <option value="Maintenance">Maintenance</option>
                                     </select>
-                                    <p class="form-hint">Choose whether the room is active or inactive</p>
+                                    <p class="form-hint">
+                                        <i class="fas fa-info-circle"></i> Choose whether the room is Available, Occupied, or under Maintenance
+                                    </p>
                                 </div>
                             </div>
 
                             <!-- Form Actions -->
                             <div class="form-actions">
                                 <button type="submit" name="save" class="btn btn-primary">
-                                    Save Room
+                                    <i class="fas fa-save"></i> Save Room
                                 </button>
                                 <a href="<?php echo $selected_ward_id > 0 ? 'view_ward.php?id=' . $selected_ward_id : 'room_master.php'; ?>" class="btn btn-secondary">
-                                    Cancel
+                                    <i class="fas fa-times"></i> Cancel
                                 </a>
                             </div>
                         </form>
@@ -442,5 +579,165 @@ $wards = mysqli_query($conn, "SELECT * FROM ward_master WHERE (delete_flag=0 OR 
             </main>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // ============================================================
+            // VALIDATION LOGIC
+            // ============================================================
+            
+            // Define validation patterns
+            const patterns = {
+                room_no: /^[A-Za-z0-9\s\-\'&.]+$/,
+                capacity: /^[0-9]+$/
+            };
+
+            // Get fields that need validation
+            const fields = {
+                room_no: { pattern: patterns.room_no, required: true },
+                capacity: { pattern: patterns.capacity, required: true }
+            };
+
+            // Function to validate a single field
+            function validateField(fieldId) {
+                const input = document.getElementById(fieldId);
+                if (!input) return true;
+
+                const value = input.value.trim();
+                const fieldConfig = fields[fieldId];
+                const isRequired = fieldConfig ? fieldConfig.required : false;
+                const pattern = fieldConfig ? fieldConfig.pattern : null;
+
+                const errorMsg = document.getElementById(fieldId + '_error');
+                const successMsg = document.getElementById(fieldId + '_success');
+                const hint = document.getElementById(fieldId + '_hint');
+
+                // Reset states
+                input.classList.remove('error', 'success');
+                if (errorMsg) errorMsg.classList.remove('show');
+                if (successMsg) successMsg.classList.remove('show');
+                if (hint) {
+                    hint.classList.remove('error', 'success');
+                    hint.style.display = 'block';
+                }
+
+                // Check if empty and required
+                if (isRequired && value === '') {
+                    input.classList.add('error');
+                    if (errorMsg) {
+                        errorMsg.querySelector('span').textContent = 'This field is required';
+                        errorMsg.classList.add('show');
+                    }
+                    if (hint) hint.style.display = 'none';
+                    return false;
+                }
+
+                // If optional and empty, it's valid
+                if (!isRequired && value === '') {
+                    input.classList.add('success');
+                    if (successMsg) successMsg.classList.add('show');
+                    if (hint) hint.style.display = 'none';
+                    return true;
+                }
+
+                // Test against pattern
+                if (pattern && !pattern.test(value)) {
+                    input.classList.add('error');
+                    if (errorMsg) {
+                        if (fieldId === 'room_no') {
+                            errorMsg.querySelector('span').textContent = 'Only letters, numbers, spaces, hyphens, apostrophes, ampersands, and periods are allowed.';
+                        } else if (fieldId === 'capacity') {
+                            errorMsg.querySelector('span').textContent = 'Must be a positive number (at least 1)';
+                        }
+                        errorMsg.classList.add('show');
+                    }
+                    if (hint) hint.style.display = 'none';
+                    return false;
+                }
+
+                // Special validation for capacity
+                if (fieldId === 'capacity' && value) {
+                    const numValue = parseInt(value);
+                    if (isNaN(numValue) || numValue < 1) {
+                        input.classList.add('error');
+                        if (errorMsg) {
+                            errorMsg.querySelector('span').textContent = 'Must be a positive number (at least 1)';
+                            errorMsg.classList.add('show');
+                        }
+                        if (hint) hint.style.display = 'none';
+                        return false;
+                    }
+                }
+
+                // All validations passed
+                input.classList.add('success');
+                if (successMsg) successMsg.classList.add('show');
+                if (hint) hint.style.display = 'none';
+                return true;
+            }
+
+            // Attach event listeners for real-time validation
+            Object.keys(fields).forEach(fieldId => {
+                const input = document.getElementById(fieldId);
+                if (!input) return;
+
+                // Validate on blur
+                input.addEventListener('blur', function() {
+                    validateField(fieldId);
+                });
+
+                // Validate on input for better UX
+                input.addEventListener('input', function() {
+                    // For capacity, only allow digits
+                    if (fieldId === 'capacity') {
+                        this.value = this.value.replace(/[^0-9]/g, '');
+                    }
+                    validateField(fieldId);
+                });
+            });
+
+            // Ward selection validation for dropdown
+            const wardSelect = document.getElementById('ward_id');
+            if (wardSelect && !wardSelect.disabled) {
+                wardSelect.addEventListener('change', function() {
+                    if (this.value === '') {
+                        this.classList.add('error');
+                    } else {
+                        this.classList.remove('error');
+                        this.classList.add('success');
+                    }
+                });
+            }
+
+            // Form submission validation
+            document.getElementById('roomForm').addEventListener('submit', function(e) {
+                let isValid = true;
+
+                // Validate all fields
+                Object.keys(fields).forEach(fieldId => {
+                    if (!validateField(fieldId)) {
+                        isValid = false;
+                    }
+                });
+
+                // Validate ward selection
+                const wardSelect = document.getElementById('ward_id');
+                if (wardSelect && !wardSelect.disabled && wardSelect.value === '') {
+                    wardSelect.classList.add('error');
+                    isValid = false;
+                }
+
+                if (!isValid) {
+                    e.preventDefault();
+                    const firstError = document.querySelector('.form-input.error, .form-select.error');
+                    if (firstError) {
+                        firstError.focus();
+                        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
+            });
+        });
+    </script>
+
 </body>
 </html>

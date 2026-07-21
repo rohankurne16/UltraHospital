@@ -1,16 +1,20 @@
 <?php
 session_start();
 include "config/hospital.php";
+include "config/permission.php";
+
+// FIX: Check permission properly
+checkPermission('staff-edit');
 
 if(isset($_GET['id'])) {
     $id = $_GET['id'];
     
     $hid = (int)$_SESSION['hospital_id'];
 
-$fetch_sql = "SELECT * FROM staff
-              WHERE staff_id = '$id'
-              AND hospital_id = '$hid'
-              AND (delete_flag IS NULL OR delete_flag = 0)";
+    $fetch_sql = "SELECT * FROM staff
+                  WHERE staff_id = '$id'
+                  AND hospital_id = '$hid'
+                  AND (delete_flag IS NULL OR delete_flag = 0)";
     $fetch_result = $conn->query($fetch_sql);
     
     if($fetch_result->num_rows > 0) {
@@ -55,7 +59,7 @@ if(isset($_POST['update'])) {
         }
     }
     
-   $update_sql = "UPDATE staff SET
+    $update_sql = "UPDATE staff SET
     name = '$name',
     role = '$role',
     email = '$email',
@@ -65,7 +69,7 @@ if(isset($_POST['update'])) {
     profile_image = '$profile_image',
     updated_at = CURRENT_TIMESTAMP()
     WHERE staff_id = '$staff_id'
-    AND hospital_id = '$hid'";
+    AND hospital_id = '$hospital_id'";
     
     if($conn->query($update_sql)) {
         echo "<script>alert('Staff member updated successfully'); window.location='staff.php';</script>";
@@ -175,16 +179,14 @@ if(isset($_POST['update'])) {
         <?php include 'header.php'; ?> 
 
         <div class="flex flex-1 items-start">
-            <div id="sidebar-container">
+          
                 <?php include 'Sidebar.php'; ?> 
-            </div>
+           
 
             <main id="main-content" class="flex-1 overflow-x-hidden duration-300 p-4 xl:p-8 xl:ml-64 w-full">
                 <div class="max-w-4xl mx-auto w-full">
                     <div class="flex items-center gap-4 mb-8">
-                        <button id="mobile-toggle" class="xl:hidden">
-                            <i class="fas fa-bars"></i>
-                        </button>
+                    
                         <a href="staff.php" class="back-btn">
                             <i data-lucide="arrow-left" class="w-5 h-5"></i>
                         </a>

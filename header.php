@@ -12,6 +12,7 @@ if (session_status() === PHP_SESSION_NONE) {
 // FIX: Include required config files
 // ============================================================
 require_once 'config/hospital.php';
+require_once 'config/permission.php';
 
 // ============================================================
 // FIX: Define missing functions if they don't exist
@@ -31,6 +32,9 @@ if (!function_exists('getUserProfile')) {
                   LEFT JOIN hospital_master h ON u.hospital_id = h.hospital_id
                   WHERE u.id = '$user_id' AND (u.delete_flag = 0 OR u.delete_flag IS NULL)";
         
+        
+        
+    
         $result = mysqli_query($conn, $query);
         if ($result && mysqli_num_rows($result) > 0) {
             return mysqli_fetch_assoc($result);
@@ -41,60 +45,37 @@ if (!function_exists('getUserProfile')) {
 
 if (!function_exists('getNotificationCount')) {
     function getNotificationCount($user_id) {
-        global $conn;
-        
-        if (!isset($conn) || $conn === null) {
-            return 0;
-        }
-        
-        // Check if audit_logs table has is_read column
-        $check_query = "SHOW COLUMNS FROM audit_logs LIKE 'is_read'";
-        $check_result = mysqli_query($conn, $check_query);
-        $has_is_read = ($check_result && mysqli_num_rows($check_result) > 0);
-        
-        if ($has_is_read) {
-            $query = "SELECT COUNT(*) as count FROM audit_logs 
-                      WHERE user_id = '$user_id' AND is_read = 0 
-                      AND (delete_flag = 0 OR delete_flag IS NULL)";
-        } else {
-            $query = "SELECT COUNT(*) as count FROM audit_logs 
-                      WHERE user_id = '$user_id' 
-                      AND (delete_flag = 0 OR delete_flag IS NULL)";
-        }
-        
-        $result = mysqli_query($conn, $query);
-        if ($result && mysqli_num_rows($result) > 0) {
-            $row = mysqli_fetch_assoc($result);
-            return $row['count'] ?? 0;
-        }
+    global $conn;
+
+    if (!isset($conn) || $conn === null) {
         return 0;
     }
-}
 
-if (!function_exists('getUserPermissions')) {
-    function getUserPermissions($role_id) {
-        global $conn;
-        
-        if (!isset($conn) || $conn === null || $role_id == 0) {
-            return [];
-        }
-        
-        $permissions = [];
-        $query = "SELECT p.permission_id, p.permission_name, p.permission_group, p.permission_icon 
-                  FROM permissions p
-                  INNER JOIN role_permissions rp ON p.permission_id = rp.permission_id
-                  WHERE rp.role_id = '$role_id' 
-                  AND (rp.delete_flag = 0 OR rp.delete_flag IS NULL)
-                  AND (p.delete_flag = 0 OR p.delete_flag IS NULL)
-                  ORDER BY p.permission_group ASC, p.permission_name ASC";
-        
-        $result = mysqli_query($conn, $query);
-        if ($result && mysqli_num_rows($result) > 0) {
-            while ($row = mysqli_fetch_assoc($result)) {
-                $permissions[] = $row;
-            }
-        }
-        return $permissions;
+    $check_query = "SHOW COLUMNS FROM audit_logs LIKE 'is_read'";
+    $check_result = mysqli_query($conn, $check_query);
+    $has_is_read = ($check_result && mysqli_num_rows($check_result) > 0);
+
+    if ($has_is_read) {
+        $query = "SELECT COUNT(*) as count
+                  FROM audit_logs
+                  WHERE register_id = '$user_id'
+                  AND is_read = 0
+                  AND (delete_flag = 0 OR delete_flag IS NULL)";
+    } else {
+        $query = "SELECT COUNT(*) as count
+                  FROM audit_logs
+                  WHERE register_id = '$user_id'
+                  AND (delete_flag = 0 OR delete_flag IS NULL)";
+    }
+
+    $result = mysqli_query($conn, $query);
+
+    if ($result && mysqli_num_rows($result) > 0) {
+        $row = mysqli_fetch_assoc($result);
+        return $row['count'];
+    }
+
+    return 0;
     }
 }
 
@@ -132,12 +113,15 @@ if (!function_exists('hasPermission')) {
 // ============================================================
 // Get user data
 // ============================================================
+$profile_id = $_SESSION['register_id'] ?? $_SESSION['id'];
 $user_id = $_SESSION['id'] ?? 0;
 $role_id = $_SESSION['role_id'] ?? 0;
 $role_name = $_SESSION['role'] ?? '';
-$user_profile = getUserProfile($user_id);
+$user_profile = getUserProfile($profile_id);
 $notification_count = getNotificationCount($user_id);
-$user_permissions = getUserPermissions($role_id);
+$user_id = $_SESSION['id'] ?? 0;
+
+$user_permissions = getUserPermissions($profile_id);
 $permission_names = array_column($user_permissions, 'permission_name');
 $theme = $_SESSION['theme'] ?? 'light';
 
@@ -357,34 +341,19 @@ if (!isset($_SESSION['permissions']) || empty($_SESSION['permissions'])) {
     }
 }
 </style>
-
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 <header class="dynamic-header">
     <!-- Left Side -->
     <div class="header-left">
         <button class="hamburger" onclick="toggleMobileSidebar()">
             <i class="fas fa-bars"></i>
         </button>
-        <div class="breadcrumb">
-            <a href="dashboard.php"><i class="fas fa-home"></i></a>
-            <span class="separator">/</span>
-            <?php
-            // Generate breadcrumb from current URL
-            $current_url = $_SERVER['REQUEST_URI'];
-            $current_page = basename($current_url, '.php');
-            $page_title = ucwords(str_replace(['_', '-'], ' ', $current_page));
-            ?>
-            <span class="current"><?php echo $page_title ?: 'Dashboard'; ?></span>
-        </div>
+       
     </div>
 
     <!-- Right Side -->
     <div class="header-right">
-        <!-- Theme Toggle -->
-        <div class="nav-item">
-            <button class="nav-link" onclick="toggleTheme()" title="Toggle Theme">
-                <i class="fas <?php echo $theme == 'dark' ? 'fa-sun' : 'fa-moon'; ?>"></i>
-            </button>
-        </div>
+      
 
         <!-- Notifications -->
         <?php if (hasPermission('notifications-view')): ?>
@@ -470,9 +439,7 @@ if (!isset($_SESSION['permissions']) || empty($_SESSION['permissions'])) {
                 <a href="update_adminprofile.php" class="dropdown-item">
                     <i class="fas fa-user"></i> My Profile
                 </a>
-                <a href="change_password.php" class="dropdown-item">
-                    <i class="fas fa-key"></i> Change Password
-                </a>
+               
                 <?php if (hasPermission('system-settings') || strtolower($role_name) == 'super admin'): ?>
                 <div class="dropdown-divider"></div>
                 <a href="settings.php" class="dropdown-item">
@@ -520,38 +487,14 @@ document.addEventListener('click', function(e) {
     }
 });
 
-/**
- * Toggle theme
- */
-function toggleTheme() {
-    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    
-    document.documentElement.setAttribute('data-theme', newTheme);
-    document.cookie = 'theme=' + newTheme + '; path=/; max-age=31536000';
-    
-    // Update icon
-    const btn = document.querySelector('[onclick="toggleTheme()"]');
-    if (btn) {
-        btn.innerHTML = '<i class="fas fa-' + (newTheme === 'dark' ? 'sun' : 'moon') + '"></i>';
-    }
-    
-    // Apply theme to body
-    if (newTheme === 'dark') {
-        document.body.style.background = '#0f172a';
-        document.body.style.color = '#e2e8f0';
-    } else {
-        document.body.style.background = '#f0f2f5';
-        document.body.style.color = '#1e293b';
-    }
-}
+
 
 /**
  * Toggle mobile sidebar
  */
 function toggleMobileSidebar() {
     const sidebar = document.getElementById('sidebar-container');
-    const overlay = document.getElementById('sidebarOverlay');
+    const overlay = document.getElementById('sidebar-overlay');
     if (sidebar) {
         sidebar.classList.toggle('active');
         if (overlay) overlay.classList.toggle('active');

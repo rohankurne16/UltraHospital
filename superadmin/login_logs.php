@@ -21,13 +21,18 @@ if ($date_filter) {
     $where .= " AND DATE(l.login_time) = '$date_filter'";
 }
 
-$query = "SELECT l.*, r.name as user_name, r.email, h.hospital_name 
-          FROM login_logs l 
-          LEFT JOIN register r ON l.register_id = r.id 
-          LEFT JOIN hospital_master h ON l.hospital_id = h.hospital_id 
-          WHERE $where 
-          ORDER BY l.login_time DESC 
-          LIMIT 100";
+$query = "SELECT l.*, 
+       r.name AS user_name,
+       r.email,
+       r.role,
+       h.hospital_name
+        FROM login_logs l
+        LEFT JOIN register r ON l.register_id = r.id
+        LEFT JOIN hospital_master h ON l.hospital_id = h.hospital_id
+        WHERE $where
+        ORDER BY l.login_time DESC
+        LIMIT 100";
+
 $result = mysqli_query($conn, $query);
 
 // Get total count
@@ -184,6 +189,36 @@ $total_logs = $count_row['total'];
             color: #22c55e;
             font-weight: 600;
         }
+
+        /* ============================================
+           USER AVATAR
+           ============================================ */
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.75rem;
+            flex-shrink: 0;
+            background: #eff6ff;
+            color: #3b82f6;
+        }
+
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
         
         @media (max-width: 768px) {
             .main-content {
@@ -208,12 +243,12 @@ $total_logs = $count_row['total'];
 <body class="<?php echo $theme; ?>">
 
 <!-- Include Sidebar -->
-<?php include 'sidebar.php'; ?>
+<?php include 'header.php'; ?>
 
 <!-- Main Content -->
 <div class="main-content" id="mainContent">
     <!-- Include Header -->
-    <?php include 'header.php'; ?>
+    <?php include 'sidebar.php'; ?>
     <a href="dashboard.php" class="btn btn-primary" style="margin-bottom:2%;">
     <i class="fas fa-arrow-left"></i> Back
 </a>
@@ -272,15 +307,81 @@ $total_logs = $count_row['total'];
                             } else {
                                 $duration = 'Active';
                             }
+                            
+                            // ============================================
+                            // GET USER PROFILE IMAGE
+                            // ============================================
+                            $profile_image = '';
+                            $user_name = $row['user_name'] ?? 'System';
+                            $role = strtolower(trim($row['role'] ?? ''));
+
+                            if ($row['register_id']) {
+
+                                switch ($role) {
+
+                                    case 'admin':
+                                    case 'super admin':
+
+                                        $imgQuery = "SELECT profile_image
+                                                    FROM admin_profile
+                                                    WHERE register_id = {$row['register_id']}
+                                                    LIMIT 1";
+                                        break;
+
+                                    case 'doctor':
+
+                                        $imgQuery = "SELECT doctor_image AS profile_image
+                                                    FROM doctor
+                                                    WHERE register_id = {$row['register_id']}
+                                                    LIMIT 1";
+                                        break;
+
+                                    case 'staff':
+
+                                        $imgQuery = "SELECT profile_image
+                                                    FROM staff
+                                                    WHERE register_id = {$row['register_id']}
+                                                    LIMIT 1";
+                                        break;
+
+                                    case 'patient':
+
+                                        $imgQuery = "SELECT patient_image AS profile_image
+                                                    FROM patients
+                                                    WHERE register_id = {$row['register_id']}
+                                                    LIMIT 1";
+                                        break;
+
+                                    default:
+
+                                        $imgQuery = "";
+                                }
+
+                                if (!empty($imgQuery)) {
+
+                                    $imgResult = mysqli_query($conn, $imgQuery);
+
+                                    if ($imgResult && mysqli_num_rows($imgResult) > 0) {
+
+                                        $imgRow = mysqli_fetch_assoc($imgResult);
+
+                                        $profile_image = $imgRow['profile_image'];
+                                    }
+                                }
+                            }
                         ?>
                             <tr class="table-row">
                                 <td>
-                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                        <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(59, 130, 246, 0.1); display: flex; align-items: center; justify-content: center; color: #3b82f6; font-weight: 600; font-size: 0.7rem;">
-                                            <?php echo strtoupper(substr($row['user_name'] ?? 'S', 0, 2)); ?>
+                                    <div class="user-info">
+                                        <div class="user-avatar">
+                                           <?php if (!empty($profile_image)): ?>
+                                                <img src="../<?php echo htmlspecialchars($profile_image); ?>" alt="">
+                                            <?php else: ?>
+                                                <?php echo strtoupper(substr($user_name, 0, 2)); ?>
+                                            <?php endif; ?>
                                         </div>
                                         <span style="color: <?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>; font-weight:500;">
-                                            <?php echo htmlspecialchars($row['user_name'] ?? 'System'); ?>
+                                            <?php echo htmlspecialchars($user_name); ?>
                                         </span>
                                     </div>
                                 </td>
@@ -326,8 +427,7 @@ $total_logs = $count_row['total'];
                                 <i class="fas fa-sign-in-alt"></i>
                                 No login logs found
                                 <?php if ($search || $date_filter): ?>
-                                      
-<small>Try adjusting your search filters</small>
+                                    <br><small>Try adjusting your search filters</small>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -338,29 +438,6 @@ $total_logs = $count_row['total'];
     </div>
 </div>
 
-<script>
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const mainContent = document.getElementById('mainContent');
-    if (sidebar && mainContent) {
-        sidebar.classList.toggle('closed');
-        mainContent.classList.toggle('collapsed');
-    }
-}
 
-function toggleTheme() {
-    const body = document.body;
-    const currentTheme = body.classList.contains('light') ? 'dark' : 'light';
-    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    body.classList.remove(currentTheme);
-    body.classList.add(newTheme);
-    
-    fetch('toggle_theme.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'theme=' + newTheme
-    });
-}
-    </script>
 </body>
 </html>

@@ -144,6 +144,20 @@ $result = mysqli_query($conn, $query);
             background: rgba(59, 130, 246, 0.1);
         }
 
+        .doctor-img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #e0f2fe;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+            color: #2563eb;
+            object-fit: cover;
+        }
+
         .success-msg { background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #22c55e; padding: 1rem; border-radius: 10px; margin-bottom: 1rem; }
         .error-msg { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; padding: 1rem; border-radius: 10px; margin-bottom: 1rem; }
 
@@ -161,19 +175,16 @@ $result = mysqli_query($conn, $query);
         <!-- Header -->
         <?php include 'header.php'; ?>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-            <div>
-                <h1 class="text-2xl font-bold" style="color: <?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>;"><?php echo $page_title; ?></h1>
-                <p style="color: #94a3b8; font-size: 0.9rem;"><?php echo $page_subtitle; ?></p>
-            </div>
-            <a href="add_doctor.php" class="btn-primary">
-                <i class="fas fa-plus"></i> Add New Doctor
-            </a>
-        </div>
+            <a href="dashboard.php" class="btn btn-primary" style="margin-bottom:2%;">
+    <i class="fas fa-arrow-left"></i> Back
+</a>
+       
 
-        <?php if(isset($success)): ?>
+       <?php if (!empty($success)): ?>
             <div class="success-msg"><i class="fas fa-check-circle mr-2"></i> <?php echo $success; ?></div>
         <?php endif; ?>
+
+      
 
         <!-- Filters -->
         <div class="content-card" style="margin-bottom: 1.5rem;">
@@ -211,7 +222,7 @@ $result = mysqli_query($conn, $query);
                             <th>Specialization</th>
                             <th>Experience</th>
                             <th>Status</th>
-                            <th style="text-align: right;">Actions</th>
+                           
                         </tr>
                     </thead>
                     <tbody>
@@ -220,11 +231,11 @@ $result = mysqli_query($conn, $query);
                                 <tr class="table-row">
                                     <td>
                                         <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                            <?php if($row['doctor_image']): ?>
-                                                <img src="<?php echo htmlspecialchars($row['doctor_image']); ?>" class="doctor-img" alt="">
+                                          <?php if (!empty($row['doctor_image'])): ?>
+                                                <img src="../<?php echo $row['doctor_image']; ?>" class="doctor-img" alt="Doctor">
                                             <?php else: ?>
                                                 <div class="doctor-img flex items-center justify-center text-blue-500 font-bold">
-                                                    <?php echo strtoupper(substr($row['doctor_name'], 0, 1)); ?>
+                                                    <?php echo strtoupper(substr(trim($row['doctor_name']), 0, 1)); ?>
                                                 </div>
                                             <?php endif; ?>
                                             <div>
@@ -259,23 +270,7 @@ $result = mysqli_query($conn, $query);
                                             <?php echo ucfirst($row['status']); ?>
                                         </span>
                                     </td>
-                                    <td style="text-align: right;">
-                                        <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
-                                            <a href="edit_doctor.php?id=<?php echo $row['doctor_id']; ?>" class="p-2 rounded-lg hover:bg-blue-50 text-blue-500 transition-all" title="Edit">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
-                                            <form method="POST" onsubmit="return confirm('Are you sure you want to change this doctor\'s status?');">
-                                                <input type="hidden" name="doctor_id" value="<?php echo $row['doctor_id']; ?>">
-                                                <input type="hidden" name="new_status" value="<?php echo strtolower($row['status']) == 'active' ? 'Inactive' : 'Active'; ?>">
-                                                <button type="submit" name="toggle_status" class="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-all" title="Toggle Status">
-                                                    <i class="fas <?php echo strtolower($row['status']) == 'active' ? 'fa-user-slash' : 'fa-user-check'; ?>"></i>
-                                                </button>
-                                            </form>
-                                            <a href="delete_doctor.php?id=<?php echo $row['doctor_id']; ?>" class="p-2 rounded-lg hover:bg-red-50 text-red-500 transition-all" title="Delete" onclick="return confirm('Delete this doctor record?');">
-                                                <i class="fas fa-trash"></i>
-                                            </a>
-                                        </div>
-                                    </td>
+                                   
                                 </tr>
                             <?php endwhile; ?>
                         <?php else: ?>

@@ -52,48 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         body.light { background: #f1f5f9; }
         body.dark { background: #0a0a0a; }
         
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 250px;
-            padding: 1rem 0.5rem;
-            overflow-y: auto;
-            z-index: 1000;
-            transition: width 0.3s ease;
-        }
-        body.light .sidebar { background: #ffffff; border-right: 1px solid #e2e8f0; }
-        body.dark .sidebar { background: #1a1a1a; border-right: 1px solid #2a2a2a; }
-        .sidebar.closed { width: 70px; }
-        
-        .sidebar-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.7rem 0.8rem;
-            border-radius: 0.75rem;
-            transition: all 0.2s ease;
-            text-decoration: none;
-            cursor: pointer;
-            font-size: 0.85rem;
-            margin: 2px 0;
-            color: <?php echo $theme == 'dark' ? '#d1d5db' : '#475569'; ?>;
-        }
-        .sidebar-item i { width: 1.25rem; text-align: center; }
-        .sidebar-item:hover { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-        .sidebar-item.active { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-        .sidebar.closed .sidebar-item span { display: none; }
-        
-        .sidebar-brand {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>;
-            padding: 0 0.5rem 1rem 0.5rem;
-        }
+       
         .brand-icon {
             width: 40px;
             height: 40px;
@@ -191,8 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         
         @media (max-width: 768px) {
-            .sidebar { width: 200px; }
-            .sidebar.closed { width: 60px; }
+           
             .main-content { margin-left: 200px; padding: 1rem; }
             .main-content.collapsed { margin-left: 60px; }
             .content-card { padding: 1.5rem; }
@@ -206,72 +164,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <body class="<?php echo $theme; ?>">
 
 <!-- Sidebar -->
-<div class="sidebar" id="sidebar">
-    <button onclick="toggleSidebar()" style="background:none;border:none;cursor:pointer;padding:8px;margin-bottom:1rem;color:<?php echo $theme == 'dark' ? '#d1d5db' : '#475569'; ?>;">
-        <i class="fas fa-bars" style="font-size:1.2rem;"></i>
-    </button>
-    
-    <div class="sidebar-brand">
-        <div class="brand-icon"><i class="fas fa-crown"></i></div>
-        <div class="brand-text">
-            <h2>Super Admin</h2>
-            <p>MedixPro System</p>
-        </div>
-    </div>
-    
-    <nav>
-        <a href="dashboard.php" class="sidebar-item">
-            <i class="fas fa-chart-pie"></i>
-            <span>Dashboard</span>
-        </a>
-        <a href="role_list.php" class="sidebar-item active">
-            <i class="fas fa-user-tag"></i>
-            <span>Roles</span>
-        </a>
-        <a href="permissions.php" class="sidebar-item">
-            <i class="fas fa-lock"></i>
-            <span>Permissions</span>
-        </a>
-        <a href="users.php" class="sidebar-item">
-            <i class="fas fa-users"></i>
-            <span>Users</span>
-        </a>
-        <a href="audit_logs.php" class="sidebar-item">
-            <i class="fas fa-history"></i>
-            <span>Audit Logs</span>
-        </a>
-        <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>;">
-            <a href="../auth/logout.php" class="sidebar-item" style="color:#ef4444;">
-                <i class="fas fa-sign-out-alt"></i>
-                <span>Logout</span>
-            </a>
-        </div>
-    </nav>
-</div>
+   <?php include 'sidebar.php' ?>
 
 <!-- Main Content -->
 <div class="main-content" id="mainContent">
     <!-- Header -->
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
-        <div>
-            <h1 style="font-size:1.5rem;font-weight:700;color:<?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>;"><?php echo $page_title; ?></h1>
-            <p style="color:#94a3b8;font-size:0.85rem;"><?php echo $page_subtitle; ?></p>
-        </div>
-        <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
-            <a href="role_list.php" class="btn-secondary">
-                <i class="fas fa-arrow-left"></i> Back to Roles
-            </a>
-            <span style="color:#94a3b8;font-size:0.8rem;"><?php echo date('l, d M Y'); ?></span>
-            <button onclick="toggleTheme()" style="cursor:pointer;padding:0.5rem 1rem;border-radius:10px;border:1px solid <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>;background:transparent;color:<?php echo $theme == 'dark' ? '#d1d5db' : '#475569'; ?>;">
-                <i class="fas fa-<?php echo $theme == 'dark' ? 'sun' : 'moon'; ?>"></i>
-                <span style="margin-left:0.5rem;font-size:0.8rem;"><?php echo $theme == 'dark' ? 'Light' : 'Dark'; ?></span>
-            </button>
-            <div style="width:40px;height:40px;border-radius:50%;background:#3b82f6;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;">
-                <?php echo substr($_SESSION['name'], 0, 2); ?>
-            </div>
-        </div>
-    </div>
-
+   <?php include 'header.php' ?>
     <?php if ($error): ?>
         <div class="error-msg"><i class="fas fa-exclamation-circle mr-2"></i><?php echo $error; ?></div>
     <?php endif; ?>
@@ -317,12 +215,7 @@ document.querySelector('input[name="role_name"]').addEventListener('input', func
     }
 });
 
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const mainContent = document.getElementById('mainContent');
-    sidebar.classList.toggle('closed');
-    mainContent.classList.toggle('collapsed');
-}
+
 
 function toggleTheme() {
     const body = document.body;

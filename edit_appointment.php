@@ -2,7 +2,7 @@
 session_start();
 include 'config/hospital.php';
 
-include 'config/permission_check.php';
+include 'config/permission.php';
     checkPermission('appointment-edit'); 
 
 $conn->set_charset("utf8");

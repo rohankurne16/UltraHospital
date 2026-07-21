@@ -30,7 +30,8 @@ SELECT
     role,
     mobile,
     email,
-    status
+    status,
+    profile_image
 FROM staff
 WHERE hospital_id='$hospital_id'
 AND delete_flag=0
@@ -61,48 +62,7 @@ $page_subtitle = 'Manage staff at ' . htmlspecialchars($hospital['hospital_name'
         body.dark { background: #0a0a0a; }
         body.light { background: #f1f5f9; }
         
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 250px;
-            padding: 1rem 0.5rem;
-            overflow-y: auto;
-            z-index: 1000;
-            transition: width 0.3s ease;
-        }
-        body.dark .sidebar { background: #1a1a1a; border-right: 1px solid #2a2a2a; }
-        body.light .sidebar { background: #ffffff; border-right: 1px solid #e2e8f0; }
-        .sidebar.closed { width: 70px; }
-        
-        .sidebar-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.7rem 0.8rem;
-            border-radius: 0.75rem;
-            transition: all 0.2s ease;
-            text-decoration: none;
-            cursor: pointer;
-            font-size: 0.85rem;
-            margin: 2px 0;
-            color: <?php echo $theme == 'dark' ? '#d1d5db' : '#475569'; ?>;
-        }
-        .sidebar-item i { width: 1.25rem; text-align: center; }
-        .sidebar-item:hover { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-        .sidebar-item.active { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-        .sidebar.closed .sidebar-item span { display: none; }
-        
-        .sidebar-brand {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>;
-            padding: 0 0.5rem 1rem 0.5rem;
-        }
+      
         .brand-icon {
             width: 40px;
             height: 40px;
@@ -259,10 +219,17 @@ $page_subtitle = 'Manage staff at ' . htmlspecialchars($hospital['hospital_name'
             background: rgba(59, 130, 246, 0.1);
             color: #3b82f6;
         }
+
+        .staff-img {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #e2e8f0;
+        }
         
         @media (max-width: 768px) {
-            .sidebar { width: 200px; }
-            .sidebar.closed { width: 60px; }
+           
             .main-content { margin-left: 200px; padding: 1rem; }
             .main-content.collapsed { margin-left: 60px; }
         }
@@ -290,12 +257,12 @@ $page_subtitle = 'Manage staff at ' . htmlspecialchars($hospital['hospital_name'
         <a href="view_hospital.php?id=<?php echo $hospital_id; ?>" class="btn-back">
             <i class="fas fa-arrow-left"></i> Back to Hospital Details
         </a>
+
         <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
             <span class="stat-badge">
                 <i class="fas fa-hospital"></i> 
                 <?php echo htmlspecialchars($hospital['hospital_name']); ?>
             </span>
-           
         </div>
     </div>
 
@@ -335,9 +302,32 @@ $page_subtitle = 'Manage staff at ' . htmlspecialchars($hospital['hospital_name'
                                 </td>
                                 <td>
                                     <div style="display:flex;align-items:center;gap:0.75rem;">
-                                        <div style="width:36px;height:36px;border-radius:50%;background:rgba(59,130,246,0.1);display:flex;align-items:center;justify-content:center;color:#3b82f6;font-size:0.9rem;">
-                                            <i class="fas fa-user"></i>
-                                        </div>
+                                        <?php 
+                                        // Check profile image properly
+                                        $img_path = $row['profile_image'] ?? '';
+                                        $img_exists = !empty($img_path) && file_exists($img_path);
+                                        ?>
+                                        
+                                        <?php if ($img_exists): ?>
+                                            <img src="<?php echo $img_path; ?>" 
+                                                 class="staff-img" 
+                                                 alt="<?php echo htmlspecialchars($row['name']); ?>">
+                                        <?php else: ?>
+                                            <?php 
+                                            // Check alternative path
+                                            $alt_path = '../documents/staff/images/' . basename($img_path);
+                                            if (!empty($img_path) && file_exists($alt_path)):
+                                            ?>
+                                                <img src="<?php echo $alt_path; ?>" 
+                                                     class="staff-img" 
+                                                     alt="<?php echo htmlspecialchars($row['name']); ?>">
+                                            <?php else: ?>
+                                                <div style="width:36px;height:36px;border-radius:50%;background:rgba(59,130,246,0.1);display:flex;align-items:center;justify-content:center;color:#3b82f6;font-size:0.9rem;font-weight:bold;border:2px solid #e2e8f0;">
+                                                    <?php echo strtoupper(substr($row['name'], 0, 1)); ?>
+                                                </div>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+                                        
                                         <div>
                                             <div style="font-weight:600;color:<?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>;">
                                                 <?php echo htmlspecialchars($row['name']); ?>
@@ -381,12 +371,7 @@ $page_subtitle = 'Manage staff at ' . htmlspecialchars($hospital['hospital_name'
 </div>
 
 <script>
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const mainContent = document.getElementById('mainContent');
-    sidebar.classList.toggle('closed');
-    mainContent.classList.toggle('collapsed');
-}
+
 
 function toggleTheme() {
     const body = document.body;

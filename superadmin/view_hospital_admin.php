@@ -360,14 +360,7 @@ function deleteAdmin(adminId, adminName) {
     }
 }
 
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const mainContent = document.getElementById('mainContent');
-    if (sidebar && mainContent) {
-        sidebar.classList.toggle('closed');
-        mainContent.classList.toggle('collapsed');
-    }
-}
+
 </script>
 </body>
 </html>

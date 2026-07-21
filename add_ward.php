@@ -3,30 +3,45 @@ session_start();
 
 include "config/hospital.php";
 
+$hid = $_SESSION["hospital_id"];
+
 if(isset($_POST['save'])){
     $ward_name = mysqli_real_escape_string($conn, $_POST['ward_name']);
     $ward_type = mysqli_real_escape_string($conn, $_POST['ward_type']);
     $floor_no = mysqli_real_escape_string($conn, $_POST['floor_no']);
     $status = mysqli_real_escape_string($conn, $_POST['status']);
 
-    // Check if ward already exists
-    $check_sql = "SELECT * FROM ward_master WHERE ward_name = '$ward_name' and hospital_id='$hid' AND (delete_flag = 0 or delete_flag is null)";
-    $check_result = mysqli_query($conn, $check_sql);
-    
-    if(mysqli_num_rows($check_result) > 0){
-        $error_message = "Ward \"$ward_name\" already exists! Please use a different name.";
+    // Server-side Validation with Regex
+    if (empty($ward_name)) {
+        $error_message = "Ward name is required!";
+    } elseif (!preg_match('/^[A-Za-z0-9\s\-\'&.]+$/', $ward_name)) {
+        $error_message = "Invalid Ward Name. Only letters, numbers, spaces, hyphens, apostrophes, ampersands, and periods are allowed.";
+    } elseif (!preg_match('/^[A-Za-z0-9\s\-\'&.]+$/', $ward_type)) {
+        $error_message = "Invalid Ward Type. Only letters, numbers, spaces, hyphens, apostrophes, ampersands, and periods are allowed.";
+    } elseif (!preg_match('/^[0-9]+$/', $floor_no) || $floor_no < 0) {
+        $error_message = "Invalid Floor Number. Must be a non-negative number.";
+    } elseif (!in_array($status, ['Available', 'Occupied'])) {
+        $error_message = "Invalid Status selected.";
     } else {
-        $sql = "INSERT INTO ward_master (ward_name, ward_type, floor_no, status) VALUES ('$ward_name', '$ward_type', '$floor_no', '$status')";
+        // Check if ward already exists
+        $check_sql = "SELECT * FROM ward_master WHERE ward_name = '$ward_name' AND hospital_id='$hid' AND (delete_flag = 0 OR delete_flag IS NULL)";
+        $check_result = mysqli_query($conn, $check_sql);
         
-        if(mysqli_query($conn, $sql)){
-            $success_message = "Ward added successfully!";
-            echo "<script>
-                setTimeout(function() {
-                    window.location.href='ward_master.php';
-                }, 1500);
-            </script>";
+        if(mysqli_num_rows($check_result) > 0){
+            $error_message = "Ward \"$ward_name\" already exists! Please use a different name.";
         } else {
-            $error_message = "Error: " . mysqli_error($conn);
+            $sql = "INSERT INTO ward_master (ward_name, ward_type, floor_no, status, hospital_id) VALUES ('$ward_name', '$ward_type', '$floor_no', '$status', '$hid')";
+            
+            if(mysqli_query($conn, $sql)){
+                $success_message = "Ward added successfully!";
+                echo "<script>
+                    setTimeout(function() {
+                        window.location.href='ward_master.php';
+                    }, 1500);
+                </script>";
+            } else {
+                $error_message = "Error: " . mysqli_error($conn);
+            }
         }
     }
 }
@@ -35,7 +50,7 @@ if(isset($_POST['save'])){
 if(isset($_POST['check_ward_name'])){
     $ward_name = mysqli_real_escape_string($conn, $_POST['check_ward_name']);
     
-    $check_sql = "SELECT * FROM ward_master WHERE ward_name = '$ward_name' AND delete_flag = 0";
+    $check_sql = "SELECT * FROM ward_master WHERE ward_name = '$ward_name' AND hospital_id='$hid' AND delete_flag = 0";
     $check_result = mysqli_query($conn, $check_sql);
     
     $response = array('exists' => false);
@@ -58,8 +73,7 @@ if(isset($_POST['check_ward_name'])){
     <title><?php echo $hospital['hospital_name'] ?> -Add Ward</title>
     <link rel="icon" type="image/png" href="<?php echo $hospital['hospital_logo'] ?>">
     <script src="https://cdn.tailwindcss.com"></script>
-      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-      
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
@@ -256,8 +270,6 @@ if(isset($_POST['check_ward_name'])){
             position: relative;
         }
         
-        
-        
         .input-icon input,
         .input-icon select {
             padding-left: 14px;
@@ -386,7 +398,6 @@ if(isset($_POST['check_ward_name'])){
                         </a>
                         <div>
                             <h1 class="page-title">
-                                
                                 Add New Ward
                             </h1>
                             <p class="page-subtitle">Create a new hospital ward with details</p>
@@ -397,23 +408,22 @@ if(isset($_POST['check_ward_name'])){
                     <div class="form-card">
                         <div class="form-header">
                             <h2>
-                                
                                 Ward Information
                             </h2>
                         </div>
                         
-                        <form method="POST" class="form-body" action="" id="wardForm">
+                        <form method="POST" class="form-body" action="" id="wardForm" novalidate>
                             <!-- Display Success/Error Messages -->
                             <?php if(isset($success_message)): ?>
                                 <div class="alert alert-success">
-                                    
+                                    <i class="fas fa-check-circle"></i>
                                     <?php echo $success_message; ?>
                                 </div>
                             <?php endif; ?>
 
                             <?php if(isset($error_message)): ?>
                                 <div class="alert alert-error">
-                                    
+                                    <i class="fas fa-exclamation-circle"></i>
                                     <?php echo $error_message; ?>
                                 </div>
                             <?php endif; ?>
@@ -426,7 +436,6 @@ if(isset($_POST['check_ward_name'])){
                                         Ward Name <span class="required">*</span>
                                     </label>
                                     <div class="input-icon">
-                                        
                                         <input 
                                             type="text"
                                             name="ward_name"
@@ -434,11 +443,21 @@ if(isset($_POST['check_ward_name'])){
                                             placeholder="e.g., ICU Ward, General Ward"
                                             required
                                             class="form-input"
+                                            pattern="^[A-Za-z0-9\s\-\'&.]+$"
+                                            data-validation="ward_name"
                                             value="<?php echo isset($_POST['ward_name']) ? htmlspecialchars($_POST['ward_name']) : ''; ?>">
                                     </div>
                                     <p class="form-hint" id="ward_name_hint">
-                                         Enter the name of the ward
+                                        <i class="fas fa-info-circle"></i> Enter the name of the ward
                                     </p>
+                                    <div class="validation-message error" id="ward_name_error" style="display:none; color:#ef4444; font-size:12px; margin-top:4px;">
+                                        <i class="fas fa-exclamation-circle"></i>
+                                        <span>Only letters, numbers, spaces, hyphens, apostrophes, ampersands, and periods are allowed.</span>
+                                    </div>
+                                    <div class="validation-message success" id="ward_name_success" style="display:none; color:#22c55e; font-size:12px; margin-top:4px;">
+                                        <i class="fas fa-check-circle"></i>
+                                        <span>Valid ward name</span>
+                                    </div>
                                 </div>
 
                                 <!-- Ward Type -->
@@ -447,16 +466,28 @@ if(isset($_POST['check_ward_name'])){
                                         Ward Type <span class="required">*</span>
                                     </label>
                                     <div class="input-icon">
-                                        
                                         <input 
                                             type="text"
                                             name="ward_type"
+                                            id="ward_type"
                                             placeholder="e.g., ICU, General, Private"
                                             required
                                             class="form-input"
+                                            pattern="^[A-Za-z0-9\s\-\'&.]+$"
+                                            data-validation="ward_type"
                                             value="<?php echo isset($_POST['ward_type']) ? htmlspecialchars($_POST['ward_type']) : ''; ?>">
                                     </div>
-                                    <p class="form-hint"> Specify the type or category of the ward</p>
+                                    <p class="form-hint">
+                                        <i class="fas fa-info-circle"></i> Specify the type or category of the ward
+                                    </p>
+                                    <div class="validation-message error" id="ward_type_error" style="display:none; color:#ef4444; font-size:12px; margin-top:4px;">
+                                        <i class="fas fa-exclamation-circle"></i>
+                                        <span>Only letters, numbers, spaces, hyphens, apostrophes, ampersands, and periods are allowed.</span>
+                                    </div>
+                                    <div class="validation-message success" id="ward_type_success" style="display:none; color:#22c55e; font-size:12px; margin-top:4px;">
+                                        <i class="fas fa-check-circle"></i>
+                                        <span>Valid ward type</span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -468,17 +499,28 @@ if(isset($_POST['check_ward_name'])){
                                         Floor Number <span class="required">*</span>
                                     </label>
                                     <div class="input-icon">
-                                        
                                         <input 
                                             type="number"
                                             name="floor_no"
+                                            id="floor_no"
                                             placeholder="e.g., 1, 2, 3"
                                             required
                                             min="0"
                                             class="form-input"
+                                            data-validation="floor_no"
                                             value="<?php echo isset($_POST['floor_no']) ? htmlspecialchars($_POST['floor_no']) : ''; ?>">
                                     </div>
-                                    <p class="form-hint"> Enter the floor number where the ward is located</p>
+                                    <p class="form-hint">
+                                        <i class="fas fa-info-circle"></i> Enter the floor number where the ward is located
+                                    </p>
+                                    <div class="validation-message error" id="floor_no_error" style="display:none; color:#ef4444; font-size:12px; margin-top:4px;">
+                                        <i class="fas fa-exclamation-circle"></i>
+                                        <span>Must be a non-negative number</span>
+                                    </div>
+                                    <div class="validation-message success" id="floor_no_success" style="display:none; color:#22c55e; font-size:12px; margin-top:4px;">
+                                        <i class="fas fa-check-circle"></i>
+                                        <span>Valid floor number</span>
+                                    </div>
                                 </div>
 
                                 <!-- Status -->
@@ -487,25 +529,26 @@ if(isset($_POST['check_ward_name'])){
                                         Status <span class="required">*</span>
                                     </label>
                                     <div class="input-icon">
-                                        
-                                        <select name="status" required class="form-select">
+                                        <select name="status" id="status" required class="form-select">
                                             <option value="">-- Select Status --</option>
                                             <option value="Available" <?php echo (isset($_POST['status']) && $_POST['status'] == 'Available') ? 'selected' : ''; ?>>Available</option>
                                             <option value="Occupied" <?php echo (isset($_POST['status']) && $_POST['status'] == 'Occupied') ? 'selected' : ''; ?>>Occupied</option>
                                         </select>
                                     </div>
-                                    <p class="form-hint"> Choose whether the ward is Available or Occupied</p>
+                                    <p class="form-hint">
+                                        <i class="fas fa-info-circle"></i> Choose whether the ward is Available or Occupied
+                                    </p>
                                 </div>
                             </div>
 
                             <!-- Form Actions -->
                             <div class="form-actions">
                                 <button type="submit" name="save" class="btn btn-primary" id="submitBtn">
-                                    
+                                    <i class="fas fa-save"></i>
                                     Save Ward
                                 </button>
                                 <a href="ward_master.php" class="btn btn-secondary">
-                                    
+                                    <i class="fas fa-times"></i>
                                     Cancel
                                 </a>
                             </div>
@@ -519,18 +562,135 @@ if(isset($_POST['check_ward_name'])){
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // ============================================================
+            // VALIDATION LOGIC
+            // ============================================================
+            
+            // Define validation patterns
+            const patterns = {
+                ward_name: /^[A-Za-z0-9\s\-\'&.]+$/,
+                ward_type: /^[A-Za-z0-9\s\-\'&.]+$/,
+                floor_no: /^[0-9]+$/
+            };
+
+            // Get fields that need validation
+            const fields = {
+                ward_name: { pattern: patterns.ward_name, required: true },
+                ward_type: { pattern: patterns.ward_type, required: true },
+                floor_no: { pattern: patterns.floor_no, required: true }
+            };
+
+            // Function to validate a single field
+            function validateField(fieldId) {
+                const input = document.getElementById(fieldId);
+                if (!input) return true;
+
+                const value = input.value.trim();
+                const fieldConfig = fields[fieldId];
+                const isRequired = fieldConfig ? fieldConfig.required : false;
+                const pattern = fieldConfig ? fieldConfig.pattern : null;
+
+                const errorMsg = document.getElementById(fieldId + '_error');
+                const successMsg = document.getElementById(fieldId + '_success');
+                const hint = document.getElementById(fieldId + '_hint');
+
+                // Reset states
+                input.classList.remove('error', 'success');
+                if (errorMsg) errorMsg.style.display = 'none';
+                if (successMsg) successMsg.style.display = 'none';
+                if (hint) hint.style.display = 'block';
+
+                // Check if empty and required
+                if (isRequired && value === '') {
+                    input.classList.add('error');
+                    if (errorMsg) {
+                        errorMsg.querySelector('span').textContent = 'This field is required';
+                        errorMsg.style.display = 'block';
+                    }
+                    if (hint) hint.style.display = 'none';
+                    return false;
+                }
+
+                // If optional and empty, it's valid
+                if (!isRequired && value === '') {
+                    input.classList.add('success');
+                    if (successMsg) successMsg.style.display = 'block';
+                    if (hint) hint.style.display = 'none';
+                    return true;
+                }
+
+                // Test against pattern
+                if (pattern && !pattern.test(value)) {
+                    input.classList.add('error');
+                    if (errorMsg) {
+                        // Set specific error message based on field
+                        if (fieldId === 'ward_name' || fieldId === 'ward_type') {
+                            errorMsg.querySelector('span').textContent = 'Only letters, numbers, spaces, hyphens, apostrophes, ampersands, and periods are allowed.';
+                        } else if (fieldId === 'floor_no') {
+                            errorMsg.querySelector('span').textContent = 'Must be a non-negative number';
+                        }
+                        errorMsg.style.display = 'block';
+                    }
+                    if (hint) hint.style.display = 'none';
+                    return false;
+                }
+
+                // Special validation for floor number
+                if (fieldId === 'floor_no' && value) {
+                    const numValue = parseInt(value);
+                    if (isNaN(numValue) || numValue < 0) {
+                        input.classList.add('error');
+                        if (errorMsg) {
+                            errorMsg.querySelector('span').textContent = 'Must be a non-negative number';
+                            errorMsg.style.display = 'block';
+                        }
+                        if (hint) hint.style.display = 'none';
+                        return false;
+                    }
+                }
+
+                // All validations passed
+                input.classList.add('success');
+                if (successMsg) successMsg.style.display = 'block';
+                if (hint) hint.style.display = 'none';
+                return true;
+            }
+
+            // Attach event listeners for real-time validation
+            Object.keys(fields).forEach(fieldId => {
+                const input = document.getElementById(fieldId);
+                if (!input) return;
+
+                // Validate on blur
+                input.addEventListener('blur', function() {
+                    validateField(fieldId);
+                });
+
+                // Validate on input for better UX
+                input.addEventListener('input', function() {
+                    // For floor number, only allow digits
+                    if (fieldId === 'floor_no') {
+                        this.value = this.value.replace(/[^0-9]/g, '');
+                    }
+                    validateField(fieldId);
+                });
+            });
+
+            // Ward Name Duplicate Check (existing functionality)
             const wardNameInput = document.getElementById('ward_name');
             const wardNameHint = document.getElementById('ward_name_hint');
             const submitBtn = document.getElementById('submitBtn');
             let isDuplicate = false;
 
-            // Function to check ward name
+            // Function to check ward name duplicate
             function checkWardName() {
                 const wardName = wardNameInput.value.trim();
                 
                 if (wardName.length === 0) {
-                    wardNameHint.className = 'form-hint';
-                    wardNameHint.innerHTML = ' Enter the name of the ward';
+                    if (wardNameHint) {
+                        wardNameHint.className = 'form-hint';
+                        wardNameHint.innerHTML = '<i class="fas fa-info-circle"></i> Enter the name of the ward';
+                    }
                     wardNameInput.className = 'form-input';
                     isDuplicate = false;
                     submitBtn.disabled = false;
@@ -538,8 +698,10 @@ if(isset($_POST['check_ward_name'])){
                 }
 
                 // Show checking status
-                wardNameHint.className = 'form-hint';
-                wardNameHint.innerHTML = ' Checking availability...';
+                if (wardNameHint) {
+                    wardNameHint.className = 'form-hint';
+                    wardNameHint.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking availability...';
+                }
                 wardNameInput.className = 'form-input';
 
                 // AJAX request to check duplicate
@@ -552,14 +714,18 @@ if(isset($_POST['check_ward_name'])){
                             const response = JSON.parse(xhr.responseText);
                             
                             if (response.exists) {
-                                wardNameHint.className = 'form-hint error';
-                                wardNameHint.innerHTML = ' Ward "' + wardName + '" already exists! Please use a different name.';
+                                if (wardNameHint) {
+                                    wardNameHint.className = 'form-hint error';
+                                    wardNameHint.innerHTML = '<i class="fas fa-exclamation-circle"></i> Ward "' + wardName + '" already exists! Please use a different name.';
+                                }
                                 wardNameInput.className = 'form-input error';
                                 isDuplicate = true;
                                 submitBtn.disabled = true;
                             } else {
-                                wardNameHint.className = 'form-hint success';
-                                wardNameHint.innerHTML = ' Ward name is available ✓';
+                                if (wardNameHint) {
+                                    wardNameHint.className = 'form-hint success';
+                                    wardNameHint.innerHTML = '<i class="fas fa-check-circle"></i> Ward name is available ✓';
+                                }
                                 wardNameInput.className = 'form-input success';
                                 isDuplicate = false;
                                 submitBtn.disabled = false;
@@ -572,33 +738,63 @@ if(isset($_POST['check_ward_name'])){
                 xhr.send('check_ward_name=' + encodeURIComponent(wardName));
             }
 
-            // Check on blur (when user leaves the field)
-            wardNameInput.addEventListener('blur', checkWardName);
+            // Check ward name on blur
+            if (wardNameInput) {
+                wardNameInput.addEventListener('blur', checkWardName);
+            }
 
-            // Reset on input (when user types)
-            wardNameInput.addEventListener('input', function() {
-                if (this.value.trim().length === 0) {
-                    wardNameHint.className = 'form-hint';
-                    wardNameHint.innerHTML = ' Enter the name of the ward';
-                    this.className = 'form-input';
-                    isDuplicate = false;
-                    submitBtn.disabled = false;
-                } else {
-                    // Reset to checking state
-                    wardNameHint.className = 'form-hint';
-                    wardNameHint.innerHTML = ' Checking availability...';
-                    this.className = 'form-input';
-                }
-            });
+            // Reset on input
+            if (wardNameInput) {
+                wardNameInput.addEventListener('input', function() {
+                    if (this.value.trim().length === 0) {
+                        if (wardNameHint) {
+                            wardNameHint.className = 'form-hint';
+                            wardNameHint.innerHTML = '<i class="fas fa-info-circle"></i> Enter the name of the ward';
+                        }
+                        this.className = 'form-input';
+                        isDuplicate = false;
+                        submitBtn.disabled = false;
+                    } else {
+                        // Reset to checking state
+                        if (wardNameHint) {
+                            wardNameHint.className = 'form-hint';
+                            wardNameHint.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking availability...';
+                        }
+                        this.className = 'form-input';
+                    }
+                });
+            }
 
             // Prevent form submission if duplicate exists
             document.getElementById('wardForm').addEventListener('submit', function(e) {
+                let isValid = true;
+
+                // Validate all fields
+                Object.keys(fields).forEach(fieldId => {
+                    if (!validateField(fieldId)) {
+                        isValid = false;
+                    }
+                });
+
                 if (isDuplicate) {
+                    isValid = false;
+                    if (wardNameHint) {
+                        wardNameHint.className = 'form-hint error';
+                        wardNameHint.innerHTML = '<i class="fas fa-exclamation-circle"></i> Please change the ward name before submitting.';
+                    }
+                    if (wardNameInput) {
+                        wardNameInput.className = 'form-input error';
+                        wardNameInput.focus();
+                    }
+                }
+
+                if (!isValid) {
                     e.preventDefault();
-                    wardNameHint.className = 'form-hint error';
-                    wardNameHint.innerHTML = ' Please change the ward name before submitting.';
-                    wardNameInput.className = 'form-input error';
-                    wardNameInput.focus();
+                    const firstError = document.querySelector('.form-input.error');
+                    if (firstError) {
+                        firstError.focus();
+                        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
                 }
             });
         });

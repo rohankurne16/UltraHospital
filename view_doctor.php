@@ -209,18 +209,16 @@ $conn->close();
     <div class="flex min-h-screen flex-col bg-gray-50">
         <?php include 'header.php'; ?> 
         <div class="flex flex-1 items-start">
-            <div id="sidebar-container">
+         
                 <?php include 'Sidebar.php'; ?>
-            </div>
+         
             
             <main id="main-content" class="flex-1 overflow-x-hidden duration-300 p-4 xl:p-8 xl:ml-64 w-full">
                 <?php if ($doctor): ?>
                 <div class="max-w-7xl mx-auto w-full space-y-6">
                     <!-- Page Header -->
                     <div class="flex items-center gap-4">
-                        <button id="mobile-toggle" class="xl:hidden">
-                            <i class="fas fa-bars"></i>
-                        </button>
+                      
                         <a href="doctors.php" class="back-btn shadow-sm">
                             <i class="fas fa-arrow-left"></i>
                         </a>

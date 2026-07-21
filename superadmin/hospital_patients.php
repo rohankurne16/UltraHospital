@@ -27,6 +27,7 @@ $query = "
 SELECT
     patient_id,
     patient_name,
+    patient_image,
     mobile,
     email,
     gender,
@@ -60,49 +61,7 @@ $page_subtitle = 'Manage patients at ' . htmlspecialchars($hospital['hospital_na
         
         body.dark { background: #0a0a0a; }
         body.light { background: #f1f5f9; }
-        
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 250px;
-            padding: 1rem 0.5rem;
-            overflow-y: auto;
-            z-index: 1000;
-            transition: width 0.3s ease;
-        }
-        body.dark .sidebar { background: #1a1a1a; border-right: 1px solid #2a2a2a; }
-        body.light .sidebar { background: #ffffff; border-right: 1px solid #e2e8f0; }
-        .sidebar.closed { width: 70px; }
-        
-        .sidebar-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.7rem 0.8rem;
-            border-radius: 0.75rem;
-            transition: all 0.2s ease;
-            text-decoration: none;
-            cursor: pointer;
-            font-size: 0.85rem;
-            margin: 2px 0;
-            color: <?php echo $theme == 'dark' ? '#d1d5db' : '#475569'; ?>;
-        }
-        .sidebar-item i { width: 1.25rem; text-align: center; }
-        .sidebar-item:hover { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-        .sidebar-item.active { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-        .sidebar.closed .sidebar-item span { display: none; }
-        
-        .sidebar-brand {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>;
-            padding: 0 0.5rem 1rem 0.5rem;
-        }
+      
         .brand-icon {
             width: 40px;
             height: 40px;
@@ -271,8 +230,7 @@ $page_subtitle = 'Manage patients at ' . htmlspecialchars($hospital['hospital_na
         }
         
         @media (max-width: 768px) {
-            .sidebar { width: 200px; }
-            .sidebar.closed { width: 60px; }
+          
             .main-content { margin-left: 200px; padding: 1rem; }
             .main-content.collapsed { margin-left: 60px; }
         }
@@ -346,7 +304,19 @@ $page_subtitle = 'Manage patients at ' . htmlspecialchars($hospital['hospital_na
                                 <td>
                                     <div style="display:flex;align-items:center;gap:0.75rem;">
                                         <div style="width:36px;height:36px;border-radius:50%;background:rgba(59,130,246,0.1);display:flex;align-items:center;justify-content:center;color:#3b82f6;font-size:0.9rem;">
-                                            <i class="fas fa-user"></i>
+                                            <?php if(!empty($row['patient_image'])) { ?>
+                                               
+                                                    <img src="../<?php echo $row['patient_image']; ?>"
+                                                        alt="Patient Image"
+                                                        style="width:100%;height:100%;object-fit:cover;">
+
+                                              <?php } else { ?>
+
+                                                <span style="font-size:16px;font-weight:bold;">
+                                                    <?php echo strtoupper(substr(trim($row['patient_name']), 0, 1)); ?>
+                                                </span>
+
+                                            <?php } ?>
                                         </div>
                                         <div>
                                             <div style="font-weight:600;color:<?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>;">
@@ -398,12 +368,6 @@ $page_subtitle = 'Manage patients at ' . htmlspecialchars($hospital['hospital_na
 </div>
 
 <script>
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const mainContent = document.getElementById('mainContent');
-    sidebar.classList.toggle('closed');
-    mainContent.classList.toggle('collapsed');
-}
 
 function toggleTheme() {
     const body = document.body;

@@ -22,6 +22,31 @@ $_SESSION['theme'] = 'light';
 $theme = 'light';
 
 // ============================================================
+// HANDLE STATUS TOGGLE (MOVED TO TOP FOR BETTER EXECUTION)
+// ============================================================
+if (isset($_GET['action']) && $_GET['action'] === 'toggle_status' && isset($_GET['hospital_id']) && isset($_GET['status'])) {
+    $hospital_id = (int)$_GET['hospital_id'];
+    $new_status = mysqli_real_escape_string($conn, $_GET['status']);
+    
+    // Validate status
+    if ($new_status === 'Active' || $new_status === 'Inactive') {
+        $update_query = "UPDATE hospital_master SET status = '$new_status' WHERE hospital_id = $hospital_id AND delete_flag = 0";
+        if (mysqli_query($conn, $update_query)) {
+            logAudit('Hospital', "Updated status of Hospital ID $hospital_id to $new_status");
+            $_SESSION['success_message'] = "Hospital status updated to $new_status successfully!";
+        } else {
+            $_SESSION['error_message'] = "Update Error: " . mysqli_error($conn);
+        }
+    } else {
+        $_SESSION['error_message'] = "Invalid status value!";
+    }
+    
+    // Redirect back to dashboard
+    header("Location: dashboard.php");
+    exit();
+}
+
+// ============================================================
 // STATISTICS - Using direct SQL queries
 // ============================================================
 
@@ -191,6 +216,12 @@ $audit_logs_result = mysqli_query($conn, $audit_logs_query);
 
 // Get user name
 $user_name = $_SESSION['name'] ?? 'Super Admin';
+
+// Display messages
+$success_message = $_SESSION['success_message'] ?? '';
+$error_message = $_SESSION['error_message'] ?? '';
+unset($_SESSION['success_message']);
+unset($_SESSION['error_message']);
 ?>
 <!-- Rest of HTML remains the same -->
 <!DOCTYPE html>
@@ -205,46 +236,7 @@ $user_name = $_SESSION['name'] ?? 'Super Admin';
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1e293b; }
 
-        /* Sidebar */
-        .sidebar {
-            position: fixed; top: 0; left: 0; height: 100vh; width: 250px; 
-            padding: 1rem 0.75rem; overflow-y: auto; z-index: 1000; 
-            background: #ffffff; border-right: 1px solid #e2e8f0;
-        }
-        .sidebar::-webkit-scrollbar { width: 4px; }
-        .sidebar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-
-        .sidebar-brand {
-            display: flex; align-items: center; gap: 0.75rem;
-            padding: 0 0.5rem 1rem 0.5rem;
-            border-bottom: 1px solid #e2e8f0;
-            margin-bottom: 1rem;
-        }
-        .sidebar-brand .brand-icon {
-            width: 42px; height: 42px; border-radius: 12px;
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
-            display: flex; align-items: center; justify-content: center;
-            color: white; font-size: 1.2rem;
-            box-shadow: 0 4px 12px rgba(59,130,246,0.3);
-        }
-        .sidebar-brand .brand-text h2 { font-size: 1rem; font-weight: 700; color: #1e293b; }
-        .sidebar-brand .brand-text p { font-size: 0.6rem; color: #94a3b8; }
-
-        .sidebar-item {
-            display: flex; align-items: center; gap: 0.75rem; padding: 0.7rem 0.8rem; 
-            border-radius: 10px; text-decoration: none; font-size: 0.85rem;
-            margin: 2px 0; color: #475569; cursor: pointer;
-        }
-        .sidebar-item i { width: 1.25rem; text-align: center; color: #94a3b8; }
-        .sidebar-item:hover { background: #f1f5f9; color: #1e293b; }
-        .sidebar-item:hover i { color: #3b82f6; }
-        .sidebar-item.active { background: #eff6ff; color: #3b82f6; }
-        .sidebar-item.active i { color: #3b82f6; }
-
-        .sidebar-label {
-            font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.5px;
-            padding: 0.5rem 0.8rem 0.3rem; color: #94a3b8; font-weight: 600;
-        }
+      
 
         .main-content {
             margin-left: 250px; padding: 1.5rem; min-height: 100vh;
@@ -299,10 +291,7 @@ $user_name = $_SESSION['name'] ?? 'Super Admin';
             .grid-cols-6 { grid-template-columns: repeat(2, 1fr); }
             .grid-cols-2 { grid-template-columns: 1fr; }
             .main-content { margin-left: 0; padding: 1rem; }
-            .sidebar { width: 70px; }
-            .sidebar-brand .brand-text { display: none; }
-            .sidebar-label { display: none; }
-            .sidebar-item span { display: none; }
+           
         }
 
         .content-card {
@@ -370,6 +359,26 @@ $user_name = $_SESSION['name'] ?? 'Super Admin';
         .text-xs { font-size: 0.7rem; }
         .py-4 { padding: 1rem 0; }
         .mb-6 { margin-bottom: 1.2rem; }
+
+        /* Alert Messages */
+        .alert {
+            padding: 0.8rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .alert-success {
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+            color: #059669;
+        }
+        .alert-error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+        }
     </style>
 </head>
 <body>
@@ -377,7 +386,7 @@ $user_name = $_SESSION['name'] ?? 'Super Admin';
 <!-- ============================================================
 SIDEBAR - SUPER ADMIN
 ============================================================ -->
-<?php include('sidebar.php') ?>
+<?php include 'sidebar.php' ?>
 
 <!-- ============================================================
 MAIN CONTENT
@@ -395,6 +404,21 @@ MAIN CONTENT
             <div class="avatar"><?php echo strtoupper(substr($user_name, 0, 2)); ?></div>
         </div>
     </div>
+
+    <!-- Display Messages -->
+    <?php if ($success_message): ?>
+        <div class="alert alert-success">
+            <i class="fas fa-check-circle"></i>
+            <?php echo htmlspecialchars($success_message); ?>
+        </div>
+    <?php endif; ?>
+    
+    <?php if ($error_message): ?>
+        <div class="alert alert-error">
+            <i class="fas fa-exclamation-circle"></i>
+            <?php echo htmlspecialchars($error_message); ?>
+        </div>
+    <?php endif; ?>
 
     <!-- Statistics -->
     <div class="grid grid-cols-6">
@@ -506,7 +530,8 @@ MAIN CONTENT
                 <tbody>
                     <?php if ($hospital_overview_result && mysqli_num_rows($hospital_overview_result) > 0): ?>
                         <?php while($hospital = mysqli_fetch_assoc($hospital_overview_result)): ?>
-                            <tr onclick="window.location.href='view_hospital.php?id=<?php echo $hospital['hospital_id']; ?>';" style="cursor:pointer;">
+                           <tr onclick="window.location.href='view_hospital.php?id=<?php echo $hospital['hospital_id']; ?>';"
+    style="cursor:pointer;">
                                 <td class="font-semibold"><?php echo htmlspecialchars($hospital['hospital_name']); ?></td>
                                 <td class="text-sm"><?php echo htmlspecialchars($hospital['hospital_code']); ?></td>
                                 <td class="text-sm"><?php echo $hospital['total_admins'] > 0 ? $hospital['total_admins'] . ' Admin(s)' : 'N/A'; ?></td>
@@ -525,16 +550,16 @@ MAIN CONTENT
                                     </span>
                                 </td>
                                 <td>
-                                    <?php if($hospital['status']=="Active"){ ?>
-                                        <a href="toggle_hospital_status.php?hospital_id=<?php echo $hospital['hospital_id']; ?>&status=Inactive"
-                                           class="btn btn-danger"
-                                           onclick="return confirm('Are you sure you want to deactivate this hospital?');">
+                                    <?php if($hospital['status'] == "Active"){ ?>
+                                        <a href="dashboard.php?action=toggle_status&hospital_id=<?php echo $hospital['hospital_id']; ?>&status=Inactive"
+                                           onclick="return confirm('Are you sure you want to deactivate this hospital?');"
+                                           class="btn btn-danger">
                                             <i class="fas fa-ban"></i> Deactivate
                                         </a>
                                     <?php } else { ?>
-                                        <a href="toggle_hospital_status.php?hospital_id=<?php echo $hospital['hospital_id']; ?>&status=Active"
-                                           class="btn btn-success"
-                                           onclick="return confirm('Are you sure you want to activate this hospital?');">
+                                        <a href="dashboard.php?action=toggle_status&hospital_id=<?php echo $hospital['hospital_id']; ?>&status=Active"
+                                           onclick="return confirm('Are you sure you want to activate this hospital?');"
+                                           class="btn btn-success">
                                             <i class="fas fa-check-circle"></i> Activate
                                         </a>
                                     <?php } ?>

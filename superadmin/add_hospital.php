@@ -179,7 +179,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $admin = mysqli_fetch_assoc($adminResult);
                     
                     $encryptedHospitalId = encryptId($hospital_id);
-                    $loginLink = "http://localhost/UltraHospital-main/index.php?hid=" . $encryptedHospitalId;
+                    $loginLink = "http://localhost/Ultra_Hospital/UltraHospital-main/index.php?hid=" . $encryptedHospitalId;
                     
                     $body = str_replace("{admin_name}", $admin['name'], $body);
                     $body = str_replace("{hospital_name}", $hospital['hospital_name'], $body);
@@ -229,48 +229,7 @@ $theme = $_SESSION['theme'] ?? 'light';
         body.dark { background: #0a0a0a; }
         body.light { background: #f1f5f9; }
         
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 250px;
-            padding: 1rem 0.5rem;
-            overflow-y: auto;
-            z-index: 1000;
-            transition: width 0.3s ease;
-        }
-        body.dark .sidebar { background: #1a1a1a; border-right: 1px solid #2a2a2a; }
-        body.light .sidebar { background: #ffffff; border-right: 1px solid #e2e8f0; }
-        .sidebar.closed { width: 70px; }
-        
-        .sidebar-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.7rem 0.8rem;
-            border-radius: 0.75rem;
-            transition: all 0.2s ease;
-            text-decoration: none;
-            cursor: pointer;
-            font-size: 0.85rem;
-            margin: 2px 0;
-            color: <?php echo $theme == 'dark' ? '#d1d5db' : '#475569'; ?>;
-        }
-        .sidebar-item i { width: 1.25rem; text-align: center; }
-        .sidebar-item:hover { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-        .sidebar-item.active { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-        .sidebar.closed .sidebar-item span { display: none; }
-        
-        .sidebar-brand {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>;
-            padding: 0 0.5rem 1rem 0.5rem;
-        }
+       
         .brand-icon {
             width: 40px;
             height: 40px;
@@ -340,6 +299,7 @@ $theme = $_SESSION['theme'] ?? 'light';
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); 
         }
         .form-control.error { border-color: #ef4444 !important; }
+        .form-control.success { border-color: #22c55e !important; }
         
         label { display: block; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.3rem; color: <?php echo $theme == 'dark' ? '#94a3b8' : '#475569'; ?>; }
         .form-group { margin-bottom: 1.25rem; }
@@ -465,9 +425,15 @@ $theme = $_SESSION['theme'] ?? 'light';
             margin-bottom: 1.5rem;
         }
         
+        .validation-hint {
+            font-size: 0.7rem;
+            color: #94a3b8;
+            margin-top: 0.25rem;
+            display: block;
+        }
+        
         @media (max-width: 768px) {
-            .sidebar { width: 200px; }
-            .sidebar.closed { width: 60px; }
+           
             .main-content { margin-left: 200px; padding: 1rem; }
             .main-content.collapsed { margin-left: 60px; }
             .form-grid { grid-template-columns: 1fr; }
@@ -487,10 +453,10 @@ $theme = $_SESSION['theme'] ?? 'light';
 </head>
 <body class="<?php echo $theme; ?>">
 
-<?php include 'sidebar.php'; ?>
+<?php include 'header.php'; ?>
 
 <div class="main-content" id="mainContent">
-    <?php include 'header.php'; ?>
+    <?php include 'sidebar.php'; ?>
     
     <div class="action-row">
         <a href="hospitals.php" class="btn-secondary">
@@ -544,8 +510,9 @@ $theme = $_SESSION['theme'] ?? 'light';
                     <div class="form-grid">
                         <div class="form-group">
                             <label>Hospital Name <span class="required">*</span></label>
-                            <input type="text" name="hospital_name" id="hospital_name" class="form-control" required placeholder="e.g., City Hospital" data-required="true">
+                            <input type="text" name="hospital_name" id="hospital_name" class="form-control" required placeholder="e.g., City Hospital" data-required="true" data-required-message="Hospital Name is required" minlength="3" maxlength="100">
                             <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Hospital Name is required</small>
+                            <small class="validation-hint">Minimum 3 characters, Maximum 100 characters</small>
                         </div>
                         <div class="form-group">
                             <label>Hospital Code <span class="required">*</span></label>
@@ -580,11 +547,14 @@ $theme = $_SESSION['theme'] ?? 'light';
                         </div>
                         <div class="form-group">
                             <label>Registration Number</label>
-                            <input type="text" name="registration_number" class="form-control" placeholder="e.g., REG/2026/001">
+                            <input type="text" name="registration_number" class="form-control" placeholder="e.g., REG/2026/001" maxlength="50">
+                            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Registration number cannot exceed 50 characters</small>
                         </div>
                         <div class="form-group">
                             <label>GST Number</label>
-                            <input type="text" name="gst_number" class="form-control" placeholder="e.g., 27ABCDE1234F1Z5">
+                            <input type="text" name="gst_number" id="gst_number" class="form-control" placeholder="e.g., 27ABCDE1234F1Z5" pattern="[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}" maxlength="15">
+                            <small class="validation-hint">Format: 2 digits, 5 letters, 4 digits, 1 letter, 1 alphanumeric, Z, 1 alphanumeric</small>
+                            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Please enter a valid GST number (e.g., 27ABCDE1234F1Z5)</small>
                         </div>
                         <div class="form-group">
                             <label>Status</label>
@@ -604,34 +574,45 @@ $theme = $_SESSION['theme'] ?? 'light';
                     <div class="form-grid">
                         <div class="form-group" style="grid-column: 1 / -1;">
                             <label>Address</label>
-                            <textarea name="address" class="form-control" rows="2" placeholder="Full address..."></textarea>
+                            <textarea name="address" class="form-control" rows="2" placeholder="Full address..." maxlength="500"></textarea>
+                            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Address cannot exceed 500 characters</small>
+                            <small class="validation-hint">Maximum 500 characters</small>
                         </div>
                         <div class="form-group">
                             <label>City <span class="required">*</span></label>
-                            <input type="text" name="city" id="city" class="form-control" placeholder="e.g., Mumbai" data-required="true">
+                            <input type="text" name="city" id="city" class="form-control" placeholder="e.g., Mumbai" data-required="true" data-required-message="City is required" minlength="2" maxlength="50" pattern="[a-zA-Z\s\-']+">
                             <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">City is required</small>
+                            <small class="validation-hint">Only letters, spaces, hyphens, and apostrophes allowed</small>
                         </div>
                         <div class="form-group">
                             <label>State <span class="required">*</span></label>
-                            <input type="text" name="state" id="state" class="form-control" placeholder="e.g., Maharashtra" data-required="true">
+                            <input type="text" name="state" id="state" class="form-control" placeholder="e.g., Maharashtra" data-required="true" data-required-message="State is required" minlength="2" maxlength="50" pattern="[a-zA-Z\s\-']+">
                             <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">State is required</small>
+                            <small class="validation-hint">Only letters, spaces, hyphens, and apostrophes allowed</small>
                         </div>
                         <div class="form-group">
-                            <label>Country</label>
-                            <input type="text" name="country" class="form-control" value="India">
+                            <label>Country <span class="required">*</span></label>
+                            <input type="text" name="country" id="country" class="form-control" value="India" data-required="true" data-required-message="Country is required" minlength="2" maxlength="50" pattern="[a-zA-Z\s\-']+">
+                            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Country is required</small>
+                            <small class="validation-hint">Only letters, spaces, hyphens, and apostrophes allowed</small>
                         </div>
                         <div class="form-group">
                             <label>Pincode</label>
-                            <input type="text" name="pincode" id="pincode" class="form-control" placeholder="e.g., 400001">
+                            <input type="text" name="pincode" id="pincode" class="form-control" placeholder="e.g., 400001" pattern="[0-9]{6}" maxlength="6">
+                            <small class="validation-hint">Enter a valid 6-digit pincode</small>
+                            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Please enter a valid 6-digit pincode</small>
                         </div>
                         <div class="form-group">
                             <label>Phone <span class="required">*</span></label>
-                            <input type="text" name="phone" id="phone" class="form-control" placeholder="e.g., 9876543210" data-required="true">
+                            <input type="text" name="phone" id="phone" class="form-control" placeholder="e.g., 9876543210" data-required="true" pattern="[0-9]{10}" maxlength="10">
                             <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Phone number is required</small>
+                            <small class="validation-hint">Enter a valid 10-digit phone number</small>
                         </div>
                         <div class="form-group">
                             <label>Website</label>
-                            <input type="text" name="website" class="form-control" placeholder="https://hospital.com">
+                            <input type="text" name="website" id="website" class="form-control" placeholder="https://hospital.com" maxlength="100">
+                            <small class="validation-hint">Format: https://domain.com or http://domain.com</small>
+                            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Please enter a valid website URL</small>
                         </div>
                     </div>
                 </div>
@@ -644,22 +625,27 @@ $theme = $_SESSION['theme'] ?? 'light';
                     <div class="form-grid">
                         <div class="form-group">
                             <label>Admin Full Name <span class="required">*</span></label>
-                            <input type="text" name="admin_name" id="admin_name" class="form-control" required placeholder="Dr. Admin Name" data-required="true">
+                            <input type="text" name="admin_name" id="admin_name" class="form-control" required placeholder="Dr. Admin Name" data-required="true" data-required-message="Admin name is required" minlength="3" maxlength="50" pattern="[a-zA-Z\s\.\-']+">
                             <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Admin name is required</small>
+                            <small class="validation-hint">Minimum 3 characters, Only letters, spaces, dots, hyphens, apostrophes</small>
                         </div>
                         <div class="form-group">
                             <label>Admin Email <span class="required">*</span></label>
-                            <input type="email" name="admin_email" id="admin_email" class="form-control" required placeholder="admin@hospital.com" data-required="true" data-email="true">
+                            <input type="email" name="admin_email" id="admin_email" class="form-control" required placeholder="admin@hospital.com" data-required="true" data-email="true" maxlength="100">
                             <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Valid admin email is required</small>
+                            <small class="validation-hint">Enter a valid email address</small>
                         </div>
                         <div class="form-group">
                             <label>Admin Password <span class="required">*</span></label>
-                            <input type="password" name="admin_password" id="admin_password" class="form-control" required placeholder="Min 8 characters" data-required="true" minlength="8">
-                            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Password must be at least 8 characters</small>
+                            <input type="password" name="admin_password" id="admin_password" class="form-control" required placeholder="Min 8 characters" data-required="true" minlength="8" maxlength="30">
+                            <small class="validation-hint">Minimum 8 characters with uppercase, lowercase, number & special character</small>
+                            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Password must be at least 8 characters with uppercase, lowercase, number & special character</small>
                         </div>
                         <div class="form-group">
                             <label>Admin Mobile</label>
-                            <input type="text" name="admin_mobile" class="form-control" placeholder="e.g., 9876543210">
+                            <input type="text" name="admin_mobile" id="admin_mobile" class="form-control" placeholder="e.g., 9876543210" pattern="[0-9]{10}" maxlength="10">
+                            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Please enter a valid 10-digit mobile number</small>
+                            <small class="validation-hint">Optional: Enter a valid 10-digit mobile number</small>
                         </div>
                     </div>
                 </div>
@@ -699,16 +685,8 @@ $theme = $_SESSION['theme'] ?? 'light';
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Sidebar Toggle
-    function toggleSidebar() {
-        const sidebar = document.getElementById('sidebar');
-        const mainContent = document.getElementById('mainContent');
-        sidebar.classList.toggle('closed');
-        mainContent.classList.toggle('collapsed');
-    }
+   
     
-    // Make toggle function globally available
-    window.toggleSidebar = toggleSidebar;
 
     // Logo Upload
     const logoInput = document.getElementById('hospital_logo');
@@ -767,57 +745,270 @@ document.addEventListener('DOMContentLoaded', function() {
     const submitBtn = document.getElementById('submitBtn');
     const reviewContainer = document.getElementById('reviewContainer');
 
-    function validateStep(step) {
-        const content = document.querySelector(`.wizard-content[data-step="${step}"]`);
-        const inputs = content.querySelectorAll('[data-required="true"]');
+    // Enhanced validation function for all fields
+    function validateField(input) {
+        const errorText = input.parentElement.querySelector('.error-text');
+        const value = input.value.trim();
         let isValid = true;
+        let errorMessage = '';
 
-        inputs.forEach(input => {
-            const errorText = input.parentElement.querySelector('.error-text');
-            const value = input.value.trim();
+        // Remove existing error state
+        input.classList.remove('error');
+        input.classList.remove('success');
+        if (errorText) {
+            errorText.style.display = 'none';
+            errorText.textContent = '';
+        }
 
-            if (!value) {
-                input.classList.add('error');
-                if (errorText) errorText.style.display = 'block';
+        // Skip validation for readonly or disabled fields
+        if (input.disabled || input.readOnly) return true;
+
+        // Get field type and validation rules
+        const fieldId = input.id;
+        const fieldName = input.name;
+        const isRequired = input.hasAttribute('data-required');
+
+        // 1. Required field validation
+        if (isRequired && !value) {
+            isValid = false;
+            errorMessage = input.getAttribute('data-required-message') || 
+                          input.getAttribute('placeholder')?.replace('e.g.,', '').trim() + ' is required' || 
+                          'This field is required';
+        }
+
+        // 2. Min length validation
+        if (isValid && value && input.hasAttribute('minlength')) {
+            const minLength = parseInt(input.getAttribute('minlength'));
+            if (value.length < minLength) {
                 isValid = false;
-            } else {
-                input.classList.remove('error');
-                if (errorText) errorText.style.display = 'none';
+                errorMessage = `Minimum ${minLength} characters required`;
             }
+        }
 
-            if (input.hasAttribute('data-email') && value) {
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!emailRegex.test(value)) {
-                    input.classList.add('error');
-                    if (errorText) errorText.style.display = 'block';
-                    isValid = false;
-                }
-            }
-
-            if (input.type === 'password' && value && input.hasAttribute('minlength')) {
-                if (value.length < parseInt(input.getAttribute('minlength'))) {
-                    input.classList.add('error');
-                    if (errorText) errorText.style.display = 'block';
-                    isValid = false;
-                }
-            }
-        });
-
-        if (step === 2) {
-            const phoneInput = document.getElementById('phone');
-            const phoneError = phoneInput.parentElement.querySelector('.error-text');
-            if (phoneInput.value.trim() && !/^[0-9]{10}$/.test(phoneInput.value.trim())) {
-                phoneInput.classList.add('error');
-                if (phoneError) {
-                    phoneError.textContent = 'Enter a valid 10-digit phone number';
-                    phoneError.style.display = 'block';
-                }
+        // 3. Max length validation
+        if (isValid && value && input.hasAttribute('maxlength')) {
+            const maxLength = parseInt(input.getAttribute('maxlength'));
+            if (value.length > maxLength) {
                 isValid = false;
+                errorMessage = `Maximum ${maxLength} characters allowed`;
             }
+        }
+
+        // 4. Email validation
+        if (isValid && input.hasAttribute('data-email') && value) {
+            const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
+            if (!emailRegex.test(value)) {
+                isValid = false;
+                errorMessage = 'Please enter a valid email address (e.g., name@domain.com)';
+            }
+        }
+
+        // 5. Password validation
+        if (isValid && input.type === 'password' && value) {
+            const minLength = parseInt(input.getAttribute('minlength') || '8');
+            if (value.length < minLength) {
+                isValid = false;
+                errorMessage = `Password must be at least ${minLength} characters long`;
+            }
+            else if (!/[A-Z]/.test(value)) {
+                isValid = false;
+                errorMessage = 'Password must contain at least one uppercase letter';
+            }
+            else if (!/[a-z]/.test(value)) {
+                isValid = false;
+                errorMessage = 'Password must contain at least one lowercase letter';
+            }
+            else if (!/[0-9]/.test(value)) {
+                isValid = false;
+                errorMessage = 'Password must contain at least one number';
+            }
+            else if (!/[!@#$%^&*(),.?":{}|<>]/.test(value)) {
+                isValid = false;
+                errorMessage = 'Password must contain at least one special character';
+            }
+        }
+
+        // 6. City validation - letters only with spaces, hyphens, apostrophes
+        if (isValid && fieldId === 'city' && value) {
+            if (!/^[a-zA-Z\s\-']+$/.test(value)) {
+                isValid = false;
+                errorMessage = 'City should only contain letters, spaces, hyphens, and apostrophes';
+            }
+        }
+
+        // 7. State validation - letters only with spaces, hyphens, apostrophes
+        if (isValid && fieldId === 'state' && value) {
+            if (!/^[a-zA-Z\s\-']+$/.test(value)) {
+                isValid = false;
+                errorMessage = 'State should only contain letters, spaces, hyphens, and apostrophes';
+            }
+        }
+
+        // 8. Country validation - letters only with spaces, hyphens, apostrophes
+        if (isValid && fieldId === 'country' && value) {
+            if (!/^[a-zA-Z\s\-']+$/.test(value)) {
+                isValid = false;
+                errorMessage = 'Country should only contain letters, spaces, hyphens, and apostrophes';
+            }
+        }
+
+        // 9. Phone validation - exactly 10 digits
+        if (isValid && fieldId === 'phone' && value) {
+            if (!/^[0-9]{10}$/.test(value)) {
+                isValid = false;
+                errorMessage = 'Please enter a valid 10-digit phone number';
+            }
+        }
+
+        // 10. Pincode validation - exactly 6 digits
+        if (isValid && fieldId === 'pincode' && value) {
+            if (!/^[0-9]{6}$/.test(value)) {
+                isValid = false;
+                errorMessage = 'Please enter a valid 6-digit pincode';
+            }
+        }
+
+        // 11. GST Number validation
+        if (isValid && fieldId === 'gst_number' && value) {
+            const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+            if (!gstRegex.test(value)) {
+                isValid = false;
+                errorMessage = 'Please enter a valid GST number (e.g., 27ABCDE1234F1Z5)';
+            }
+        }
+
+        // 12. Website validation
+        if (isValid && fieldId === 'website' && value) {
+            let urlValue = value;
+            if (!urlValue.startsWith('http://') && !urlValue.startsWith('https://')) {
+                urlValue = 'https://' + urlValue;
+            }
+            const urlRegex = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+            if (!urlRegex.test(urlValue)) {
+                isValid = false;
+                errorMessage = 'Please enter a valid website URL (e.g., https://hospital.com)';
+            }
+        }
+
+        // 13. Admin Mobile validation - optional but validate if provided
+        if (isValid && fieldName === 'admin_mobile' && value) {
+            if (!/^[0-9]{10}$/.test(value)) {
+                isValid = false;
+                errorMessage = 'Please enter a valid 10-digit mobile number';
+            }
+        }
+
+        // 14. Admin Name validation
+        if (isValid && fieldId === 'admin_name' && value) {
+            if (!/^[a-zA-Z\s\.\-']+$/.test(value)) {
+                isValid = false;
+                errorMessage = 'Admin name should only contain letters, spaces, dots, hyphens, and apostrophes';
+            }
+        }
+
+        // 15. Hospital Name validation
+        if (isValid && fieldId === 'hospital_name' && value) {
+            // Only check for special characters, allow alphanumeric and common punctuation
+            if (!/^[a-zA-Z0-9\s\-'.,&]+$/.test(value)) {
+                isValid = false;
+                errorMessage = 'Hospital name contains invalid characters';
+            }
+        }
+
+        // 16. Registration Number validation
+        if (isValid && fieldName === 'registration_number' && value) {
+            if (value.length > 50) {
+                isValid = false;
+                errorMessage = 'Registration number cannot exceed 50 characters';
+            }
+        }
+
+        // 17. Address validation
+        if (isValid && fieldName === 'address' && value) {
+            if (value.length > 500) {
+                isValid = false;
+                errorMessage = 'Address cannot exceed 500 characters';
+            }
+        }
+
+        // If invalid, show error
+        if (!isValid) {
+            input.classList.add('error');
+            if (errorText) {
+                errorText.textContent = errorMessage;
+                errorText.style.display = 'block';
+            }
+        } else if (value && isRequired) {
+            // Add success class for valid required fields
+            input.classList.add('success');
         }
 
         return isValid;
     }
+
+    function validateStep(step) {
+        const content = document.querySelector(`.wizard-content[data-step="${step}"]`);
+        // Get all input fields that need validation
+        const inputs = content.querySelectorAll('[data-required="true"], input[type="email"], input[type="password"], input[name="phone"], input[name="admin_mobile"], input[id="pincode"], input[id="gst_number"], input[id="website"], input[name="registration_number"], textarea[name="address"]');
+        let isValid = true;
+
+        inputs.forEach(input => {
+            // Skip validation for inputs that are not visible or disabled
+            if (input.disabled || input.readOnly) return;
+            
+            if (!validateField(input)) {
+                isValid = false;
+            }
+        });
+
+        return isValid;
+    }
+
+    // Real-time validation on input events
+    document.querySelectorAll('.form-control').forEach(input => {
+        // Validate on blur for all fields
+        input.addEventListener('blur', function() {
+            if (this.hasAttribute('data-required') || 
+                this.type === 'email' || 
+                this.type === 'password' ||
+                this.id === 'phone' ||
+                this.id === 'pincode' ||
+                this.id === 'gst_number' ||
+                this.id === 'website' ||
+                this.id === 'city' ||
+                this.id === 'state' ||
+                this.id === 'country' ||
+                this.id === 'hospital_name' ||
+                this.id === 'admin_name' ||
+                this.name === 'registration_number' ||
+                this.name === 'address') {
+                validateField(this);
+            }
+        });
+
+        // Clear error on focus
+        input.addEventListener('focus', function() {
+            const errorText = this.parentElement.querySelector('.error-text');
+            if (this.classList.contains('error')) {
+                this.classList.remove('error');
+                if (errorText) {
+                    errorText.style.display = 'none';
+                }
+            }
+        });
+
+        // Real-time validation for specific fields
+        const realTimeFields = ['password', 'email', 'gst_number', 'pincode', 'website', 'city', 'state', 'country'];
+        if (input.type === 'password' || 
+            input.type === 'email' || 
+            realTimeFields.includes(input.id)) {
+            input.addEventListener('input', function() {
+                if (this.value.length > 0) {
+                    validateField(this);
+                }
+            });
+        }
+    });
 
     function updateWizard(step) {
         steps.forEach((el, index) => {
@@ -870,15 +1061,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 { label: 'Hospital Code', value: getVal('hospital_code') },
                 { label: 'Hospital Logo', value: getLogo() },
                 { label: 'Hospital Type', value: getSelectText('hospital_type') },
-                { label: 'Registration Number', value: getText('registration_number') },
-                { label: 'GST Number', value: getText('gst_number') },
+                { label: 'Registration Number', value: getText('registration_number') || 'N/A' },
+                { label: 'GST Number', value: getText('gst_number') || 'N/A' },
                 { label: 'Status', value: getSelectText('status') }
             ],
             address: [
                 { label: 'Address', value: getText('address') || 'N/A' },
                 { label: 'City', value: getVal('city') },
                 { label: 'State', value: getVal('state') },
-                { label: 'Country', value: getText('country') || 'India' },
+                { label: 'Country', value: getVal('country') },
                 { label: 'Pincode', value: getText('pincode') || 'N/A' },
                 { label: 'Phone', value: getVal('phone') },
                 { label: 'Website', value: getText('website') || 'N/A' }
@@ -919,7 +1110,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!validateStep(currentStep)) {
                 const content = document.querySelector(`.wizard-content[data-step="${currentStep}"]`);
                 const firstError = content.querySelector('.form-control.error');
-                if (firstError) { firstError.focus(); firstError.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+                if (firstError) { 
+                    firstError.focus(); 
+                    firstError.scrollIntoView({ behavior: 'smooth', block: 'center' }); 
+                }
                 return;
             }
         }
@@ -928,11 +1122,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     nextBtn.addEventListener('click', function() {
-        if (validateStep(currentStep)) { goToStep(currentStep + 1); }
-        else {
+        if (validateStep(currentStep)) { 
+            goToStep(currentStep + 1); 
+        } else {
             const content = document.querySelector(`.wizard-content[data-step="${currentStep}"]`);
             const firstError = content.querySelector('.form-control.error');
-            if (firstError) { firstError.focus(); firstError.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+            if (firstError) { 
+                firstError.focus(); 
+                firstError.scrollIntoView({ behavior: 'smooth', block: 'center' }); 
+            }
         }
     });
 
@@ -941,34 +1139,42 @@ document.addEventListener('DOMContentLoaded', function() {
     steps.forEach((step, index) => {
         step.addEventListener('click', function() {
             const targetStep = index + 1;
-            if (targetStep <= currentStep || targetStep === currentStep + 1) { goToStep(targetStep); }
+            if (targetStep <= currentStep || targetStep === currentStep + 1) { 
+                goToStep(targetStep); 
+            }
         });
     });
 
     form.addEventListener('submit', function(e) {
+        // Validate all steps before submission
+        let allValid = true;
         for (let i = 1; i <= TOTAL_STEPS - 1; i++) {
             if (!validateStep(i)) {
-                e.preventDefault();
-                currentStep = i;
-                updateWizard(currentStep);
+                allValid = false;
+                break;
+            }
+        }
+
+        if (!allValid) {
+            e.preventDefault();
+            // Find the first step with errors
+            for (let i = 1; i <= TOTAL_STEPS - 1; i++) {
                 const content = document.querySelector(`.wizard-content[data-step="${i}"]`);
-                const firstError = content.querySelector('.form-control.error');
-                if (firstError) { firstError.focus(); firstError.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
-                return;
+                if (content.querySelector('.form-control.error')) {
+                    currentStep = i;
+                    updateWizard(currentStep);
+                    const firstError = content.querySelector('.form-control.error');
+                    if (firstError) { 
+                        firstError.focus(); 
+                        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' }); 
+                    }
+                    break;
+                }
             }
         }
     });
 
-    document.querySelectorAll('.form-control').forEach(input => {
-        input.addEventListener('input', function() {
-            const errorText = this.parentElement.querySelector('.error-text');
-            if (this.classList.contains('error')) {
-                this.classList.remove('error');
-                if (errorText) errorText.style.display = 'none';
-            }
-        });
-    });
-
+    // Initialize wizard
     updateWizard(1);
 });
 </script>

@@ -162,23 +162,21 @@ $dept_result = $conn->query($dept_query);
 </head>
 <body class="bg-gray-50 dark:bg-[#131212] text-neutral-900 dark:text-neutral-100">
 
-    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+    
 
     <div class="flex min-h-screen flex-col">
          <?php include('header.php') ?>
         
         <div class="flex flex-1 items-start">
-            <div id="sidebar-container">
+          
                 <?php include('Sidebar.php') ?>
-            </div>
+        
             
             <main id="main-content" class="flex-1 overflow-x-hidden duration-300 p-4 xl:p-6 xl:ml-64 w-full">
               
                  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
                         <div class="flex items-center gap-4">
-                            <button id="mobile-toggle" class="xl:hidden">
-                                <i class="fas fa-bars"></i>
-                            </button>
+                           
                             <a href="dashboard.php" class="back-btn">
                                 <i class="fas fa-arrow-left"></i>
                             </a>
@@ -353,29 +351,9 @@ $dept_result = $conn->query($dept_query);
             const sidebarContainer = document.getElementById('sidebar-container');
             const sidebarOverlay = document.getElementById('sidebar-overlay');
             
-            function openSidebar() {
-                sidebarContainer.classList.add('active');
-                sidebarOverlay.classList.add('active');
-                document.body.style.overflow = 'hidden';
-            }
+          
 
-            function closeSidebar() {
-                sidebarContainer.classList.remove('active');
-                sidebarOverlay.classList.remove('active');
-                document.body.style.overflow = '';
-            }
-
-            if (mobileToggle) mobileToggle.addEventListener('click', openSidebar);
-            if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeSidebar);
-
-            // Close button inside sidebar
-            document.addEventListener('click', function(e) {
-                const closeBtn = e.target.closest('.lucide-x') || e.target.closest('.fa-xmark') || e.target.closest('#sidebar-close');
-                if (closeBtn && window.innerWidth < 1280) {
-                    closeSidebar();
-                }
-            });
-
+          
             // Initialize Department Manager
             DepartmentManager.init();
         });

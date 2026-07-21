@@ -12,20 +12,39 @@ $page_subtitle = 'Manage all hospitals in the system';
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 $status_filter = isset($_GET['status']) ? mysqli_real_escape_string($conn, $_GET['status']) : '';
 
-// Build WHERE clause
-$where = "h.delete_flag = 0 or h.delete_flag is null";
-if ($search) {
-    $where .= " AND (h.hospital_name LIKE '%$search%' OR h.hospital_code LIKE '%$search%' OR h.city LIKE '%$search%' OR h.email LIKE '%$search%')";
+$search = trim($_GET['search'] ?? '');
+$status_filter = trim($_GET['status'] ?? '');
+
+$where = "(h.delete_flag = 0 OR h.delete_flag IS NULL)";
+
+if (!empty($search)) {
+    $search = mysqli_real_escape_string($conn, $search);
+
+    $where .= " AND (
+        h.hospital_name LIKE '%$search%' OR
+        h.hospital_code LIKE '%$search%' OR
+        h.city LIKE '%$search%' OR
+        h.state LIKE '%$search%' OR
+        h.email LIKE '%$search%' OR
+        ha.email LIKE '%$search%'
+    )";
 }
-if ($status_filter) {
-    $where .= " AND h.status = '$status_filter'";
+
+if (!empty($status_filter)) {
+    $status_filter = mysqli_real_escape_string($conn, $status_filter);
+    $where .= " AND h.status='$status_filter'";
 }
 
 // Corrected Query
-$query = "SELECT h.*, ha.email as admin_email 
-          FROM hospital_master h 
-          LEFT JOIN hospital_admin ha ON h.hospital_id = ha.hospital_id AND ha.delete_flag = 0
-          WHERE $where 
+$query = "SELECT 
+            h.*,
+            ha.email AS admin_email,
+            h.hospital_logo
+          FROM hospital_master h
+          LEFT JOIN hospital_admin ha
+                ON h.hospital_id = ha.hospital_id
+               AND ha.delete_flag = 0
+          WHERE $where
           ORDER BY h.hospital_id DESC";
 
 $result = mysqli_query($conn, $query);
@@ -52,51 +71,7 @@ $theme = $_SESSION['theme'] ?? 'light';
         body.dark { background: #0a0a0a; }
         body.light { background: #f1f5f9; }
         
-        /* ============================================
-           SIDEBAR STYLES
-           ============================================ */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 250px;
-            padding: 1rem 0.5rem;
-            overflow-y: auto;
-            z-index: 1000;
-            transition: width 0.3s ease;
-        }
-        body.dark .sidebar { background: #1a1a1a; border-right: 1px solid #2a2a2a; }
-        body.light .sidebar { background: #ffffff; border-right: 1px solid #e2e8f0; }
-        .sidebar.closed { width: 70px; }
-        
-        .sidebar-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.7rem 0.8rem;
-            border-radius: 0.75rem;
-            transition: all 0.2s ease;
-            text-decoration: none;
-            cursor: pointer;
-            font-size: 0.85rem;
-            margin: 2px 0;
-            color: <?php echo $theme == 'dark' ? '#d1d5db' : '#475569'; ?>;
-        }
-        .sidebar-item i { width: 1.25rem; text-align: center; }
-        .sidebar-item:hover { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-        .sidebar-item.active { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
-        .sidebar.closed .sidebar-item span { display: none; }
-        
-        .sidebar-brand {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>;
-            padding: 0 0.5rem 1rem 0.5rem;
-        }
+      
         .brand-icon {
             width: 40px;
             height: 40px;
@@ -290,8 +265,7 @@ $theme = $_SESSION['theme'] ?? 'light';
         }
         
         @media (max-width: 768px) {
-            .sidebar { width: 200px; }
-            .sidebar.closed { width: 60px; }
+           
             .main-content { margin-left: 200px; padding: 1rem; }
             .main-content.collapsed { margin-left: 60px; }
         }
@@ -319,7 +293,7 @@ $theme = $_SESSION['theme'] ?? 'light';
     <?php include 'header.php'; ?>
 
     <!-- Action Row - Back + Add Hospital in one line -->
-    <div class="action-row">
+    <div class="action-row" style="margin-top: 80px;">
         <a href="dashboard.php" class="btn-back">
             <i class="fas fa-arrow-left"></i> Back
         </a>
@@ -367,14 +341,18 @@ $theme = $_SESSION['theme'] ?? 'light';
                 <tbody>
                     <?php if (mysqli_num_rows($result) > 0): ?>
                         <?php while($row = mysqli_fetch_assoc($result)): ?>
-                         <tr class="table-row"
-    onclick="window.location.href='view_hospital.php?id=<?php echo $row['hospital_id']; ?>';"
-    style="cursor:pointer;">
+                            <tr class="table-row" onclick="window.location.href='view_hospital.php?id=<?php echo $row['hospital_id']; ?>';" style="cursor:pointer;">
                                 <td>
                                     <div style="display:flex;align-items:center;gap:0.75rem;">
-                                        <div style="width:40px;height:40px;border-radius:10px;background:rgba(59,130,246,0.1);display:flex;align-items:center;justify-content:center;color:#3b82f6;">
-                                            <i class="fas fa-hospital"></i>
+                                        <!-- Logo -->
+                                        <div style="width:50px;height:50px;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#f1f5f9;flex-shrink:0;">
+                                            <?php if(!empty($row['hospital_logo'])): ?>
+                                                <img src="../<?php echo $row['hospital_logo']; ?>" alt="Hospital Logo" style="width:100%;height:100%;object-fit:cover;">
+                                            <?php else: ?>
+                                                <i class="fas fa-hospital" style="font-size:24px;color:#3b82f6;"></i>
+                                            <?php endif; ?>
                                         </div>
+                                        <!-- Name and Email -->
                                         <div>
                                             <div style="font-weight:600;color:<?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>;">
                                                 <?php echo htmlspecialchars($row['hospital_name']); ?>
@@ -401,21 +379,18 @@ $theme = $_SESSION['theme'] ?? 'light';
                                         <?php echo $row['status']; ?>
                                     </span>
                                 </td>
-                              <td style="text-align:right;" onclick="event.stopPropagation();">
-    <div style="display:flex;align-items:center;justify-content:flex-end;gap:0.25rem;">
-
-        <a href="edit_hospital.php?id=<?php echo $row['hospital_id']; ?>" class="action-btn green">
-            <i class="fas fa-edit"></i>
-        </a>
-
-        <a href="delete_hospital.php?id=<?php echo $row['hospital_id']; ?>"
-           class="action-btn red"
-           onclick="return confirm('Delete this hospital and all associated data? This action cannot be undone!')">
-            <i class="fas fa-trash"></i>
-        </a>
-
-    </div>
-</td>
+                                <td style="text-align:right;" onclick="event.stopPropagation();">
+                                    <div style="display:flex;align-items:center;justify-content:flex-end;gap:0.25rem;">
+                                        <a href="edit_hospital.php?id=<?php echo $row['hospital_id']; ?>" class="action-btn green">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <a href="delete_hospital.php?id=<?php echo $row['hospital_id']; ?>"
+                                           class="action-btn red"
+                                           onclick="return confirm('Delete this hospital and all associated data? This action cannot be undone!')">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
+                                    </div>
+                                </td>
                             </tr>
                         <?php endwhile; ?>
                     <?php else: ?>
@@ -436,16 +411,6 @@ $theme = $_SESSION['theme'] ?? 'light';
 </div>
 
 <script>
-// ============================================================
-// SIDEBAR TOGGLE
-// ============================================================
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const mainContent = document.getElementById('mainContent');
-    sidebar.classList.toggle('closed');
-    mainContent.classList.toggle('collapsed');
-}
-
 // ============================================================
 // THEME TOGGLE
 // ============================================================

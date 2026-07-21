@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// DOCTOR DASHBOARD - WITH PERMISSION CHECKS
+// DASHBOARD - WITH DYNAMIC DATA FROM ALL TABLES
 // ============================================================
 
 // Start session
@@ -8,638 +8,1037 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-echo '<div style="background:#fef3c7;padding:15px;margin:10px;border:1px solid #f59e0b;border-radius:8px;font-family:Arial;">';
-echo '<strong>🔍 DEBUG - Session Data:</strong><br>';
-echo 'User ID: ' . ($_SESSION['id'] ?? 'Not set') . '<br>';
-echo 'User Role: ' . ($_SESSION['role'] ?? 'Not set') . '<br>';
-echo 'User Role ID: ' . ($_SESSION['role_id'] ?? 'Not set') . '<br>';
-echo 'Permissions Count: ' . (isset($_SESSION['permissions']) ? count($_SESSION['permissions']) : 0) . '<br>';
-if (isset($_SESSION['permissions']) && is_array($_SESSION['permissions'])) {
-    echo 'Permissions: <pre style="background:#fff;padding:10px;border:1px solid #ccc;max-height:200px;overflow:auto;font-size:12px;">' . print_r($_SESSION['permissions'], true) . '</pre>';
-} else {
-    echo '⚠️ No permissions found in session!<br>';
-}
-echo '</div>';
-
-// Include config files with correct paths
+// Include required files
+require_once '../config/permission.php';
 require_once '../config/hospital.php';
-require_once '../config/superadmin.php';
-require_once '../config/constants.php';
 
-// Check if user is logged in
-if (!isset($_SESSION['id'])) {
-    header('Location: ../index.php');
-    exit();
+// Check login
+if (!isset($_SESSION['id']) || empty($_SESSION['id'])) {
+    header('Location: login.php');
+    exit;
 }
 
-// Get user role
-$user_role = isset($_SESSION['role']) ? strtolower(trim($_SESSION['role'])) : '';
+// Get user data
+$user_id = $_SESSION['id'];
+$role_id = $_SESSION['role_id'] ?? 0;
+$role_name = $_SESSION['role'] ?? '';
+$hospital_id = $_SESSION['hospital_id'] ?? 0;
+$page_title = 'Dashboard';
 
 // ============================================================
-// PERMISSION CHECKS
+// GET DASHBOARD STATISTICS FROM ALL TABLES
 // ============================================================
 
-// Check if user has dashboard-view permission
-if (!function_exists('hasPermission')) {
-    function hasPermission($permission_name) {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-        
-        // Super Admin has all permissions
-        if (isset($_SESSION['role']) && (strtolower(trim($_SESSION['role'])) === 'super admin' || strtolower(trim($_SESSION['role'])) === 'superadmin')) {
-            return true;
-        }
-        
-        if (!isset($_SESSION['permissions']) || !is_array($_SESSION['permissions'])) {
-            return false;
-        }
-        
-        return in_array($permission_name, $_SESSION['permissions']);
-    }
-}
+// Today's date
+$today = date('Y-m-d');
+$current_month = date('m');
+$current_year = date('Y');
+$current_week = date('W');
 
-if (!function_exists('hasAnyPermission')) {
-    function hasAnyPermission($permissions) {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-        
-        // Super Admin has all permissions
-        if (isset($_SESSION['role']) && (strtolower(trim($_SESSION['role'])) === 'super admin' || strtolower(trim($_SESSION['role'])) === 'superadmin')) {
-            return true;
-        }
-        
-        if (!isset($_SESSION['permissions']) || !is_array($_SESSION['permissions'])) {
-            return false;
-        }
-        
-        foreach ($permissions as $permission) {
-            if (in_array($permission, $_SESSION['permissions'])) {
-                return true;
-            }
-        }
-        return false;
-    }
-}
-
-// Check if user is doctor
-if ($user_role != 'doctor') {
-    header('Location: ../dashboard.php');
-    exit();
-}
+// Initialize all statistics
+$stats = [
+    'total_patients' => 0,
+    'total_doctors' => 0,
+    'total_staff' => 0,
+    'total_departments' => 0,
+    'total_appointments' => 0,
+    'today_appointments' => 0,
+    'pending_appointments' => 0,
+    'total_opd' => 0,
+    'total_ipd' => 0,
+    'total_prescriptions' => 0,
+    'total_bills' => 0,
+    'total_wards' => 0,
+    'total_rooms' => 0,
+    'total_beds' => 0,
+    'total_lab_tests' => 0,
+    'revenue_today' => 0,
+    'revenue_month' => 0,
+    'revenue_year' => 0,
+    'new_patients_today' => 0,
+    'new_patients_week' => 0,
+    'new_patients_month' => 0,
+    'appointment_today' => 0,
+    'appointment_week' => 0,
+    'appointment_month' => 0,
+    'opd_today' => 0,
+    'opd_month' => 0,
+    'ipd_active' => 0,
+    'ipd_discharged' => 0,
+];
 
 // ============================================================
-// GET DOCTOR INFORMATION
+// FETCH DATA FROM ALL TABLES
 // ============================================================
-$doctor_register_id = $_SESSION['id'];
-$doctor_name = "Doctor";
+
+// For Doctor role - get doctor's appointments and patients
+$is_doctor = strtolower(trim($role_name)) === 'doctor';
 $doctor_id = 0;
-$totalAppointments = 0;
-$todayAppointments = 0;
-$opdPatientsToday = 0;
-$pendingPrescriptions = 0;
-$followupPatients = 0;
-$totalPatients = 0;
-$todayVisits = 0;
 
-// Get doctor info
-$get_all_doctor_info = "SELECT * FROM doctor WHERE register_id='$doctor_register_id' AND (delete_flag=0 OR delete_flag IS NULL)";
-$all_doctor_info = $conn->query($get_all_doctor_info);
-
-if ($all_doctor_info && $all_doctor_info->num_rows > 0) {
-    $doctor = $all_doctor_info->fetch_assoc();
-    $doctor_name = $doctor["doctor_name"] ?? "Doctor";
-    $doctor_id = $doctor["doctor_id"] ?? 0;
-    $_SESSION["doctor_id"] = $doctor_id;
-
-    // ============================================================
-    // STATISTICS - ONLY IF USER HAS PERMISSION
-    // ============================================================
-
-    // Total Appointments (requires appointment-view)
-    if (function_exists('hasPermission') && hasPermission('appointment-view')) {
-        $query_total = mysqli_query($conn, "SELECT COUNT(*) AS total FROM appointments WHERE doctor_id='$doctor_id' AND status NOT IN('Cancelled') AND (delete_flag=0 OR delete_flag IS NULL)");
-        if ($query_total) {
-            $totalAppointments = mysqli_fetch_assoc($query_total)['total'] ?? 0;
-        }
+if ($is_doctor) {
+    // Get doctor_id from session or from doctor table
+    $doc_query = "SELECT doctor_id FROM doctor WHERE register_id = '$user_id'";
+    $doc_result = mysqli_query($conn, $doc_query);
+    if ($doc_result && $row = mysqli_fetch_assoc($doc_result)) {
+        $doctor_id = $row['doctor_id'];
     }
+}
 
-    // Today's Appointments (requires appointment-view)
-    if (function_exists('hasPermission') && hasPermission('appointment-view')) {
-        $query_today = mysqli_query($conn, "SELECT COUNT(*) AS today FROM appointments WHERE doctor_id='$doctor_id' AND status NOT IN('Cancelled') AND (delete_flag=0 OR delete_flag IS NULL) AND appointment_date = CURDATE()");
-        if ($query_today) {
-            $todayAppointments = mysqli_fetch_assoc($query_today)['today'] ?? 0;
-        }
+// Patients
+if (hasPermission('patient-view')) {
+    // Total Patients
+    $query = "SELECT COUNT(*) as total FROM patients WHERE (delete_flag=0 OR delete_flag IS NULL)";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
     }
-
-    // OPD Patients Today (requires opd-view)
-    if (function_exists('hasPermission') && hasPermission('opd-view')) {
-        $query_opd = mysqli_query($conn, "SELECT COUNT(*) AS opd FROM opd WHERE doctor_id='$doctor_id' AND visit_date = CURDATE() AND (delete_flag=0 OR delete_flag IS NULL)");
-        if ($query_opd) {
-            $opdPatientsToday = mysqli_fetch_assoc($query_opd)['opd'] ?? 0;
-        }
+    // For doctors, only show their patients
+    if ($is_doctor && $doctor_id > 0) {
+        $query .= " AND doctor_id = '$doctor_id'";
     }
-
-    // Pending Prescriptions (requires prescription-view)
-    if (function_exists('hasPermission') && hasPermission('prescription-view')) {
-        $query_pending = mysqli_query($conn, "SELECT COUNT(*) AS pending FROM prescriptions WHERE doctor_id='$doctor_id' AND (delete_flag=0 OR delete_flag IS NULL)");
-        if ($query_pending) {
-            $pendingPrescriptions = mysqli_fetch_assoc($query_pending)['pending'] ?? 0;
-        }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['total_patients'] = $row['total'] ?? 0;
     }
-
-    // Total Patients (requires patient-view)
-    if (function_exists('hasPermission') && hasPermission('patient-view')) {
-        $query_patients = mysqli_query($conn, "SELECT COUNT(*) AS total FROM patients WHERE (delete_flag=0 OR delete_flag IS NULL)");
-        if ($query_patients) {
-            $totalPatients = mysqli_fetch_assoc($query_patients)['total'] ?? 0;
-        }
+    
+    // New Patients Today
+    $query = "SELECT COUNT(*) as total FROM patients WHERE (delete_flag=0 OR delete_flag IS NULL) AND DATE(created_at) = '$today'";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
     }
+    if ($is_doctor && $doctor_id > 0) {
+        $query .= " AND doctor_id = '$doctor_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['new_patients_today'] = $row['total'] ?? 0;
+    }
+    
+    // New Patients This Month
+    $query = "SELECT COUNT(*) as total FROM patients WHERE (delete_flag=0 OR delete_flag IS NULL) AND MONTH(created_at) = '$current_month' AND YEAR(created_at) = '$current_year'";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    if ($is_doctor && $doctor_id > 0) {
+        $query .= " AND doctor_id = '$doctor_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['new_patients_month'] = $row['total'] ?? 0;
+    }
+}
 
-    // Follow-up Patients (requires prescription-view)
-    if (function_exists('hasPermission') && hasPermission('prescription-view')) {
-        $query_followup = mysqli_query($conn, "SELECT COUNT(*) AS followup_date FROM prescriptions WHERE doctor_id='$doctor_id' AND followup_date = CURDATE() + INTERVAL 1 DAY AND (delete_flag=0 OR delete_flag IS NULL)");
-        if ($query_followup) {
-            $followupPatients = mysqli_fetch_assoc($query_followup)['followup_date'] ?? 0;
+// Doctors
+if (hasPermission('doctor-view')) {
+    $query = "SELECT COUNT(*) as total FROM doctor WHERE (delete_flag=0 OR delete_flag IS NULL)";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['total_doctors'] = $row['total'] ?? 0;
+    }
+}
+
+// Staff
+if (hasPermission('staff-view')) {
+    $query = "SELECT COUNT(*) as total FROM staff WHERE (delete_flag=0 OR delete_flag IS NULL)";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['total_staff'] = $row['total'] ?? 0;
+    }
+}
+
+// Departments
+if (hasPermission('department-view')) {
+    $query = "SELECT COUNT(*) as total FROM department WHERE (delete_flag=0 OR delete_flag IS NULL)";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['total_departments'] = $row['total'] ?? 0;
+    }
+}
+
+// Appointments
+if (hasPermission('appointment-view')) {
+    // Total Appointments
+    $query = "SELECT COUNT(*) as total FROM appointments WHERE (delete_flag=0 OR delete_flag IS NULL)";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    // For doctors, only show their appointments
+    if ($is_doctor && $doctor_id > 0) {
+        $query .= " AND doctor_id = '$doctor_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['total_appointments'] = $row['total'] ?? 0;
+    }
+    
+    // Today's Appointments
+    $query = "SELECT COUNT(*) as total FROM appointments WHERE (delete_flag=0 OR delete_flag IS NULL) AND appointment_date = '$today'";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    if ($is_doctor && $doctor_id > 0) {
+        $query .= " AND doctor_id = '$doctor_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['appointment_today'] = $row['total'] ?? 0;
+        $stats['today_appointments'] = $row['total'] ?? 0;
+    }
+    
+    // Pending Appointments
+    $query = "SELECT COUNT(*) as total FROM appointments WHERE (delete_flag=0 OR delete_flag IS NULL) AND status = 'Scheduled'";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    if ($is_doctor && $doctor_id > 0) {
+        $query .= " AND doctor_id = '$doctor_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['pending_appointments'] = $row['total'] ?? 0;
+    }
+}
+
+// OPD
+if (hasPermission('opd-view')) {
+    // Total OPD
+    $query = "SELECT COUNT(*) as total FROM opd WHERE (delete_flag=0 OR delete_flag IS NULL)";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    if ($is_doctor && $doctor_id > 0) {
+        $query .= " AND doctor_id = '$doctor_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['total_opd'] = $row['total'] ?? 0;
+    }
+    
+    // OPD Today
+    $query = "SELECT COUNT(*) as total FROM opd WHERE (delete_flag=0 OR delete_flag IS NULL) AND DATE(created_at) = '$today'";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    if ($is_doctor && $doctor_id > 0) {
+        $query .= " AND doctor_id = '$doctor_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['opd_today'] = $row['total'] ?? 0;
+    }
+}
+
+// IPD Admissions
+if (hasPermission('ipd-view')) {
+    // Total IPD
+    $query = "SELECT COUNT(*) as total FROM ipd_admissions WHERE (delete_flag=0 OR delete_flag IS NULL)";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    if ($is_doctor && $doctor_id > 0) {
+        $query .= " AND doctor_id = '$doctor_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['total_ipd'] = $row['total'] ?? 0;
+    }
+    
+    // Active IPD
+    $query = "SELECT COUNT(*) as total FROM ipd_admissions WHERE (delete_flag=0 OR delete_flag IS NULL) AND status = 'Admitted'";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    if ($is_doctor && $doctor_id > 0) {
+        $query .= " AND doctor_id = '$doctor_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['ipd_active'] = $row['total'] ?? 0;
+    }
+}
+
+// Prescriptions
+if (hasPermission('prescription-view')) {
+    $query = "SELECT COUNT(*) as total FROM prescriptions WHERE (delete_flag=0 OR delete_flag IS NULL)";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    if ($is_doctor && $doctor_id > 0) {
+        $query .= " AND doctor_id = '$doctor_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['total_prescriptions'] = $row['total'] ?? 0;
+    }
+}
+
+// Billing
+if (hasPermission('billing-view')) {
+    $query = "SELECT COUNT(*) as total FROM billing WHERE (delete_flag=0 OR delete_flag IS NULL)";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['total_bills'] = $row['total'] ?? 0;
+    }
+}
+
+// Bed Master
+if (hasPermission('bed-view')) {
+    $query = "SELECT COUNT(*) as total FROM bed_master WHERE (delete_flag=0 OR delete_flag IS NULL)";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['total_beds'] = $row['total'] ?? 0;
+    }
+}
+
+// Lab Tests
+if (hasPermission('lab-test-view')) {
+    $query = "SELECT COUNT(*) as total FROM lab_tests WHERE (delete_flag=0 OR delete_flag IS NULL)";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $stats['total_lab_tests'] = $row['total'] ?? 0;
+    }
+}
+
+// ============================================================
+// GET CHART DATA
+// ============================================================
+
+// Monthly Patient Data for Chart
+$monthly_patients = [];
+for ($i = 1; $i <= 12; $i++) {
+    $query = "SELECT COUNT(*) as total FROM patients WHERE (delete_flag=0 OR delete_flag IS NULL) AND MONTH(created_at) = '$i' AND YEAR(created_at) = '$current_year'";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    if ($is_doctor && $doctor_id > 0) {
+        $query .= " AND doctor_id = '$doctor_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    $count = 0;
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $count = $row['total'] ?? 0;
+    }
+    $monthly_patients[] = $count;
+}
+
+// Monthly Appointment Data for Chart
+$monthly_appointments = [];
+for ($i = 1; $i <= 12; $i++) {
+    $query = "SELECT COUNT(*) as total FROM appointments WHERE (delete_flag=0 OR delete_flag IS NULL) AND MONTH(appointment_date) = '$i' AND YEAR(appointment_date) = '$current_year'";
+    if ($hospital_id > 0) {
+        $query .= " AND hospital_id = '$hospital_id'";
+    }
+    if ($is_doctor && $doctor_id > 0) {
+        $query .= " AND doctor_id = '$doctor_id'";
+    }
+    $result = mysqli_query($conn, $query);
+    $count = 0;
+    if ($result) {
+        $row = mysqli_fetch_assoc($result);
+        $count = $row['total'] ?? 0;
+    }
+    $monthly_appointments[] = $count;
+}
+
+// ============================================================
+// GET TODAY'S APPOINTMENTS LIST
+// ============================================================
+$today_appointments_list = [];
+if (hasPermission('appointment-view')) {
+    $query = "SELECT a.*, p.patient_name, p.patient_id, d.doctor_name 
+              FROM appointments a 
+              LEFT JOIN patients p ON a.patient_id = p.patient_id 
+              LEFT JOIN doctor d ON a.doctor_id = d.doctor_id 
+              WHERE (a.delete_flag=0 OR a.delete_flag IS NULL) AND a.appointment_date = '$today'";
+    if ($hospital_id > 0) {
+        $query .= " AND a.hospital_id = '$hospital_id'";
+    }
+    if ($is_doctor && $doctor_id > 0) {
+        $query .= " AND a.doctor_id = '$doctor_id'";
+    }
+    $query .= " ORDER BY a.appointment_time LIMIT 5";
+    $result = mysqli_query($conn, $query);
+    if ($result) {
+        while ($row = mysqli_fetch_assoc($result)) {
+            $today_appointments_list[] = $row;
         }
     }
 }
 
-// Get hospital info
+// ============================================================
+// GET HOSPITAL NAME AND USER DATA
+// ============================================================
 $hospital_name = isset($hospital['hospital_name']) ? $hospital['hospital_name'] : 'Hospital';
 $hospital_logo = isset($hospital['hospital_logo']) ? $hospital['hospital_logo'] : '';
 $user_name = $_SESSION['name'] ?? 'User';
+$profile_image = $_SESSION['profile_image'] ?? '';
+$user_role = $_SESSION['role'] ?? '';
 
-// Log dashboard access
-if (function_exists('logAudit')) {
-    logAudit('Doctor Dashboard', 'Doctor accessed dashboard');
-}
+// Month names for charts
+$month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Doctor Dashboard - <?php echo htmlspecialchars($hospital_name); ?></title>
-    <link rel="icon" type="image/png" href="../<?php echo htmlspecialchars($hospital_logo); ?>">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <title>Dashboard - <?php echo htmlspecialchars($hospital_name); ?></title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js 3 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: #f8fafc; }
-
-        /* ============================================================
-           SIDEBAR CONTAINER
-           ============================================================ */
-        #sidebar-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100vh;
-            width: 256px;
-            z-index: 1000;
-            background: #ffffff;
-            border-right: 1px solid #e2e8f0;
-            overflow-y: auto;
-            transition: transform 0.3s ease;
+        body {
+            background: #f0f2f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-
-        #sidebar-container::-webkit-scrollbar { width: 4px; }
-        #sidebar-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-
+        
+        /* Main content margin to accommodate sidebar */
+        .main-content {
+            margin-left: 260px;
+            padding: 20px 25px;
+            min-height: 100vh;
+        }
+        
         @media (max-width: 1279px) {
-            #sidebar-container {
-                transform: translateX(-100%);
-                width: 280px;
-                box-shadow: 4px 0 20px rgba(0,0,0,0.1);
-            }
-            #sidebar-container.active { transform: translateX(0); }
-            .sidebar-overlay {
-                display: none;
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0,0,0,0.5);
-                z-index: 999;
-            }
-            .sidebar-overlay.active { display: block; }
-            #main-content { margin-left: 0 !important; }
-        }
-
-        @media (min-width: 1280px) {
-            #sidebar-container {
-                transform: translateX(0);
-                width: 256px;
+            .main-content {
+                margin-left: 0;
+                padding: 15px;
             }
         }
-
-        /* ============================================================
-           HEADER
-           ============================================================ */
-        .top-header {
-            background: #ffffff;
-            border-bottom: 1px solid #e2e8f0;
-            padding: 0.75rem 1.5rem;
+        
+        /* Welcome Section */
+        .welcome-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            padding: 25px 35px;
+            color: white;
+            margin-bottom: 25px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .welcome-section::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -10%;
+            width: 400px;
+            height: 400px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 50%;
+        }
+        
+        .welcome-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .welcome-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .welcome-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 12px;
+        }
+        
+        .welcome-stats {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .welcome-stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .welcome-stat-item .value {
+            font-weight: 700;
+            font-size: 18px;
+        }
+        
+        .welcome-date {
+            position: relative;
+            z-index: 1;
+            text-align: right;
+            font-size: 14px;
+            opacity: 0.85;
+        }
+        
+        /* Stat Cards */
+        .stat-card {
+            background: white;
+            border-radius: 14px;
+            padding: 20px 22px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            border: none;
+            height: 100%;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        }
+        
+        .stat-card .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            margin-bottom: 12px;
+        }
+        
+        .stat-card .stat-number {
+            font-size: 28px;
+            font-weight: 800;
+            color: #1a2332;
+            line-height: 1.2;
+            margin-bottom: 3px;
+        }
+        
+        .stat-card .stat-label {
+            font-size: 14px;
+            color: #6b7280;
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+        
+        .stat-card .stat-sub {
+            font-size: 12px;
+            color: #9ca3af;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        /* Icon Colors */
+        .icon-blue { background: #e8f0fe; color: #1a73e8; }
+        .icon-green { background: #e6f7e6; color: #0d8a3e; }
+        .icon-purple { background: #f0e6ff; color: #7c3aed; }
+        .icon-orange { background: #fff3e0; color: #f57c00; }
+        .icon-red { background: #fce8e8; color: #d32f2f; }
+        .icon-pink { background: #fce4ec; color: #d81b60; }
+        .icon-indigo { background: #e8eaf6; color: #3949ab; }
+        .icon-cyan { background: #e0f7fa; color: #00838f; }
+        .icon-teal { background: #e0f2f1; color: #00695c; }
+        .icon-rose { background: #fce4ec; color: #c62828; }
+        
+        /* Chart Cards */
+        .chart-card {
+            background: white;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: none;
+            height: 100%;
+        }
+        
+        .chart-card .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1a2332;
+            margin-bottom: 15px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            min-height: 64px;
         }
-
-        /* ============================================================
-           MAIN CONTENT
-           ============================================================ */
-        .main-wrapper {
+        
+        .chart-card .card-title .badge {
+            font-size: 11px;
+            font-weight: 400;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 220px;
+        }
+        
+        /* Today's Appointments */
+        .appointment-list {
+            background: white;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: none;
+            height: 100%;
+        }
+        
+        .appointment-list .list-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1a2332;
+            margin-bottom: 15px;
             display: flex;
-            min-height: 100vh;
+            align-items: center;
+            justify-content: space-between;
         }
-
-        .main-content {
+        
+        .appointment-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .appointment-item:last-child {
+            border-bottom: none;
+        }
+        
+        .appointment-item .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 16px;
+            flex-shrink: 0;
+            margin-right: 12px;
+        }
+        
+        .appointment-item .info {
             flex: 1;
-            margin-left: 256px;
-            padding: 1.5rem;
-            min-height: calc(100vh - 64px);
-            transition: margin-left 0.3s ease;
-            background: #f8fafc;
-            width: calc(100% - 256px);
         }
-
-        @media (max-width: 1279px) {
-            .main-content {
-                margin-left: 0 !important;
-                padding: 1rem;
-                width: 100%;
+        
+        .appointment-item .info .name {
+            font-weight: 600;
+            color: #1a2332;
+            font-size: 14px;
+        }
+        
+        .appointment-item .info .details {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        .appointment-item .time {
+            font-size: 12px;
+            font-weight: 500;
+            color: #1a2332;
+            background: #f3f4f6;
+            padding: 3px 10px;
+            border-radius: 20px;
+        }
+        
+        .status-badge {
+            font-size: 10px;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+        
+        .status-badge.scheduled { background: #fff3e0; color: #f57c00; }
+        .status-badge.confirmed { background: #e3f2fd; color: #1565c0; }
+        .status-badge.completed { background: #e8f5e9; color: #2e7d32; }
+        .status-badge.cancelled { background: #fce4ec; color: #c62828; }
+        
+        @media (max-width: 768px) {
+            .welcome-section {
+                padding: 18px;
+            }
+            
+            .welcome-title {
+                font-size: 20px;
+            }
+            
+            .welcome-stats {
+                gap: 15px;
+            }
+            
+            .welcome-date {
+                text-align: left;
+                margin-top: 8px;
+            }
+            
+            .stat-card .stat-number {
+                font-size: 22px;
+            }
+            
+            .chart-container {
+                height: 180px;
             }
         }
-
-        /* ============================================================
-           STAT CARDS
-           ============================================================ */
-        .stat-card {
-            background: #ffffff;
-            border-radius: 16px;
-            padding: 1.25rem;
-            border: 1px solid #e2e8f0;
-            transition: all 0.3s ease;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-        }
-        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.08); }
-        .stat-card .icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin-bottom: 0.75rem; }
-        .stat-card .count { font-size: 1.75rem; font-weight: 700; color: #1e293b; }
-        .stat-card .label { font-size: 0.8rem; color: #94a3b8; font-weight: 500; }
-
-        .bg-blue { background: #eff6ff; color: #3b82f6; }
-        .bg-purple { background: #f5f3ff; color: #7c3aed; }
-        .bg-orange { background: #fff7ed; color: #f97316; }
-        .bg-red { background: #fef2f2; color: #dc2626; }
-        .bg-green { background: #ecfdf5; color: #059669; }
-        .bg-cyan { background: #ecfeff; color: #0891b2; }
-
-        .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.25rem; margin-bottom: 1.5rem; }
-
-        .widget-card {
-            background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-        }
-        .widget-card .widget-title { font-size: 0.9rem; font-weight: 600; color: #1e293b; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
-
-        .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-top: 1.5rem; }
-        .grid-3col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.25rem; }
-
-        .mobile-toggle { display: none; padding: 0.5rem 0.75rem; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; font-size: 1.25rem; }
-        .mobile-toggle:hover { background: #f8fafc; }
-        @media (max-width: 1279px) { .mobile-toggle { display: inline-flex; align-items: center; justify-content: center; } }
-
-        .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #3b82f6, #2563eb); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 0.8rem; }
-
-        .activity-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid #f1f5f9; }
-        .activity-item:last-child { border-bottom: none; }
-
-        .appointment-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid #f1f5f9; }
-        .appointment-item:last-child { border-bottom: none; }
-
-        .status-badge { padding: 0.2rem 0.6rem; border-radius: 4px; font-size: 0.65rem; font-weight: 600; }
-        .status-scheduled { background: #eff6ff; color: #3b82f6; }
-        .status-completed { background: #ecfdf5; color: #22c55e; }
-        .status-cancelled { background: #fef2f2; color: #dc2626; }
-        .status-pending { background: #fef3c7; color: #b45309; }
-
-        .no-permission-msg {
-            background: #fef3c7; border: 1px solid #f59e0b; border-radius: 12px;
-            padding: 2rem; text-align: center; margin: 2rem auto; max-width: 500px;
-        }
-        .no-permission-msg i { font-size: 3rem; color: #f59e0b; display: block; margin-bottom: 1rem; }
-        .no-permission-msg h3 { color: #1e293b; margin-bottom: 0.5rem; }
-        .no-permission-msg p { color: #64748b; }
-
-        @media (max-width: 1024px) {
-            .grid-2col { grid-template-columns: 1fr; }
-            .grid-3col { grid-template-columns: 1fr 1fr; }
-        }
-        @media (max-width: 768px) {
-            .grid-cards { grid-template-columns: repeat(2, 1fr); }
-            .grid-3col { grid-template-columns: 1fr; }
-            .grid-2col { grid-template-columns: 1fr; }
-        }
-        @media (max-width: 480px) {
-            .grid-cards { grid-template-columns: 1fr; }
-        }
-
-        /* ============================================================
-           SIDEBAR OVERLAY
-           ============================================================ */
-        .sidebar-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 999;
-        }
-        .sidebar-overlay.active { display: block; }
     </style>
 </head>
 <body>
 
-<!-- ============================================================
-SIDEBAR OVERLAY
-============================================================ -->
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
+<!-- Include Sidebar -->
+<?php include '../Sidebar.php'; ?>
 
-<!-- ============================================================
-SIDEBAR
-============================================================ -->
-<div id="sidebar-container">
-    <?php include '../Sidebar.php'; ?>
-</div>
-
-<!-- ============================================================
-MAIN WRAPPER
-============================================================ -->
-<div class="main-wrapper">
-    <main class="main-content" id="mainContent">
-        
-        <!-- ============================================================
-        HEADER
-        ============================================================ -->
-        <div class="top-header">
-            <div style="display:flex; align-items:center; gap:1rem;">
-                <button class="mobile-toggle" id="mobileToggle">
-                    <i class="fas fa-bars"></i>
-                </button>
-                <div>
-                    <h1 style="font-size:1.25rem; font-weight:700; color:#1e293b;">Doctor Dashboard</h1>
-                    <p style="font-size:0.875rem; color:#64748b;">
-                        Welcome back, <strong><?php echo htmlspecialchars($doctor_name); ?></strong>
-                        <?php if (function_exists('hasPermission') && hasPermission('appointment-view')): ?>
-                            | <span style="color:#3b82f6;"><?php echo $todayAppointments; ?> appointments today</span>
-                        <?php endif; ?>
-                    </p>
+<!-- Main Content -->
+<div class="main-content">
+    
+    <!-- Welcome Section -->
+    <div class="welcome-section">
+        <div class="row align-items-center">
+            <div class="col-md-8 welcome-content">
+                <div class="welcome-title">
+                    <i class="fas fa-wave-square me-2"></i>
+                    Welcome back, <?php echo htmlspecialchars($user_name); ?>!
+                </div>
+                <div class="welcome-subtitle">
+                    <?php echo htmlspecialchars($hospital_name); ?> · <?php echo ucfirst(htmlspecialchars($user_role)); ?>
+                    <?php if ($is_doctor): ?>
+                        <span class="badge bg-light text-dark ms-2"><i class="fas fa-user-md"></i> Doctor</span>
+                    <?php endif; ?>
+                </div>
+                <div class="welcome-stats">
+                    <div class="welcome-stat-item">
+                        <i class="fas fa-calendar-day"></i>
+                        <span class="value"><?php echo date('d M Y'); ?></span>
+                    </div>
+                    <?php if ($stats['today_appointments'] > 0): ?>
+                    <div class="welcome-stat-item">
+                        <i class="fas fa-calendar-check"></i>
+                        <span class="value"><?php echo $stats['today_appointments']; ?></span> appointments today
+                    </div>
+                    <?php endif; ?>
+                    <?php if ($stats['new_patients_today'] > 0): ?>
+                    <div class="welcome-stat-item">
+                        <i class="fas fa-user-plus"></i>
+                        <span class="value"><?php echo $stats['new_patients_today']; ?></span> new patients
+                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
-            <div style="display:flex; align-items:center; gap:1rem;">
-                <span style="font-size:0.875rem; color:#64748b;">
-                    <i class="fas fa-calendar"></i> <?php echo date('l, d M Y'); ?>
-                </span>
-                <div class="user-avatar"><?php echo strtoupper(substr($user_name, 0, 2)); ?></div>
+            <div class="col-md-4 welcome-date">
+                <div><i class="far fa-calendar-alt me-2"></i><?php echo date('l, F j, Y'); ?></div>
+                <div style="font-size:12px; opacity:0.7; margin-top:3px;">
+                    <i class="far fa-clock me-1"></i><?php echo date('h:i A'); ?>
+                </div>
             </div>
         </div>
-
-        <!-- ============================================================
-        DASHBOARD CONTENT
-        ============================================================ -->
-        <div style="padding-top:1.5rem;">
-            
-            <!-- Statistics Cards -->
-            <div class="grid-cards">
-                
-                <?php if (function_exists('hasPermission') && hasPermission('appointment-view')): ?>
-                <div class="stat-card">
-                    <div class="icon bg-blue"><i class="fas fa-calendar-day"></i></div>
-                    <div class="count"><?php echo $todayAppointments; ?></div>
-                    <div class="label">Today's Appointments</div>
+    </div>
+    
+    <!-- Main Stat Cards - Row 1 -->
+    <div class="row g-3 mb-3">
+        <?php if (hasPermission('patient-view')): ?>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon icon-blue"><i class="fas fa-users"></i></div>
+                <div class="stat-number"><?php echo number_format($stats['total_patients']); ?></div>
+                <div class="stat-label">Total Patients</div>
+                <div class="stat-sub">
+                    <i class="fas fa-arrow-up text-success"></i>
+                    <?php echo $stats['new_patients_today']; ?> new today
                 </div>
-                <?php endif; ?>
-
-                <?php if (function_exists('hasPermission') && hasPermission('appointment-view')): ?>
-                <div class="stat-card">
-                    <div class="icon bg-purple"><i class="fas fa-calendar-check"></i></div>
-                    <div class="count"><?php echo $totalAppointments; ?></div>
-                    <div class="label">Total Appointments</div>
-                </div>
-                <?php endif; ?>
-
-                <?php if (function_exists('hasPermission') && hasPermission('opd-view')): ?>
-                <div class="stat-card">
-                    <div class="icon bg-orange"><i class="fas fa-stethoscope"></i></div>
-                    <div class="count"><?php echo $opdPatientsToday; ?></div>
-                    <div class="label">OPD Patients Today</div>
-                </div>
-                <?php endif; ?>
-
-                <?php if (function_exists('hasPermission') && hasPermission('prescription-view')): ?>
-                <div class="stat-card">
-                    <div class="icon bg-red"><i class="fas fa-prescription"></i></div>
-                    <div class="count"><?php echo $pendingPrescriptions; ?></div>
-                    <div class="label">Total Prescriptions</div>
-                </div>
-                <?php endif; ?>
-
-                <?php if (function_exists('hasPermission') && hasPermission('prescription-view')): ?>
-                <div class="stat-card">
-                    <div class="icon bg-green"><i class="fas fa-user-check"></i></div>
-                    <div class="count"><?php echo $followupPatients; ?></div>
-                    <div class="label">Follow-up Patients</div>
-                </div>
-                <?php endif; ?>
-
-                <?php if (function_exists('hasPermission') && hasPermission('patient-view')): ?>
-                <div class="stat-card">
-                    <div class="icon bg-cyan"><i class="fas fa-users"></i></div>
-                    <div class="count"><?php echo $totalPatients; ?></div>
-                    <div class="label">Total Patients</div>
-                </div>
-                <?php endif; ?>
-
             </div>
-
-            <!-- No Permission Message -->
-            <?php if (!function_exists('hasPermission') || (!hasPermission('appointment-view') && !hasPermission('opd-view') && !hasPermission('prescription-view') && !hasPermission('patient-view'))): ?>
-            <div class="no-permission-msg">
-                <i class="fas fa-lock"></i>
-                <h3>No Module Permissions</h3>
-                <p>You don't have any module permissions. Please contact your administrator.</p>
-                <a href="update_adminprofile.php" style="display:inline-block; margin-top:1rem; padding:0.5rem 1.5rem; background:#3b82f6; color:white; border-radius:8px; text-decoration:none;">
-                    <i class="fas fa-user-edit"></i> Update Profile
-                </a>
+        </div>
+        <?php endif; ?>
+        
+        <?php if (hasPermission('doctor-view')): ?>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon icon-green"><i class="fas fa-user-md"></i></div>
+                <div class="stat-number"><?php echo number_format($stats['total_doctors']); ?></div>
+                <div class="stat-label">Total Doctors</div>
+                <div class="stat-sub">
+                    <i class="fas fa-circle text-success" style="font-size:8px;"></i>
+                    Active
+                </div>
             </div>
-            <?php endif; ?>
-
-            <!-- Recent Activities -->
-            <?php if (function_exists('hasPermission') && (hasPermission('appointment-view') || hasPermission('opd-view') || hasPermission('prescription-view'))): ?>
-            <div class="grid-2col" style="margin-top:1.5rem;">
-                
-                <?php if (function_exists('hasPermission') && hasPermission('opd-view')): ?>
-                <div class="widget-card">
-                    <div class="widget-title">
-                        <i class="fas fa-stethoscope" style="color:#3b82f6;"></i>
-                        Recent OPD Visits
-                    </div>
-                    <?php 
-                        $recentOpd = "SELECT o.*, p.patient_name, p.patient_image 
-                                      FROM opd o 
-                                      LEFT JOIN patients p ON o.patient_id = p.patient_id 
-                                      WHERE o.doctor_id = '$doctor_id' 
-                                      AND (o.delete_flag = 0 OR o.delete_flag IS NULL) 
-                                      ORDER BY o.created_at DESC LIMIT 5";
-                        $recentOpdResult = $conn->query($recentOpd);      
-                    ?>
-                    <?php if($recentOpdResult && $recentOpdResult->num_rows > 0): ?>
-                        <?php while($row = $recentOpdResult->fetch_assoc()): ?>
-                            <div class="activity-item">
-                                <div style="flex:1;">
-                                    <div style="font-size:0.85rem; font-weight:600; color:#1e293b;">
-                                        <?php echo htmlspecialchars($row['patient_name'] ?? 'Unknown'); ?>
-                                    </div>
-                                    <div style="font-size:0.75rem; color:#94a3b8;">
-                                        <?php echo date('d M Y H:i', strtotime($row['created_at'] ?? 'now')); ?>
-                                    </div>
-                                </div>
-                                <a href="view_opd.php?id=<?php echo $row['id']; ?>" 
-                                   style="font-size:0.75rem; color:#3b82f6; text-decoration:none;">
-                                    View <i class="fas fa-arrow-right"></i>
-                                </a>
-                            </div>
-                        <?php endwhile; ?>
+        </div>
+        <?php endif; ?>
+        
+        <?php if (hasPermission('appointment-view')): ?>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon icon-purple"><i class="fas fa-calendar-check"></i></div>
+                <div class="stat-number"><?php echo number_format($stats['total_appointments']); ?></div>
+                <div class="stat-label">Total Appointments</div>
+                <div class="stat-sub">
+                    <?php if ($stats['pending_appointments'] > 0): ?>
+                    <i class="fas fa-clock text-warning"></i>
+                    <?php echo $stats['pending_appointments']; ?> pending
                     <?php else: ?>
-                        <div style="text-align:center; padding:1.5rem; color:#94a3b8;">No OPD visits</div>
+                    <i class="fas fa-check-circle text-success"></i>
+                    All processed
                     <?php endif; ?>
                 </div>
-                <?php endif; ?>
-
-                <?php if (function_exists('hasPermission') && hasPermission('prescription-view')): ?>
-                <div class="widget-card">
-                    <div class="widget-title">
-                        <i class="fas fa-prescription" style="color:#dc2626;"></i>
-                        Recent Prescriptions
-                    </div>
-                    <?php
-                        $recentPrescription = "SELECT p.*, pt.patient_name, pt.patient_image 
-                                               FROM prescriptions p 
-                                               LEFT JOIN patients pt ON p.patient_id = pt.patient_id 
-                                               WHERE p.doctor_id = '$doctor_id' 
-                                               AND (p.delete_flag = 0 OR p.delete_flag IS NULL) 
-                                               ORDER BY p.created_at DESC LIMIT 5";
-                        $recentPrescriptionResult = $conn->query($recentPrescription);
-                    ?>
-                    <?php if($recentPrescriptionResult && $recentPrescriptionResult->num_rows > 0): ?>
-                        <?php while($row = $recentPrescriptionResult->fetch_assoc()): ?>
-                            <div class="activity-item">
-                                <div style="flex:1;">
-                                    <div style="font-size:0.85rem; font-weight:600; color:#1e293b;">
-                                        <?php echo htmlspecialchars($row['patient_name'] ?? 'Unknown'); ?>
-                                    </div>
-                                    <div style="font-size:0.75rem; color:#94a3b8;">
-                                        <?php echo htmlspecialchars($row['medicine_name'] ?? 'N/A'); ?>
-                                        <span style="margin:0 4px;">•</span>
-                                        <?php echo date('d M Y', strtotime($row['created_at'] ?? 'now')); ?>
-                                    </div>
-                                </div>
-                                <a href="view_prescription.php?id=<?php echo $row['id']; ?>" 
-                                   style="font-size:0.75rem; color:#3b82f6; text-decoration:none;">
-                                    View <i class="fas fa-arrow-right"></i>
-                                </a>
-                            </div>
-                        <?php endwhile; ?>
-                    <?php else: ?>
-                        <div style="text-align:center; padding:1.5rem; color:#94a3b8;">No prescriptions</div>
-                    <?php endif; ?>
-                </div>
-                <?php endif; ?>
-
             </div>
-            <?php endif; ?>
-
-            <!-- Today's Appointments Queue -->
-            <?php if (function_exists('hasPermission') && hasPermission('appointment-view')): ?>
-            <div class="widget-card" style="margin-top:1.5rem;">
-                <div class="widget-title">
-                    <i class="fas fa-calendar-alt" style="color:#3b82f6;"></i>
-                    Today's Appointments Queue
-                    <span style="margin-left:auto; font-size:0.75rem; background:#eff6ff; color:#3b82f6; padding:0.2rem 0.8rem; border-radius:20px;">
-                        <?php echo $todayAppointments; ?> Appointments
+        </div>
+        <?php endif; ?>
+        
+        <?php if (hasPermission('opd-view')): ?>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon icon-orange"><i class="fas fa-stethoscope"></i></div>
+                <div class="stat-number"><?php echo number_format($stats['total_opd']); ?></div>
+                <div class="stat-label">OPD Visits</div>
+                <div class="stat-sub">
+                    <i class="fas fa-calendar-day"></i>
+                    <?php echo $stats['opd_today']; ?> today
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
+    
+    <!-- Main Stat Cards - Row 2 -->
+    <div class="row g-3 mb-3">
+        <?php if (hasPermission('ipd-view')): ?>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon icon-red"><i class="fas fa-hospital-user"></i></div>
+                <div class="stat-number"><?php echo number_format($stats['total_ipd']); ?></div>
+                <div class="stat-label">IPD Admissions</div>
+                <div class="stat-sub">
+                    <i class="fas fa-bed"></i>
+                    <?php echo $stats['ipd_active']; ?> active
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+        
+        <?php if (hasPermission('prescription-view')): ?>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon icon-pink"><i class="fas fa-prescription"></i></div>
+                <div class="stat-number"><?php echo number_format($stats['total_prescriptions']); ?></div>
+                <div class="stat-label">Prescriptions</div>
+                <div class="stat-sub">
+                    <i class="fas fa-pills"></i>
+                    Total issued
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+        
+        <?php if (hasPermission('billing-view')): ?>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon icon-indigo"><i class="fas fa-file-invoice-dollar"></i></div>
+                <div class="stat-number"><?php echo number_format($stats['total_bills']); ?></div>
+                <div class="stat-label">Bills</div>
+                <div class="stat-sub">
+                    <i class="fas fa-rupee-sign"></i>
+                    ₹<?php echo number_format($stats['revenue_today']); ?> today
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+        
+        <?php if (hasPermission('staff-view')): ?>
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="stat-card">
+                <div class="stat-icon icon-cyan"><i class="fas fa-user-tie"></i></div>
+                <div class="stat-number"><?php echo number_format($stats['total_staff']); ?></div>
+                <div class="stat-label">Staff Members</div>
+                <div class="stat-sub">
+                    <i class="fas fa-users"></i>
+                    Total
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
+    
+    <!-- Charts Row -->
+    <div class="row g-3 mb-3">
+        <div class="col-lg-6">
+            <div class="chart-card">
+                <div class="card-title">
+                    <span><i class="fas fa-chart-line text-primary me-2"></i>Patients Overview</span>
+                    <span class="badge"><?php echo $current_year; ?></span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="patientChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-6">
+            <div class="chart-card">
+                <div class="card-title">
+                    <span><i class="fas fa-calendar-alt text-purple me-2"></i>Appointments Overview</span>
+                    <span class="badge"><?php echo $current_year; ?></span>
+                </div>
+                <div class="chart-container">
+                    <canvas id="appointmentChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Today's Appointments -->
+    <?php if (hasPermission('appointment-view') && !empty($today_appointments_list)): ?>
+    <div class="row">
+        <div class="col-12">
+            <div class="appointment-list">
+                <div class="list-title">
+                    <span><i class="fas fa-calendar-day text-primary me-2"></i>Today's Appointments</span>
+                    <span class="badge bg-primary"><?php echo count($today_appointments_list); ?> today</span>
+                </div>
+                <?php foreach ($today_appointments_list as $apt): ?>
+                <div class="appointment-item">
+                    <div class="avatar">
+                        <?php echo strtoupper(substr($apt['patient_name'] ?? 'P', 0, 1)); ?>
+                    </div>
+                    <div class="info">
+                        <div class="name"><?php echo htmlspecialchars($apt['patient_name'] ?? 'Unknown'); ?></div>
+                        <div class="details">
+                            <i class="fas fa-user-md me-1"></i><?php echo htmlspecialchars($apt['doctor_name'] ?? 'N/A'); ?>
+                            <span class="mx-2">·</span>
+                            <i class="fas fa-tag me-1"></i><?php echo htmlspecialchars($apt['appointment_type'] ?? 'General'); ?>
+                        </div>
+                    </div>
+                    <div class="time">
+                        <?php echo date('h:i A', strtotime($apt['appointment_time'] ?? '00:00:00')); ?>
+                    </div>
+                    <span class="status-badge <?php echo strtolower($apt['status'] ?? 'scheduled'); ?>">
+                        <?php echo htmlspecialchars($apt['status'] ?? 'Scheduled'); ?>
                     </span>
                 </div>
-                <?php
-                $todayAppointmentsList = "SELECT a.*, p.patient_name, p.patient_image
-                                          FROM appointments a
-                                          LEFT JOIN patients p ON a.patient_id = p.patient_id
-                                          WHERE a.doctor_id = '$doctor_id'
-                                          AND (a.delete_flag = 0 OR a.delete_flag IS NULL)
-                                          AND a.appointment_date = CURDATE()
-                                          ORDER BY a.appointment_time ASC LIMIT 10";
-                $todayAppointmentsResult = mysqli_query($conn, $todayAppointmentsList);
-                ?>
-                <?php if($todayAppointmentsResult && $todayAppointmentsResult->num_rows > 0): ?>
-                    <?php while($row = $todayAppointmentsResult->fetch_assoc()): ?>
-                        <div class="appointment-item">
-                            <div style="flex:1;">
-                                <div style="font-size:0.85rem; font-weight:600; color:#1e293b;">
-                                    <?php echo htmlspecialchars($row['patient_name'] ?? 'Unknown'); ?>
-                                </div>
-                                <div style="font-size:0.75rem; color:#94a3b8;">
-                                    <i class="fas fa-clock"></i> <?php echo date('h:i A', strtotime($row['appointment_time'] ?? 'now')); ?>
-                                    <span style="margin:0 4px;">•</span>
-                                    <?php echo htmlspecialchars($row['appointment_type'] ?? 'General'); ?>
-                                </div>
-                            </div>
-                            <span class="status-badge status-<?php echo strtolower($row['status'] ?? 'pending'); ?>">
-                                <?php echo htmlspecialchars($row['status'] ?? 'Pending'); ?>
-                            </span>
-                        </div>
-                    <?php endwhile; ?>
-                <?php else: ?>
-                    <div style="text-align:center; padding:1.5rem; color:#94a3b8;">
-                        <i class="fas fa-calendar" style="font-size:2rem; display:block; margin-bottom:0.5rem; color:#e2e8f0;"></i>
-                        No appointments for today.
-                    </div>
-                <?php endif; ?>
+                <?php endforeach; ?>
             </div>
-            <?php endif; ?>
-
         </div>
-
-    </main>
+    </div>
+    <?php endif; ?>
+    
 </div>
 
+<!-- Bootstrap 5 JS Bundle -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
 <script>
-// Sidebar Toggle
 document.addEventListener('DOMContentLoaded', function() {
-    const mobileToggle = document.getElementById('mobileToggle');
-    const sidebarContainer = document.getElementById('sidebar-container');
-    const sidebarOverlay = document.getElementById('sidebarOverlay');
+    const monthNames = <?php echo json_encode($month_names); ?>;
     
-    if (mobileToggle) {
-        mobileToggle.addEventListener('click', function() {
-            sidebarContainer.classList.toggle('active');
-            sidebarOverlay.classList.toggle('active');
-        });
-    }
-    if (sidebarOverlay) {
-        sidebarOverlay.addEventListener('click', function() {
-            sidebarContainer.classList.remove('active');
-            sidebarOverlay.classList.remove('active');
-        });
-    }
+    // Patient Chart
+    <?php if (hasPermission('patient-view')): ?>
+    const patientCtx = document.getElementById('patientChart').getContext('2d');
+    new Chart(patientCtx, {
+        type: 'bar',
+        data: {
+            labels: monthNames,
+            datasets: [{
+                label: 'New Patients',
+                data: <?php echo json_encode($monthly_patients); ?>,
+                backgroundColor: 'rgba(26, 115, 232, 0.7)',
+                borderColor: 'rgba(26, 115, 232, 1)',
+                borderWidth: 2,
+                borderRadius: 6,
+                barPercentage: 0.6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+    <?php endif; ?>
+    
+    // Appointment Chart
+    <?php if (hasPermission('appointment-view')): ?>
+    const appointmentCtx = document.getElementById('appointmentChart').getContext('2d');
+    new Chart(appointmentCtx, {
+        type: 'line',
+        data: {
+            labels: monthNames,
+            datasets: [{
+                label: 'Appointments',
+                data: <?php echo json_encode($monthly_appointments); ?>,
+                backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                borderColor: 'rgba(124, 58, 237, 1)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.4,
+                pointBackgroundColor: 'rgba(124, 58, 237, 1)',
+                pointRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+    <?php endif; ?>
 });
 </script>
 
 </body>
-</html> 
+</html>

@@ -225,16 +225,14 @@ if (isset($_GET['id'])) {
         <?php include 'header.php'; ?> 
 
         <div class="flex flex-1 items-start">
-            <div id="sidebar-container">
+          
                 <?php include 'Sidebar.php'; ?> 
-            </div>
+        
 
             <main id="main-content" class="flex-1 overflow-x-hidden duration-300 p-4 xl:p-8 xl:ml-64 w-full">
                 <div class="max-w-6xl mx-auto w-full">
                     <div class="flex items-center gap-4 mb-8">
-                        <button id="mobile-toggle" class="xl:hidden">
-                            <i class="fas fa-bars"></i>
-                        </button>
+                        
                         <a href="staff.php" class="back-btn">
                             <i data-lucide="arrow-left" class="w-5 h-5"></i>
                         </a>

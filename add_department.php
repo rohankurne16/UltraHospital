@@ -1,43 +1,55 @@
 <?php 
-    session_start();
-    include 'config/hospital.php'; 
 
-    if (!isset($_SESSION["id"]) && empty($_SESSION["id"])) {
-        header("Location:auth/logout.php");
-        exit();
-    }
+session_start();
+include 'config/hospital.php'; 
 
-    $hid=$_SESSION["hospital_id"];
-    $message = "";
-    $messageType = "";
+if (!isset($_SESSION["id"]) && empty($_SESSION["id"])) {
+    header("Location:auth/logout.php");
+    exit();
+}
 
-    if ($_SERVER["REQUEST_METHOD"] == "POST") {
-        $dept_name = mysqli_real_escape_string($conn, $_POST['department_name']);
-        $description = mysqli_real_escape_string($conn, $_POST['description']);
-        $status = mysqli_real_escape_string($conn, $_POST['status']);
+$hid=$_SESSION["hospital_id"];
+$message = "";
+$messageType = "";
 
-        if (empty($dept_name)) {
-            $message = "Department name is required!";
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $dept_name = mysqli_real_escape_string($conn, $_POST['department_name']);
+    $description = mysqli_real_escape_string($conn, $_POST['description']);
+    $status = mysqli_real_escape_string($conn, $_POST['status']);
+
+    // Server-side Validation with Regex
+    if (empty($dept_name)) {
+        $message = "Department name is required!";
+        $messageType = "error";
+    } elseif (!preg_match('/^[A-Za-z0-9\s\-\'&.]+$/', $dept_name)) {
+        $message = "Invalid Department Name. Only letters, numbers, spaces, hyphens, apostrophes, ampersands, and periods are allowed.";
+        $messageType = "error";
+    } elseif (!empty($description) && !preg_match('/^[A-Za-z0-9\s\-\.,#\/:]+$/', $description)) {
+        $message = "Invalid Description. Only letters, numbers, spaces, hyphens, commas, periods, hash, slashes, and colons are allowed.";
+        $messageType = "error";
+    } elseif (!in_array($status, ['Active', 'Inactive'])) {
+        $message = "Invalid Status selected.";
+        $messageType = "error";
+    } else {
+        $check_query = "SELECT id FROM department WHERE department_name = '$dept_name' AND hospital_id = $hid AND delete_flag = 0";
+        $check_result = $conn->query($check_query);
+
+        if ($check_result && $check_result->num_rows > 0) {
+            $message = "Error: A department with this name already exists!";
             $messageType = "error";
         } else {
-           $check_query = "select id from department where department_name = '$dept_name' and hospital_id = $hid and delete_flag = 0";
-            $check_result = $conn->query($check_query);
-
-            if ($check_result && $check_result->num_rows > 0) {
-                $message = "Error: A department with this name already exists!";
-                $messageType = "error";
+            $sql = "INSERT INTO department (department_name, description, status, hospital_id) VALUES ('$dept_name', '$description', '$status', '$hid')";   
+            if ($conn->query($sql) === TRUE) {
+                header("Location: departments.php?success=Department added successfully");
+                exit();
             } else {
-                    $sql = "insert into department (department_name, description, status, hospital_id) values ('$dept_name', '$description', '$status', '$hid')";   
-                if ($conn->query($sql) === TRUE) {
-                    header("Location: departments.php?success=Department added successfully");
-                    exit();
-                }else {
-                    $message = "Error: " . $conn->error;
-                    $messageType = "error";
-                }
+                $message = "Error: " . $conn->error;
+                $messageType = "error";
             }
         }
     }
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -65,7 +77,6 @@
             background: white;
         }
 
-        /* Mobile Sidebar behavior */
         @media (max-width: 1279px) {
             #sidebar-container {
                 transform: translateX(-100%);
@@ -92,7 +103,6 @@
             }
         }
 
-        /* Desktop Sidebar behavior */
         @media (min-width: 1280px) {
             #sidebar-container {
                 transform: translateX(0);
@@ -131,6 +141,51 @@
             color: #374151;
             cursor: pointer;
         }
+
+        /* Validation Styles */
+        .field-group { position: relative; }
+        .input-wrapper { position: relative; }
+        
+        .input-wrapper .input-icon {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 16px;
+            pointer-events: none;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+        .input-wrapper .input-icon.valid { color: #22c55e; opacity: 1; }
+        .input-wrapper .input-icon.invalid { color: #ef4444; opacity: 1; }
+        
+        .form-input.error { 
+            border-color: #ef4444 !important; 
+            background-color: #fef2f2 !important; 
+        }
+        .form-input.success { 
+            border-color: #22c55e !important; 
+            background-color: #f0fdf4 !important; 
+        }
+        
+        .validation-message {
+            font-size: 11px;
+            margin-top: 4px;
+            display: none;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.3s ease;
+        }
+        .validation-message.show { display: flex; }
+        .validation-message.error { color: #ef4444; }
+        .validation-message.success { color: #22c55e; }
+        
+        .validation-hint {
+            font-size: 10px;
+            color: #94a3b8;
+            margin-top: 4px;
+            display: block;
+        }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-[#131212] text-neutral-900 dark:text-neutral-100">
@@ -141,17 +196,14 @@
          <?php include('header.php') ?>
         
         <div class="flex flex-1 items-start">
-            <div id="sidebar-container">
+           
                 <?php include('Sidebar.php') ?>
-            </div>
-            
+           
             <main id="main-content" class="flex-1 overflow-x-hidden duration-300 p-4 xl:p-6 xl:ml-64 w-full">
                 <div class="max-w-4xl mx-auto">
                     
                     <div class="mb-8 flex items-center gap-4">
-                         <button id="mobile-toggle" class="xl:hidden">
-                            <i class="fas fa-bars"></i>
-                         </button>
+                      
                          <a href="departments.php" class="back-btn">
                                 <i class="fas fa-arrow-left"></i>
                         </a>
@@ -171,12 +223,29 @@
                     <?php endif; ?>
 
                     <div class="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-2xl shadow-sm overflow-hidden">
-                        <form action="add_department.php" method="POST" class="p-6 md:p-8 lg:p-12">
+                        <form action="add_department.php" method="POST" id="departmentForm" novalidate class="p-6 md:p-8 lg:p-12">
                             <div class="grid grid-cols-1 gap-6 md:gap-8">
                                 
-                                <div class="space-y-2">
+                                <div class="space-y-2 field-group">
                                     <label for="department_name" class="text-xs font-bold uppercase tracking-widest text-gray-400">Department Name <span class="text-red-500">*</span></label>
-                                    <input type="text" id="department_name" name="department_name" required placeholder="e.g. Cardiology" class="w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm md:text-base">
+                                    <div class="input-wrapper">
+                                        <input type="text" id="department_name" name="department_name" required 
+                                            placeholder="e.g. Cardiology" 
+                                            class="form-input w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm md:text-base"
+                                            pattern="^[A-Za-z0-9\s\-\'&.]+$"
+                                            data-validation="dept_name"
+                                            title="Only letters, numbers, spaces, hyphens, apostrophes, ampersands, and periods are allowed.">
+                                        <i class="fas fa-check-circle input-icon" id="department_name_icon"></i>
+                                    </div>
+                                    <div class="validation-message error" id="department_name_error">
+                                        <i class="fas fa-exclamation-circle"></i>
+                                        <span>Only letters, numbers, spaces, hyphens, apostrophes, ampersands, and periods are allowed.</span>
+                                    </div>
+                                    <div class="validation-message success" id="department_name_success">
+                                        <i class="fas fa-check-circle"></i>
+                                        <span>Valid department name</span>
+                                    </div>
+                                    <small class="validation-hint">Letters, numbers, spaces, hyphens, apostrophes, ampersands, periods</small>
                                 </div>
 
                                 <div class="space-y-2">
@@ -187,9 +256,24 @@
                                     </select>
                                 </div>
 
-                                <div class="space-y-2">
+                                <div class="space-y-2 field-group">
                                     <label for="description" class="text-xs font-bold uppercase tracking-widest text-gray-400">Description</label>
-                                    <textarea id="description" name="description" rows="5" placeholder="Describe the department's scope..." class="w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none text-sm md:text-base"></textarea>
+                                    <div class="input-wrapper">
+                                        <textarea id="description" name="description" rows="5" 
+                                            placeholder="Describe the department's scope..." 
+                                            class="form-input w-full bg-gray-50 dark:bg-neutral-800 border border-gray-200 dark:border-neutral-700 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none text-sm md:text-base"
+                                            pattern="^[A-Za-z0-9\s\-\.,#\/:]*$"
+                                            data-validation="description"></textarea>
+                                    </div>
+                                    <div class="validation-message error" id="description_error">
+                                        <i class="fas fa-exclamation-circle"></i>
+                                        <span>Only letters, numbers, spaces, hyphens, commas, periods, hash, slashes, and colons are allowed.</span>
+                                    </div>
+                                    <div class="validation-message success" id="description_success">
+                                        <i class="fas fa-check-circle"></i>
+                                        <span>Valid description format</span>
+                                    </div>
+                                    <small class="validation-hint">Letters, numbers, spaces, hyphens, commas, periods, hash, slashes, colons</small>
                                 </div>
 
                                 <div class="flex flex-col sm:flex-row items-center justify-end gap-4 pt-4 border-t dark:border-neutral-800">
@@ -242,11 +326,116 @@
             if (mobileToggle) mobileToggle.addEventListener('click', openSidebar);
             if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeSidebar);
 
-            // Handle close button inside Sidebar.php
             document.addEventListener('click', function(e) {
                 const closeBtn = e.target.closest('.lucide-x') || e.target.closest('.fa-xmark') || e.target.closest('#sidebar-close');
                 if (closeBtn && window.innerWidth < 1280) {
                     closeSidebar();
+                }
+            });
+        });
+
+        // ============================================================
+        // VALIDATION LOGIC
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', function() {
+            // Define validation patterns
+            const patterns = {
+                dept_name: /^[A-Za-z0-9\s\-\'&.]+$/,
+                description: /^[A-Za-z0-9\s\-\.,#\/:]*$/
+            };
+
+            // Get fields that need validation
+            const fields = {
+                department_name: { pattern: patterns.dept_name, required: true },
+                description: { pattern: patterns.description, required: false }
+            };
+
+            // Function to validate a single field
+            function validateField(fieldId) {
+                const input = document.getElementById(fieldId);
+                if (!input) return true;
+
+                const value = input.value.trim();
+                const fieldConfig = fields[fieldId];
+                const isRequired = fieldConfig ? fieldConfig.required : false;
+                const pattern = fieldConfig ? fieldConfig.pattern : null;
+
+                const errorMsg = document.getElementById(fieldId + '_error');
+                const successMsg = document.getElementById(fieldId + '_success');
+                const icon = document.getElementById(fieldId + '_icon');
+
+                // Reset states
+                input.classList.remove('error', 'success');
+                if (errorMsg) errorMsg.classList.remove('show');
+                if (successMsg) successMsg.classList.remove('show');
+                if (icon) {
+                    icon.classList.remove('valid', 'invalid');
+                }
+
+                // Check if empty and required
+                if (isRequired && value === '') {
+                    input.classList.add('error');
+                    if (errorMsg) errorMsg.classList.add('show');
+                    if (icon) icon.classList.add('invalid');
+                    return false;
+                }
+
+                // If optional and empty, it's valid
+                if (!isRequired && value === '') {
+                    input.classList.add('success');
+                    if (successMsg) successMsg.classList.add('show');
+                    if (icon) icon.classList.add('valid');
+                    return true;
+                }
+
+                // Test against pattern
+                if (pattern && !pattern.test(value)) {
+                    input.classList.add('error');
+                    if (errorMsg) errorMsg.classList.add('show');
+                    if (icon) icon.classList.add('invalid');
+                    return false;
+                }
+
+                // All validations passed
+                input.classList.add('success');
+                if (successMsg) successMsg.classList.add('show');
+                if (icon) icon.classList.add('valid');
+                return true;
+            }
+
+            // Attach event listeners for real-time validation
+            Object.keys(fields).forEach(fieldId => {
+                const input = document.getElementById(fieldId);
+                if (!input) return;
+
+                // Validate on blur
+                input.addEventListener('blur', function() {
+                    validateField(fieldId);
+                });
+
+                // Validate on input for better UX
+                input.addEventListener('input', function() {
+                    validateField(fieldId);
+                });
+            });
+
+            // Form submission validation
+            document.getElementById('departmentForm').addEventListener('submit', function(e) {
+                let isValid = true;
+
+                Object.keys(fields).forEach(fieldId => {
+                    if (!validateField(fieldId)) {
+                        isValid = false;
+                    }
+                });
+
+                if (!isValid) {
+                    e.preventDefault();
+                    const firstError = document.querySelector('.form-input.error');
+                    if (firstError) {
+                        firstError.focus();
+                        firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
                 }
             });
         });

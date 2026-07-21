@@ -355,14 +355,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_role'])) {
 </div>
 
 <script>
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const mainContent = document.getElementById('mainContent');
-    if (sidebar && mainContent) {
-        sidebar.classList.toggle('closed');
-        mainContent.classList.toggle('collapsed');
-    }
-}
+
 
 function toggleTheme() {
     const body = document.body;

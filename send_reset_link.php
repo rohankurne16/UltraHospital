@@ -45,10 +45,16 @@ if(isset($_POST['submit_email'])) {
 
       $template_name = "password_reset";
 
-        $template_stmt = $conn->prepare("SELECT subject, body FROM email_templates WHERE template_name='reset_password'");
-        $template_stmt->bind_param("s", $template_name);
-        $template_stmt->execute();
-        $template_result = $template_stmt->get_result();
+
+       $template_stmt = $conn->prepare("
+    SELECT subject, body
+    FROM email_templates
+    WHERE template_name = ?
+");
+
+$template_stmt->bind_param("s", $template_name);
+$template_stmt->execute();
+$template_result = $template_stmt->get_result();
         
         if ($template_result && $template_result->num_rows > 0) {
         $template = $template_result->fetch_assoc();

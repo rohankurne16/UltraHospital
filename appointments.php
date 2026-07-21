@@ -2,11 +2,13 @@
 session_start();
 include("config/hospital.php");
 
- include 'config/superadmin.php';
+ include 'config/permission.php';
     checkPermission('appointment-view'); 
 
 // Ensure database connection is using UTF-8
 $conn->set_charset("utf8");
+
+$hid=$_SESSION["hospital_id"];
 
 // Initialize message variables
 $message = "";
@@ -30,13 +32,12 @@ function fetchData($conn, $query) {
 }
 
 // Fetch patients
-$patients = fetchData($conn, "SELECT patient_id, patient_name, mobile, email, address, date_of_birth, age, gender, blood_group FROM patients WHERE (delete_flag=0 OR delete_flag IS NULL) ORDER BY patient_name ASC");
-
+$patients = fetchData($conn, "SELECT patient_id, patient_name, mobile, email, address, date_of_birth, age, gender, blood_group FROM patients WHERE (delete_flag=0 OR delete_flag IS NULL) AND hospital_id='$hid' ORDER BY patient_name ASC");
 // Fetch doctors
-$doctors = fetchData($conn, "SELECT doctor_id, doctor_name, department, specialization, qualification, experience, consultation_fee, mobile, email FROM doctor WHERE (delete_flag=0 OR delete_flag IS NULL) ORDER BY doctor_name ASC");
+$doctors = fetchData($conn, "SELECT doctor_id, doctor_name, department, specialization, qualification, experience, consultation_fee, mobile, email FROM doctor WHERE (delete_flag=0 OR delete_flag IS NULL) AND hospital_id='$hid' ORDER BY doctor_name ASC");
 
 // Fetch wards with available rooms count
-$wards = fetchData($conn, "SELECT ward_id, ward_name, ward_type, floor_no, (SELECT COUNT(*) FROM room_master WHERE ward_id = ward_master.ward_id AND status != 'Occupied' AND delete_flag = 0) as available_rooms FROM ward_master WHERE status='Available' AND (delete_flag=0 OR delete_flag IS NULL) ORDER BY ward_name ASC");
+$wards = fetchData($conn, "SELECT ward_id, ward_name, ward_type, floor_no, (SELECT COUNT(*) FROM room_master WHERE ward_id = ward_master.ward_id AND status != 'Occupied' AND delete_flag = 0) as available_rooms FROM ward_master WHERE status='Available' AND (delete_flag=0 OR delete_flag IS NULL)and hospital_id='$hid'  ORDER BY ward_name ASC");
 
 // Get unique departments from doctors
 $departments = [];
@@ -126,7 +127,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Get patient details from DB
     $patient_details = [];
     if (!empty($patient_id)) {
-        $result = $conn->query("SELECT patient_name, mobile, email, address, date_of_birth, age, gender, blood_group FROM patients WHERE patient_id = '$patient_id'");
+        $result = $conn->query("SELECT patient_name, mobile, email, address, date_of_birth, age, gender, blood_group FROM patients WHERE patient_id = '$patient_id' and hospital_id='$hid'");
         if ($result && $result->num_rows > 0) {
             $patient_details = $result->fetch_assoc();
         }
@@ -135,7 +136,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Get doctor details from DB
     $doctor_details = [];
     if (!empty($doctor_id)) {
-        $result = $conn->query("SELECT doctor_name, department, specialization, qualification, experience, consultation_fee, mobile, email FROM doctor WHERE doctor_id = '$doctor_id'");
+        $result = $conn->query("SELECT doctor_name, department, specialization, qualification, experience, consultation_fee, mobile, email FROM doctor WHERE doctor_id = '$doctor_id' and hospital_id='$hid'");
         if ($result && $result->num_rows > 0) {
             $doctor_details = $result->fetch_assoc();
         }
@@ -180,7 +181,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // If no errors, proceed with insertion
     if (!$error) {
         // Insert into appointments table
-        $sql = "INSERT INTO appointments (
+        $sql = "INSERT INTO appointments(
                     appointment_no, 
                     patient_id, 
                     doctor_id, 
@@ -193,7 +194,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     reason, 
                     status, 
                     notes, 
-                    delete_flag
+                    delete_flag,
+                    hospital_id
                 ) VALUES (
                     '$appointment_no',
                     '$patient_id',
@@ -207,7 +209,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     '$reason',
                     '$status',
                     '$note',
-                    '0'
+                    '0',
+                    '$hid'
                 )";
 
         if ($conn->query($sql)) {
@@ -218,15 +221,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $admission_no = "IPD-" . date('Ymd') . "-" . rand(1000, 9999);
                 
                 // Get ward, room, bed details
-                $ward_result = $conn->query("SELECT ward_name FROM ward_master WHERE ward_id = '$ward_id'");
+                $ward_result = $conn->query("SELECT ward_name FROM ward_master WHERE ward_id = '$ward_id' and hospital_id='$hid'");
                 $ward_row = $ward_result->fetch_assoc();
                 $ward_name = $ward_row['ward_name'] ?? '';
                 
-                $room_result = $conn->query("SELECT room_no FROM room_master WHERE room_id = '$room_id'");
+                $room_result = $conn->query("SELECT room_no FROM room_master WHERE room_id = '$room_id' and hospital_id='$hid'");
                 $room_row = $room_result->fetch_assoc();
                 $room_no = $room_row['room_no'] ?? '';
                 
-                $bed_result = $conn->query("SELECT bed_no FROM bed_master WHERE bed_id = '$bed_id'");
+                $bed_result = $conn->query("SELECT bed_no FROM bed_master WHERE bed_id = '$bed_id' and hospital_id='$hid'");
                 $bed_row = $bed_result->fetch_assoc();
                 $bed_no = $bed_row['bed_no'] ?? '';
                 
@@ -258,7 +261,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                 mri_file,
                                 ctscan_file,
                                 other_document,
-                                delete_flag
+                                delete_flag,
+                                hospital_id
                             ) VALUES (
                                 '$admission_no',
                                 '$appointment_id',
@@ -286,7 +290,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                 '$mri_file',
                                 '$ctscan_file',
                                 '$other_document',
-                                '0'
+                                '0',
+                                '$hid'
                             )";
                 
                 if ($conn->query($sql_ipd)) {
@@ -454,6 +459,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <p class="text-gray-500 text-sm">Schedule a new appointment for patients.</p>
                     </div>
                 </div>
+               
 
                 <div class="form-card">
                     <form action="appointments.php" method="POST" id="appointmentForm" enctype="multipart/form-data">

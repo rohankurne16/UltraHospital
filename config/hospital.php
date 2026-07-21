@@ -42,4 +42,5 @@ if (isset($_SESSION['hospital_id']) && !empty($_SESSION['hospital_id'])) {
         $_SESSION['hospital_status'] = $hospital['status'];
     }
 }
+
 ?>

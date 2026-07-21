@@ -12,15 +12,27 @@ if (!isset($_SESSION['reset_user_id'])) {
     exit();
 }
 
-include "config/hospital.php";
+// Fetch hospital details from database
+$hospital_query = "SELECT hospital_name, hospital_logo FROM hospital_master WHERE delete_flag = 0 AND status = 'Active' LIMIT 1";
+$hospital_result = mysqli_query($conn, $hospital_query);
+if ($hospital_result && mysqli_num_rows($hospital_result) > 0) {
+    $hospital = mysqli_fetch_assoc($hospital_result);
+} else {
+    // Fallback values if no hospital found
+    $hospital = [
+        'hospital_name' => 'Hospital',
+        'hospital_logo' => 'documents/hospital/logo.png'
+    ];
+}
 
-
-
-$hospital_name = $hospital['hospital_name'];
-$hospital_logo = $hospital['hospital_logo'];
+$hospital_name = $hospital['hospital_name'] ?? 'Hospital';
+$hospital_logo = $hospital['hospital_logo'] ?? 'documents/hospital/logo.png';
 
 $message = "";
 $message_type = "";
+
+// Debug - Check session values (Remove after testing)
+// echo "User ID: " . $_SESSION['reset_user_id'];
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $new_password = trim($_POST['new_password']);
@@ -29,35 +41,57 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (empty($new_password) || empty($confirm_password)) {
         $message = "Please fill in all fields.";
         $message_type = "error";
-    } elseif (strlen($new_password) < 6) {
-        $message = "Password must be at least 6 characters long.";
-        $message_type = "error";
     } elseif ($new_password != $confirm_password) {
         $message = "Passwords do not match.";
         $message_type = "error";
     } else {
-        // Hash the password before storing
-        $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
+        // Get the user ID from session
+        $user_id = $_SESSION['reset_user_id'];
         
-        $stmt = $conn->prepare("UPDATE register SET password=? WHERE id=?");
-        $stmt->bind_param("si", $hashed_password, $_SESSION['reset_user_id']);
+        // Check if user exists
+        $check_user = "SELECT id, email FROM register WHERE id = ? AND delete_flag = 0";
+        $stmt_check = $conn->prepare($check_user);
+        $stmt_check->bind_param("i", $user_id);
+        $stmt_check->execute();
+        $result_check = $stmt_check->get_result();
+        
+        if ($result_check->num_rows > 0) {
+            $user_data = $result_check->fetch_assoc();
+            
+            // Hash the password
+         
+            
+            // Update password
+            $stmt = $conn->prepare("UPDATE register SET password = ? WHERE id = ? AND delete_flag = 0");
+            $stmt->bind_param("si", $new_password, $user_id);
 
-        if ($stmt->execute()) {
-            $message = "Password changed successfully! Redirecting to login...";
-            $message_type = "success";
-            
-            // Clear session data
-            unset($_SESSION['otp_verified']);
-            unset($_SESSION['reset_user_id']);
-            unset($_SESSION['reset_email']);
-            
-            // Redirect after 2 seconds
-            echo "<meta http-equiv='refresh' content='2;url=index.php'>";
+            if ($stmt->execute()) {
+                // Check if any rows were affected
+                if ($stmt->affected_rows > 0) {
+                    $message = "Password changed successfully! Redirecting to login...";
+                    $message_type = "success";
+                    
+                    // Clear session data
+                    unset($_SESSION['otp_verified']);
+                    unset($_SESSION['reset_user_id']);
+                    unset($_SESSION['reset_email']);
+                    
+                    // Redirect after 2 seconds
+                    echo "<meta http-equiv='refresh' content='2;url=index.php'>";
+                } else {
+                    $message = "Password was not updated. Please try again.";
+                    $message_type = "error";
+                }
+            } else {
+                $message = "Error updating password: " . $stmt->error;
+                $message_type = "error";
+            }
+            $stmt->close();
         } else {
-            $message = "Error updating password. Please try again.";
+            $message = "User not found or account is deleted!";
             $message_type = "error";
         }
-        $stmt->close();
+        $stmt_check->close();
     }
 }
 ?>
@@ -207,22 +241,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         .toggle-password:hover { color: #475569; }
         
-        .password-requirements {
-            font-size: 0.75rem;
-            color: #64748b;
-            margin-top: 0.5rem;
-            padding-left: 0.25rem;
-        }
-        .password-requirements i {
-            margin-right: 0.25rem;
-        }
-        .password-requirements .valid {
-            color: #22c55e;
-        }
-        .password-requirements .invalid {
-            color: #ef4444;
-        }
-        
         .reset-btn {
             width: 100%;
             height: 48px;
@@ -367,7 +385,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     <i class="fas fa-lock text-blue-500 text-xl"></i>
                     Reset Password
                 </h2>
-                <p>Create a new secure password for your account</p>
+                <p>Create a new password for your account</p>
             </div>
             
             <form method="POST" id="resetForm">
@@ -380,25 +398,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 
                 <div class="input-group">
                     <label for="new_password">New Password</label>
-                    <input type="password" id="new_password" name="new_password" placeholder="Enter new password (min 6 characters)" required minlength="6">
+                    <input type="password" id="new_password" name="new_password" placeholder="Enter new password" required>
                     <i class="fas fa-key input-icon"></i>
                     <button type="button" id="toggleNewPassword" class="toggle-password">
                         <i class="fas fa-eye"></i>
                     </button>
-                </div>
-                
-                <div class="password-requirements" id="passwordRequirements">
-                    <span id="lengthCheck" class="invalid">
-                        <i class="fas fa-circle"></i> At least 6 characters
-                    </span>
-                    <span class="mx-2">•</span>
-                    <span id="uppercaseCheck" class="invalid">
-                        <i class="fas fa-circle"></i> Uppercase letter
-                    </span>
-                    <span class="mx-2">•</span>
-                    <span id="numberCheck" class="invalid">
-                        <i class="fas fa-circle"></i> Number
-                    </span>
                 </div>
                 
                 <div class="input-group">
@@ -467,43 +471,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
             });
             
-            // Password strength validation
-            const newPassword = document.getElementById('new_password');
-            const lengthCheck = document.getElementById('lengthCheck');
-            const uppercaseCheck = document.getElementById('uppercaseCheck');
-            const numberCheck = document.getElementById('numberCheck');
-            
-            newPassword.addEventListener('input', function() {
-                const val = this.value;
-                
-                // Length check
-                if (val.length >= 6) {
-                    lengthCheck.className = 'valid';
-                    lengthCheck.innerHTML = '<i class="fas fa-check-circle"></i> At least 6 characters';
-                } else {
-                    lengthCheck.className = 'invalid';
-                    lengthCheck.innerHTML = '<i class="fas fa-circle"></i> At least 6 characters';
-                }
-                
-                // Uppercase check
-                if (/[A-Z]/.test(val)) {
-                    uppercaseCheck.className = 'valid';
-                    uppercaseCheck.innerHTML = '<i class="fas fa-check-circle"></i> Uppercase letter';
-                } else {
-                    uppercaseCheck.className = 'invalid';
-                    uppercaseCheck.innerHTML = '<i class="fas fa-circle"></i> Uppercase letter';
-                }
-                
-                // Number check
-                if (/[0-9]/.test(val)) {
-                    numberCheck.className = 'valid';
-                    numberCheck.innerHTML = '<i class="fas fa-check-circle"></i> Number';
-                } else {
-                    numberCheck.className = 'invalid';
-                    numberCheck.innerHTML = '<i class="fas fa-circle"></i> Number';
-                }
-            });
-            
             // Auto-hide status message
             function hideMessage(elementId) {
                 const msgElement = document.getElementById(elementId);
@@ -528,12 +495,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 if (!newPass || !confirmPass) {
                     e.preventDefault();
                     alert('Please fill in all fields.');
-                    return;
-                }
-                
-                if (newPass.length < 6) {
-                    e.preventDefault();
-                    alert('Password must be at least 6 characters long.');
                     return;
                 }
                 

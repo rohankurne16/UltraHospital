@@ -2,6 +2,9 @@
 session_start(); 
 
 include "config/hospital.php";
+include "config/permission.php";
+
+  checkPermission('staff-view');
 
 $hid=(int)$_SESSION["hospital_id"];
 
@@ -238,17 +241,15 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
     <div class='flex min-h-screen flex-col bg-gray-50'>
         <?php include 'header.php'; ?> 
         <div class='flex flex-1 items-start' >
-            <div id="sidebar-container">
+           
                 <?php include 'Sidebar.php'; ?>
-            </div>
+         
             
             <main id="main-content" class='flex-1 overflow-x-hidden duration-300 p-4 xl:p-6 xl:ml-64 w-full'>
                 <div class='flex flex-col gap-5'>
                     <div class='flex flex-col md:flex-row md:items-center justify-between gap-4'>
                         <div class="flex items-center gap-4">
-                            <button id="mobile-toggle" class="xl:hidden">
-                                <i class="fas fa-bars"></i>
-                            </button>
+                            
                             <a href="dashboard.php" class="back-btn">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
                             </a>
@@ -369,7 +370,7 @@ if ($res && mysqli_num_rows($res) > 0) {
         $mobile   = $row['mobile'];
         $email    = $row['email'];
         $status   = $row['status'];
-        $img_path = $row['profile_image'];
+       
 
         if ($status == "Active") {
             $status_class = "status-active";
@@ -386,11 +387,12 @@ if ($res && mysqli_num_rows($res) > 0) {
     <!-- Name -->
     <td class="p-4">
         <div class="flex items-center gap-3">
+            
 
-            <?php if (!empty($img_path) && file_exists($img_path)) { ?>
+            <?php if (!empty($row['profile_image'])) { ?>
 
-                <img src="<?php echo $img_path; ?>"
-                     class="w-10 h-10 rounded-full object-cover border">
+                <img src="<?php echo htmlspecialchars($row['profile_image']); ?>"
+                    class="w-10 h-10 rounded-full object-cover border">
 
             <?php } else { ?>
 

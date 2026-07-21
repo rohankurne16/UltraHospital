@@ -191,9 +191,9 @@ $results = mysqli_query($conn,$sql);
         <?php include 'header.php'; ?> 
         
         <div class='flex flex-1 items-start'>
-            <div id="sidebar-container">
+            
                 <?php include 'Sidebar.php'; ?>
-            </div>
+           
 
             <main id="main-content" class='flex-1 overflow-x-hidden duration-300 p-4 xl:p-8 xl:ml-64 w-full'>
                 <div class='max-w-7xl mx-auto w-full space-y-6'>
@@ -201,9 +201,7 @@ $results = mysqli_query($conn,$sql);
                     <!-- Page Header -->
                     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
                         <div class="flex items-center gap-4">
-                            <button id="mobile-toggle" class="xl:hidden">
-                                <i class="fas fa-bars"></i>
-                            </button>
+                            
                             <a href="dashboard.php" class="p-2.5 border border-gray-200 rounded-xl hover:bg-white transition shadow-sm">
                                 <i data-lucide="arrow-left" class="w-5 h-5 text-gray-500"></i>
                             </a>

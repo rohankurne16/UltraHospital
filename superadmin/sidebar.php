@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// SUPER ADMIN SIDEBAR
+// SUPER ADMIN SIDEBAR - MASTER FILE (FOR ALL PAGES)
 // ============================================================
 
 // Start session if not started
@@ -9,7 +9,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // ============================================================
-// ONLY ONE INCLUDE - ALL FUNCTIONS ARE IN permission.php
+// INCLUDE PERMISSION
 // ============================================================
 require_once '../config/permission.php';
 
@@ -42,11 +42,11 @@ $profile_image = $_SESSION['profile_image'] ?? '';
     left: 0;
     height: 100vh;
     width: 250px;
-    z-index: 1000;
+    z-index: 1100;
     background: #ffffff;
     border-right: 1px solid #e2e8f0;
     overflow-y: auto;
-    transition: transform 0.3s ease;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 2px 0 10px rgba(0,0,0,0.03);
     display: flex;
     flex-direction: column;
@@ -72,8 +72,10 @@ $profile_image = $_SESSION['profile_image'] ?? '';
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.5);
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(2px);
     z-index: 999;
+    transition: all 0.3s ease;
 }
 .sidebar-overlay.active { display: block; }
 
@@ -82,7 +84,7 @@ $profile_image = $_SESSION['profile_image'] ?? '';
     display: flex;
     flex-direction: column;
     background: #ffffff;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 /* ============================================================
@@ -103,10 +105,13 @@ $profile_image = $_SESSION['profile_image'] ?? '';
     align-items: center;
     gap: 0.75rem;
     text-decoration: none;
+    flex: 1;
+    min-width: 0;
 }
 
 .sidebar-brand .brand-icon {
     width: 42px;
+    min-width: 42px;
     height: 42px;
     border-radius: 12px;
     background: linear-gradient(135deg, #3b82f6, #2563eb);
@@ -122,10 +127,13 @@ $profile_image = $_SESSION['profile_image'] ?? '';
 
 .sidebar-brand .brand-name {
     font-weight: 700;
-    font-size: 1.1rem;
+    font-size: 1rem;
     color: #1e293b;
     letter-spacing: -0.3px;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
 }
 
 .sidebar-brand .brand-name small {
@@ -134,6 +142,7 @@ $profile_image = $_SESSION['profile_image'] ?? '';
     font-weight: 400;
     color: #94a3b8;
     letter-spacing: 0.5px;
+    text-transform: uppercase;
 }
 
 .sidebar-close {
@@ -146,6 +155,7 @@ $profile_image = $_SESSION['profile_image'] ?? '';
     padding: 4px 8px;
     border-radius: 6px;
     transition: all 0.2s ease;
+    flex-shrink: 0;
 }
 .sidebar-close:hover { background: #f1f5f9; color: #475569; }
 
@@ -158,32 +168,44 @@ $profile_image = $_SESSION['profile_image'] ?? '';
    ============================================================ */
 .sidebar-nav {
     flex: 1;
-    padding: 0.75rem 0.75rem;
+    padding: 0.5rem 0.5rem;
     overflow-y: auto;
 }
 
+/* ============================================================
+   SIDEBAR ITEMS
+   ============================================================ */
 .sidebar-item {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 0.65rem 0.8rem;
+    padding: 0.6rem 0.8rem;
     border-radius: 10px;
     text-decoration: none;
     color: #475569;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 500;
-    transition: all 0.2s ease;
-    margin-bottom: 2px;
+    transition: all 0.15s ease;
+    margin-bottom: 1px;
     cursor: pointer;
+    position: relative;
 }
 
 .sidebar-item i {
     width: 1.25rem;
+    min-width: 1.25rem;
     text-align: center;
     color: #94a3b8;
-    font-size: 1.1rem;
+    font-size: 1rem;
     transition: all 0.2s ease;
     flex-shrink: 0;
+}
+
+.sidebar-item span {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .sidebar-item:hover {
@@ -197,6 +219,18 @@ $profile_image = $_SESSION['profile_image'] ?? '';
     color: #3b82f6;
 }
 .sidebar-item.active i { color: #3b82f6; }
+
+.sidebar-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 20px;
+    background: #3b82f6;
+    border-radius: 0 4px 4px 0;
+}
 
 .sidebar-item.logout {
     color: #ef4444;
@@ -215,19 +249,20 @@ $profile_image = $_SESSION['profile_image'] ?? '';
    SIDEBAR LABELS
    ============================================================ */
 .sidebar-label {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 0.75rem 0.8rem 0.4rem;
+    letter-spacing: 0.8px;
+    padding: 0.6rem 0.8rem 0.3rem;
     color: #94a3b8;
     font-weight: 600;
     border-top: 1px solid #f1f5f9;
-    margin-top: 0.5rem;
+    margin-top: 0.25rem;
 }
 
 .sidebar-label:first-of-type {
     border-top: none;
     margin-top: 0;
+    padding-top: 0.25rem;
 }
 
 /* ============================================================
@@ -236,11 +271,13 @@ $profile_image = $_SESSION['profile_image'] ?? '';
 .sidebar-badge {
     background: #3b82f6;
     color: white;
-    font-size: 0.6rem;
-    padding: 2px 8px;
+    font-size: 0.55rem;
+    padding: 1px 8px;
     border-radius: 12px;
-    margin-left: auto;
     font-weight: 600;
+    flex-shrink: 0;
+    min-width: 20px;
+    text-align: center;
 }
 
 .sidebar-badge.danger {
@@ -251,7 +288,7 @@ $profile_image = $_SESSION['profile_image'] ?? '';
    SIDEBAR FOOTER
    ============================================================ */
 .sidebar-footer {
-    padding: 0.75rem 1rem;
+    padding: 0.65rem 1rem;
     border-top: 1px solid #e2e8f0;
     flex-shrink: 0;
     background: #f8f9fa;
@@ -264,8 +301,9 @@ $profile_image = $_SESSION['profile_image'] ?? '';
 }
 
 .sidebar-footer .user-avatar {
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
     border-radius: 50%;
     background: linear-gradient(135deg, #3b82f6, #2563eb);
     display: flex;
@@ -273,7 +311,7 @@ $profile_image = $_SESSION['profile_image'] ?? '';
     justify-content: center;
     color: #ffffff;
     font-weight: 700;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     flex-shrink: 0;
     box-shadow: 0 2px 8px rgba(59,130,246,0.25);
 }
@@ -286,7 +324,7 @@ $profile_image = $_SESSION['profile_image'] ?? '';
 }
 
 .sidebar-footer .user-name {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     font-weight: 600;
     color: #1e293b;
     margin: 0;
@@ -296,37 +334,86 @@ $profile_image = $_SESSION['profile_image'] ?? '';
 }
 
 .sidebar-footer .user-role {
-    font-size: 0.65rem;
+    font-size: 0.55rem;
     color: #94a3b8;
     margin: 0;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    font-weight: 600;
+}
+
+.sidebar-footer .user-role i {
+    color: #f59e0b;
+    font-size: 0.5rem;
 }
 
 /* ============================================================
-   RESPONSIVE
+   MOBILE TOGGLE BUTTON
    ============================================================ */
+.mobile-toggle-btn {
+    display: none;
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 998;
+    background: #ffffff;
+    color: #1e293b;
+    border: 1px solid #e2e8f0;
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.mobile-toggle-btn:hover {
+    background: #f8fafc;
+    color: #3b82f6;
+}
+
+@media (max-width: 1279px) {
+    .mobile-toggle-btn {
+        display: flex;
+    }
+}
+
 @media (max-width: 768px) {
     #sidebar-container {
         width: 280px;
     }
 }
 
+@media (max-width: 480px) {
+    #sidebar-container {
+        width: 100%;
+        max-width: 300px;
+    }
+}
+
 /* ============================================================
-   SUPER ADMIN BADGE
+   MAIN CONTENT ADJUSTMENT
    ============================================================ */
-.super-admin-badge {
-    background: linear-gradient(135deg, #f59e0b, #d97706);
-    color: white;
-    font-size: 0.55rem;
-    padding: 2px 10px;
-    border-radius: 12px;
-    font-weight: 700;
-    margin-left: 0.5rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+@media (max-width: 1279px) {
+    .main-content {
+        margin-left: 0 !important;
+        width: 100% !important;
+    }
+}
+
+@media (min-width: 1280px) {
+    .main-content {
+        margin-left: 250px;
+    }
 }
 </style>
+
+<!-- ============================================================
+     MOBILE TOGGLE BUTTON
+     ============================================================ -->
+
 
 <!-- ============================================================
      SIDEBAR HTML
@@ -377,72 +464,36 @@ $profile_image = $_SESSION['profile_image'] ?? '';
             <a href="hospitals.php" class="sidebar-item <?php echo $current_page == 'hospitals.php' ? 'active' : ''; ?>">
                 <i class="fas fa-hospital"></i>
                 <span>Hospitals</span>
-                <?php 
-                $hospital_count = getCount('hospital_master');
-                if ($hospital_count > 0): 
-                ?>
-                <span class="sidebar-badge"><?php echo $hospital_count; ?></span>
-                <?php endif; ?>
             </a>
             
             <!-- Users -->
             <a href="users.php" class="sidebar-item <?php echo $current_page == 'users.php' ? 'active' : ''; ?>">
                 <i class="fas fa-users"></i>
                 <span>Users</span>
-                <?php 
-                $user_count = getCount('register');
-                if ($user_count > 0): 
-                ?>
-                <span class="sidebar-badge"><?php echo $user_count; ?></span>
-                <?php endif; ?>
             </a>
             
             <!-- Doctors -->
             <a href="doctors.php" class="sidebar-item <?php echo $current_page == 'doctors.php' ? 'active' : ''; ?>">
                 <i class="fas fa-user-md"></i>
                 <span>Doctors</span>
-                <?php 
-                $doctor_count = getCount('doctor');
-                if ($doctor_count > 0): 
-                ?>
-                <span class="sidebar-badge"><?php echo $doctor_count; ?></span>
-                <?php endif; ?>
             </a>
             
             <!-- Staff -->
             <a href="staff.php" class="sidebar-item <?php echo $current_page == 'staff.php' ? 'active' : ''; ?>">
                 <i class="fas fa-user-tie"></i>
                 <span>Staff</span>
-                <?php 
-                $staff_count = getCount('staff');
-                if ($staff_count > 0): 
-                ?>
-                <span class="sidebar-badge"><?php echo $staff_count; ?></span>
-                <?php endif; ?>
             </a>
             
             <!-- Departments -->
             <a href="departments.php" class="sidebar-item <?php echo $current_page == 'departments.php' ? 'active' : ''; ?>">
                 <i class="fas fa-building"></i>
                 <span>Departments</span>
-                <?php 
-                $dept_count = getCount('department');
-                if ($dept_count > 0): 
-                ?>
-                <span class="sidebar-badge"><?php echo $dept_count; ?></span>
-                <?php endif; ?>
             </a>
             
             <!-- Subscriptions -->
-            <a href="subscriptions.php" class="sidebar-item <?php echo $current_page == 'subscriptions.php' ? 'active' : ''; ?>">
+            <a href="#" class="sidebar-item <?php echo $current_page == 'subscriptions.php' ? 'active' : ''; ?>">
                 <i class="fas fa-credit-card"></i>
                 <span>Subscriptions</span>
-                <?php 
-                $sub_count = getCount('subscriptions');
-                if ($sub_count > 0): 
-                ?>
-                <span class="sidebar-badge"><?php echo $sub_count; ?></span>
-                <?php endif; ?>
             </a>
 
             <!-- ============================================================
@@ -454,79 +505,30 @@ $profile_image = $_SESSION['profile_image'] ?? '';
             <a href="role_list.php" class="sidebar-item <?php echo $current_page == 'role_list.php' ? 'active' : ''; ?>">
                 <i class="fas fa-user-tag"></i>
                 <span>Roles</span>
-                <?php 
-                $role_count = getCount('roles');
-                if ($role_count > 0): 
-                ?>
-                <span class="sidebar-badge"><?php echo $role_count; ?></span>
-                <?php endif; ?>
             </a>
             
             <!-- Permissions -->
             <a href="permissions.php" class="sidebar-item <?php echo $current_page == 'permissions.php' ? 'active' : ''; ?>">
                 <i class="fas fa-lock"></i>
                 <span>Permissions</span>
-                <?php 
-                $perm_count = getCount('permissions');
-                if ($perm_count > 0): 
-                ?>
-                <span class="sidebar-badge"><?php echo $perm_count; ?></span>
-                <?php endif; ?>
             </a>
 
-            <!-- ============================================================
-            SYSTEM SECTION
-            ============================================================ -->
+            
             <div class="sidebar-label">System</div>
-            
-            <!-- Audit Logs -->
-            <a href="audit_logs.php" class="sidebar-item <?php echo $current_page == 'audit_logs.php' ? 'active' : ''; ?>">
-                <i class="fas fa-history"></i>
-                <span>Audit Logs</span>
-                <?php 
-                $audit_count = getCount('audit_logs');
-                if ($audit_count > 0): 
-                ?>
-                <span class="sidebar-badge"><?php echo $audit_count; ?></span>
-                <?php endif; ?>
+            <a href="audit_logs.php" class="sidebar-item">
+                <i class="fas fa-history"></i><span>Audit Logs</span>
             </a>
+
+            <a href="login_logs.php" class="sidebar-item">
+            <i class="fas fa-sign-in-alt"></i><span>Login Logs</span>
+        </a>
             
-            <!-- Login Logs -->
-            <a href="login_logs.php" class="sidebar-item <?php echo $current_page == 'login_logs.php' ? 'active' : ''; ?>">
-                <i class="fas fa-sign-in-alt"></i>
-                <span>Login Logs</span>
-                <?php 
-                $login_count = getCount('login_logs');
-                if ($login_count > 0): 
-                ?>
-                <span class="sidebar-badge"><?php echo $login_count; ?></span>
-                <?php endif; ?>
-            </a>
             
-            <!-- Settings -->
-            <a href="settings.php" class="sidebar-item <?php echo $current_page == 'settings.php' ? 'active' : ''; ?>">
-                <i class="fas fa-cog"></i>
-                <span>Settings</span>
-            </a>
+           
 
             <!-- ============================================================
-            ACCOUNT SECTION
+            LOGOUT
             ============================================================ -->
-            <div class="sidebar-label">Account</div>
-            
-            <!-- Profile -->
-            <a href="profile.php" class="sidebar-item <?php echo $current_page == 'profile.php' ? 'active' : ''; ?>">
-                <i class="fas fa-user-circle"></i>
-                <span>My Profile</span>
-            </a>
-            
-            <!-- Change Password -->
-            <a href="change_password.php" class="sidebar-item <?php echo $current_page == 'change_password.php' ? 'active' : ''; ?>">
-                <i class="fas fa-key"></i>
-                <span>Change Password</span>
-            </a>
-
-            <!-- Logout -->
             <a href="../auth/Logout.php" class="sidebar-item logout">
                 <i class="fas fa-sign-out-alt"></i>
                 <span>Logout</span>
@@ -549,8 +551,7 @@ $profile_image = $_SESSION['profile_image'] ?? '';
                 <div>
                     <p class="user-name"><?php echo htmlspecialchars($user_name); ?></p>
                     <p class="user-role">
-                        <i class="fas fa-crown" style="color:#f59e0b;font-size:0.6rem;"></i> 
-                        SUPER ADMIN
+                        <i class="fas fa-crown"></i> Super Admin
                     </p>
                 </div>
             </div>
@@ -569,57 +570,52 @@ JAVASCRIPT
 ============================================================ -->
 <script>
 /**
- * Close sidebar on mobile
- */
-document.getElementById('sidebar-close')?.addEventListener('click', function() {
-    document.getElementById('sidebar-container').classList.remove('active');
-    document.getElementById('sidebarOverlay').classList.remove('active');
-});
-
-/**
- * Close sidebar on overlay click
- */
-document.getElementById('sidebarOverlay')?.addEventListener('click', function() {
-    document.getElementById('sidebar-container').classList.remove('active');
-    this.classList.remove('active');
-});
-
-/**
- * Toggle sidebar on mobile
+ * Toggle sidebar function
  */
 function toggleSidebar() {
-    document.getElementById('sidebar-container').classList.toggle('active');
-    document.getElementById('sidebarOverlay').classList.toggle('active');
+    const sidebar = document.getElementById('sidebar-container');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (sidebar && overlay) {
+        sidebar.classList.toggle('active');
+        overlay.classList.toggle('active');
+        document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
+    }
 }
 
 /**
- * Close sidebar on Escape key
+ * Close sidebar function
  */
+function closeSidebar() {
+    const sidebar = document.getElementById('sidebar-container');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (sidebar && overlay) {
+        sidebar.classList.remove('active');
+        overlay.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+}
+
+// Close button
+document.getElementById('sidebar-close')?.addEventListener('click', closeSidebar);
+
+// Overlay click
+document.getElementById('sidebarOverlay')?.addEventListener('click', closeSidebar);
+
+// Escape key
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        document.getElementById('sidebar-container')?.classList.remove('active');
-        document.getElementById('sidebarOverlay')?.classList.remove('active');
+        closeSidebar();
     }
 });
 
-/**
- * Auto-close sidebar on resize to desktop
- */
+// Auto-close on resize to desktop
 window.addEventListener('resize', function() {
     if (window.innerWidth > 1279) {
-        document.getElementById('sidebar-container')?.classList.remove('active');
-        document.getElementById('sidebarOverlay')?.classList.remove('active');
+        closeSidebar();
     }
 });
 
-// Prevent default for empty links
-document.querySelectorAll('a[href="#"]').forEach(function(link) {
-    link.addEventListener('click', function(e) {
-        e.preventDefault();
-    });
-});
-
-// Highlight current page in sidebar
+// Highlight current page
 document.addEventListener('DOMContentLoaded', function() {
     const currentPage = window.location.pathname.split('/').pop();
     document.querySelectorAll('.sidebar-item').forEach(function(item) {
@@ -627,6 +623,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if (href && href === currentPage) {
             item.classList.add('active');
         }
+    });
+    
+    // Close sidebar when clicking a link on mobile
+    document.querySelectorAll('.sidebar-item').forEach(function(item) {
+        item.addEventListener('click', function() {
+            if (window.innerWidth <= 1279) {
+                setTimeout(closeSidebar, 200);
+            }
+        });
     });
 });
 </script>

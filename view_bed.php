@@ -587,7 +587,9 @@ if (isset($_GET['delete_id']) && !empty($_GET['delete_id'])) {
                                 <i class="fa-solid fa-info-circle text-blue-600"></i>
                                 Room Information
                             </h3>
-                            <span class="status-badge status-<?php echo strtolower($room['status'] ?? 'available'); ?>">
+                            <span class="status-badge status-<?php echo strtolower($
+                            
+                            ['status'] ?? 'available'); ?>">
                                 <?php echo $room['status'] ?? 'Available'; ?>
                             </span>
                         </div>

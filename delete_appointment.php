@@ -1,7 +1,7 @@
 <?php
 session_start();
 include "config/hospital.php";
-include 'config/permission_check.php';
+require_once 'config/permission.php';
     checkPermission('appointment-delete'); 
 
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;

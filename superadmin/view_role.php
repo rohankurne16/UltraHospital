@@ -285,14 +285,7 @@ $perm_count = mysqli_fetch_assoc($perm_count_result)['total'];
 </div>
 
 <script>
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const mainContent = document.getElementById('mainContent');
-    if (sidebar && mainContent) {
-        sidebar.classList.toggle('closed');
-        mainContent.classList.toggle('collapsed');
-    }
-}
+
 
 function toggleTheme() {
     const body = document.body;

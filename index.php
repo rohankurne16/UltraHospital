@@ -3,13 +3,23 @@
 // LOGIN PAGE - UPDATED WITH DYNAMIC SUPER ADMIN CHECK
 // ============================================================
 
+if (isset($_GET['hid']) && !empty($_GET['hid'])) {
+    $hospital_id = decryptId(urldecode($_GET['hid']));
+}
 session_start();
 include("config/db.php");
+
 
 // ============================================================
 // GET HOSPITAL FROM URL
 // ============================================================
-$hospital_id = isset($_GET['hid']) ? intval($_GET['hid']) : 0;
+$hospital_id = 0;
+
+if (isset($_GET['hid']) && !empty($_GET['hid'])) {
+
+    $hospital_id = decryptId($_GET['hid']);
+
+}
 $hospital = null;
 
 if (!empty($hospital_id) && is_numeric($hospital_id) && $hospital_id > 0) {
@@ -22,25 +32,20 @@ if (!empty($hospital_id) && is_numeric($hospital_id) && $hospital_id > 0) {
 }
 
 // If no hospital found or no hospital ID, get default hospital
+// If no hospital found, use UltraHospital
 if (!$hospital) {
-    $defaultQuery = "SELECT * FROM hospital_master WHERE delete_flag = 0 AND status = 'Active' ORDER BY hospital_id LIMIT 1";
-    $defaultResult = mysqli_query($conn, $defaultQuery);
-    if ($defaultResult && mysqli_num_rows($defaultResult) > 0) {
-        $hospital = mysqli_fetch_assoc($defaultResult);
-    } else {
-        $hospital = [
-            'hospital_id' => 0,
-            'hospital_name' => 'Healthcare Management System',
-            'hospital_logo' => null,
-            'address' => '',
-            'phone' => '',
-            'city' => '',
-            'state' => '',
-            'country' => '',
-            'email' => '',
-            'status' => 'Active'
-        ];
-    }
+    $hospital = [
+        'hospital_id'   => 0,
+        'hospital_name' => 'UltraHospital',
+        'hospital_logo' => null,
+        'address'       => '',
+        'phone'         => '',
+        'city'          => '',
+        'state'         => '',
+        'country'       => '',
+        'email'         => '',
+        'status'        => 'Active'
+    ];
 }
 
 $status = "";
@@ -58,6 +63,10 @@ if (isset($_SESSION['status'])) {
     }
     unset($_SESSION['status']);
     unset($_SESSION['status_type']);
+}
+
+if (isset($_GET['hid']) && !empty($_GET['hid'])) {
+    $_SESSION['hid'] = $_GET['hid'];   // Save encrypted hospital id
 }
 
 // ============================================================
@@ -95,6 +104,27 @@ if (!function_exists('getSuperAdminPermissionsList')) {
         }
         return $permissions;
     }
+}
+
+function decryptId($encrypted)
+{
+    $key = 'UltraHospital@2026#SecureKey';
+
+    $data = base64_decode($encrypted);
+
+    $ivLength = openssl_cipher_iv_length('aes-256-cbc');
+
+    $iv = substr($data, 0, $ivLength);
+
+    $encryptedText = substr($data, $ivLength);
+
+    return openssl_decrypt(
+        $encryptedText,
+        'aes-256-cbc',
+        $key,
+        0,
+        $iv
+    );
 }
 
 // ============================================================
@@ -144,6 +174,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         // Set session
         $_SESSION['id'] = $row['id'];
+
+        if (strtolower(trim($role_name_from_db)) == 'lab technician') {
+
+    $staffQuery = mysqli_query($conn,
+        "SELECT staff_id, register_id
+         FROM staff
+         WHERE register_id = '{$row['id']}'
+         LIMIT 1");
+
+    if ($staffQuery && mysqli_num_rows($staffQuery) > 0) {
+        $staff = mysqli_fetch_assoc($staffQuery);
+
+        $_SESSION['id'] = $staff['staff_id'];          // 11
+        $_SESSION['register_id'] = $staff['register_id']; // 1040
+
+        echo "<pre>";
+print_r($staff);
+print_r($_SESSION);
+exit;
+    }
+}
         $_SESSION['name'] = $row['name'];
         $_SESSION['email'] = $row['email'];
         $_SESSION['role'] = $role_name_from_db;
@@ -182,28 +233,60 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         // Other roles redirection
-        switch ($role_check) {
-            case 'admin':
-            case 'hospitaladmin':
-            case 'hospital admin':
-                header("Location: dashboard.php");
-                exit();
-            case 'doctor':
-                header("Location: doctors/dashboard.php");
-                exit();
-            case 'nurse':
-                header("Location: staff/nurse_dashboard.php");
-                exit();
-            case 'receptionist':
-                header("Location: staff/reception_dashboard.php");
-                exit();
-            case 'patient':
-                header("Location: patients/dashboard.php");
-                exit();
-            default:
-                header("Location: dashboard.php");
-                exit();
-        }
+        switch (strtolower($role_check)) {
+
+    case 'super admin':
+        header("Location: superadmin/dashboard.php");
+        exit();
+
+    case 'admin':
+        header("Location: dashboard.php");
+        exit();
+
+    case 'doctor':
+        header("Location: doctors/dashboard.php");
+        exit();
+
+    case 'nurse':
+        header("Location: staff/nurse_dashboard.php");
+        exit();
+
+    case 'ward boy':
+        header("Location: staff/wardboy_dashboard.php");
+        exit();
+
+    case 'lab technician':
+        header("Location: labtechnician/dashboard.php");
+        exit();
+
+    case 'patient':
+        header("Location: patients/dashboard.php");
+        exit();
+
+    case 'billing staff':
+        header("Location: staff/billing_dashboard.php");
+        exit();
+
+    case 'accountant':
+        header("Location: staff/accountant_dashboard.php");
+        exit();
+
+    case 'pharmacist':
+        header("Location: staff/pharmacist_dashboard.php");
+        exit();
+
+    case 'staff':
+        header("Location: staff/dashboard.php");
+        exit();
+
+    case 'receptionist':
+        header("Location: staff/reception_dashboard.php");
+        exit();
+
+    default:
+        header("Location: dashboard.php");
+        exit();
+}
         
     } else {
         $_SESSION['status'] = "Invalid password.";
@@ -309,7 +392,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <div class="mb-6">
                 <div class="flex justify-between mb-2">
                     <label class="text-sm font-semibold text-slate-700">Password</label>
-                    <a href="forgot-password.php" class="text-sm text-blue-600 hover:underline">Forgot password?</a>
+                    <a href="send_reset_link.php" class="text-sm text-blue-600 hover:underline">Forgot password?</a>
                 </div>
                 <input type="password" name="password" class="form-control" placeholder="••••••••" required>
             </div>
