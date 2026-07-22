@@ -1,6 +1,6 @@
 <?php 
 session_start(); 
-include "../config/db.php";
+include "../config/hospital.php";
 
 // Check if user is logged in
 if (!isset($_SESSION["staff_id"]) && !isset($_SESSION["id"])) {
@@ -35,7 +35,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
     $qty = mysqli_real_escape_string($conn, $_POST["qty"]);
     $rate = mysqli_real_escape_string($conn, $_POST["rate"]);
     $total = mysqli_real_escape_string($conn, $_POST["total"]);
-    $discount = mysqli_real_escape_string($conn, $_POST["discount_percentage"]); // Now storing percentage
+    $discount = mysqli_real_escape_string($conn, $_POST["discount_percentage"]);
     $paid_amount = mysqli_real_escape_string($conn, $_POST["paid_amount"]);
     $pending_amount = mysqli_real_escape_string($conn, $_POST["pending_amount"]);
     $payment_mode = mysqli_real_escape_string($conn, $_POST["payment_mode"]);
@@ -72,14 +72,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MedixPro - Create Bill</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         body { font-family: 'Inter', sans-serif; background: #f8fafc; }
-        .sidebar-active { background-color: #f3f4f6; color: #111827; }
+       
         .form-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; }
-        .form-card .header { padding: 16px 24px; border-bottom: 1px solid #e5e7eb; background: #f8fafc; }
-        .form-card .header h3 { font-size: 16px; font-weight: 600; color: #0f172a; }
+        
         .form-card .body { padding: 24px; }
         .form-group { margin-bottom: 16px; }
         .form-group label { display: block; font-size: 13px; font-weight: 500; color: #0f172a; margin-bottom: 4px; }
@@ -108,18 +108,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
         .total-box .label { font-size: 12px; color: #64748b; }
         .total-box .value { font-size: 24px; font-weight: 700; color: #0f172a; }
         .table-header { background: #f8fafc; font-weight: 600; color: #475569; }
-        .remove-btn { color: #ef4444; cursor: pointer; transition: all 0.2s ease; }
+        .remove-btn { color: #ef4444; cursor: pointer; transition: all 0.2s ease; background: none; border: none; }
         .remove-btn:hover { transform: scale(1.1); color: #dc2626; }
+        
+      
     </style>
 </head>
 <body>
+   
+     <?php include '../header.php' ?>
+
+    <!-- Main Content -->
     <div class="flex min-h-screen flex-col bg-gray-50">
-        <?php include '../staff/staff_header.php'; ?>
-
-        <div class="flex flex-1 items-start">
-           <?php include '../staff/staff_sidebar.php'; ?>
-
-            <main class="flex-1 xl:ml-64 p-4 md:p-8">
+        <?php include '../Sidebar.php' ?>
+        <div class="flex flex-1 items-start" style="margin-left: 260px;">
+            <main class="flex-1 p-4 md:p-8" style="min-height: calc(100vh - 70px);">
                 <div class="max-w-5xl mx-auto w-full">
                     <div class="mb-6 flex items-center gap-4">
                         <a href="billing.php" class="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white hover:bg-gray-100 size-10 transition-colors shadow-sm">
@@ -139,7 +142,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
                     <?php endif; ?>
 
                     <div class="form-card">
-                        <div class="header">
+                       
                             <h3>Bill Details</h3>
                         </div>
                         <div class="body">
@@ -253,6 +256,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST["submit"])) {
 
     <script>
         lucide.createIcons();
+
+       
 
         let rowCount = 0;
 

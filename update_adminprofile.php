@@ -6,8 +6,6 @@
 session_start();
 include "config/hospital.php";
 
-
-
 // Check if user is logged in
 if (!isset($_SESSION['id'])) {
     header('Location: index.php');
@@ -24,31 +22,36 @@ $has_any_permission = !empty($_SESSION['permissions']) && is_array($_SESSION['pe
 // ============================================================
 $admin_id = $_SESSION['id'];
 $admin_data = [];
+$errors = [];
+$form_data = [];
 
 $sql = "SELECT
             r.id,
             r.name,
             r.email,
             r.password,
+            r.role,
             ap.admin_id,
             ap.register_id,
             ap.full_name,
             ap.mobile,
-            ap.profile_image
+            ap.profile_image,
+            ap.created_at,
+            ap.updated_at
         FROM register r
         LEFT JOIN admin_profile ap
         ON r.id = ap.register_id
         WHERE r.id='$admin_id'
-        AND (r.delete_flag=0 OR r.delete_flag IS NULL)";
-
+        AND (r.delete_flag = 0 OR r.delete_flag IS NULL)
+        AND r.role IN ('Super Admin', 'Admin')";
 $result = $conn->query($sql);
 
 if($result->num_rows > 0){
     $admin_data = $result->fetch_assoc();
 
     if(empty($admin_data['register_id'])){
-        $conn->query("INSERT INTO admin_profile(register_id,full_name)
-                      VALUES('$admin_id','".$admin_data['name']."')");
+        $conn->query("INSERT INTO admin_profile(register_id, full_name)
+                      VALUES('$admin_id', '".$admin_data['name']."')");
 
         $result = $conn->query($sql);
         $admin_data = $result->fetch_assoc();
@@ -65,63 +68,139 @@ if($result->num_rows > 0){
 // UPDATE PROFILE
 // ============================================================
 if(isset($_POST['update_profile'])) {
-    $full_name = mysqli_real_escape_string($conn, $_POST['full_name']);
-    $mobile    = mysqli_real_escape_string($conn, $_POST['mobile']);
+    $full_name = mysqli_real_escape_string($conn, trim($_POST['full_name']));
+    $mobile    = mysqli_real_escape_string($conn, trim($_POST['mobile']));
+    $email     = mysqli_real_escape_string($conn, trim($_POST['email']));
 
-    $profile_image = $admin_data['profile_image'] ?? '';
+    $form_data = [
+        'full_name' => $full_name,
+        'mobile' => $mobile,
+        'email' => $email
+    ];
 
-    if(isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] == 0){
-        $folder = "documents/admin/images/";
-        if(!is_dir($folder)){
-            mkdir($folder,0777,true);
-        }
-        $image_name = basename($_FILES['profile_image']['name']);
-        $image_path = $folder.$image_name;
-
-        if(move_uploaded_file($_FILES['profile_image']['tmp_name'],$image_path)){
-            if(!empty($admin_data['profile_image']) && file_exists($admin_data['profile_image'])){
-                unlink($admin_data['profile_image']);
-            }
-            $profile_image = $image_path;
-        } else {
-            die("Image Upload Failed");
+    // Validation for full name (optional)
+    if(!empty($full_name)) {
+        if(strlen($full_name) < 3) {
+            $errors['full_name'] = "Full name must be at least 3 characters.";
+        } elseif(!preg_match("/^[a-zA-Z\s\.\-']+$/", $full_name)) {
+            $errors['full_name'] = "Full name can only contain letters, spaces, dots, and hyphens.";
         }
     }
 
-    mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-    $conn->begin_transaction();
+    // Validation for mobile (optional)
+    if(!empty($mobile)) {
+        if(!preg_match('/^[6-9][0-9]{9}$/', $mobile)) {
+            $errors['mobile'] = "Please enter a valid 10-digit mobile number starting with 6,7,8, or 9.";
+        }
+    }
 
-    try{
-        $conn->query("
-            UPDATE admin_profile
-            SET
-                full_name='$full_name',
-                mobile='$mobile',
-                profile_image='$profile_image',
-                updated_at=CURRENT_TIMESTAMP()
-            WHERE register_id='$admin_id'
-        ");
+    // Validation for email (optional) - Check only in register table
+    if(!empty($email)) {
+        if(!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors['email'] = "Please enter a valid email address.";
+        } else {
+            // Check if email already exists for another user in register table only
+            $check_sql = "SELECT id FROM register 
+                          WHERE email = '$email'
+                          AND id != '$admin_id'
+                          AND (delete_flag = 0 OR delete_flag IS NULL)";
+            $check_result = $conn->query($check_sql);
+            if($check_result->num_rows > 0) {
+                $errors['email'] = "This email is already used by another user.";
+            }
+        }
+    }
 
-        $conn->query("
-            UPDATE register
-            SET
-                name='$full_name'
-            WHERE id='$admin_id'
-        ");
+    // File validation for profile image
+    $profile_image = $admin_data['profile_image'] ?? '';
+    if(isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] == 0){
+        $file = $_FILES['profile_image'];
+        $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        $max_size = 3 * 1024 * 1024; // 3MB
+        
+        if(!in_array($file['type'], $allowed_types)) {
+            $errors['profile_image'] = "Only JPG, PNG, GIF, and WEBP images are allowed.";
+        } elseif($file['size'] > $max_size) {
+            $errors['profile_image'] = "Image size must be less than 3MB.";
+        } elseif($file['error'] !== UPLOAD_ERR_OK) {
+            $errors['profile_image'] = "Failed to upload image. Error code: " . $file['error'];
+        }
 
-        $_SESSION['name'] = $full_name;
-        $_SESSION['profile_image'] = $profile_image;
+        if(empty($errors['profile_image'])) {
+            $folder = "documents/admin/images/";
+            if(!is_dir($folder)){
+                mkdir($folder,0777,true);
+            }
+            $image_name = time() . '_' . basename($_FILES['profile_image']['name']);
+            $image_path = $folder . $image_name;
 
-        $conn->commit();
+            if(move_uploaded_file($_FILES['profile_image']['tmp_name'], $image_path)){
+                // Delete old image if exists
+                if(!empty($admin_data['profile_image']) && file_exists($admin_data['profile_image'])){
+                    unlink($admin_data['profile_image']);
+                }
+                $profile_image = $image_path;
+            } else {
+                $errors['profile_image'] = "Failed to move uploaded file.";
+            }
+        }
+    }
 
-        echo "<script>
-                alert('Profile Updated Successfully');
-                window.location='update_adminprofile.php';
-              </script>";
+    // If no errors, proceed with update
+    if(empty($errors)) {
+        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+        $conn->begin_transaction();
 
-    } catch(Exception $e){
-        $conn->rollback();
-        die($e->getMessage());
+        try{
+            // Update admin_profile table
+            $update_admin_profile = "UPDATE admin_profile SET";
+            $updates = [];
+            if(!empty($full_name)) $updates[] = "full_name='$full_name'";
+            if(!empty($mobile)) $updates[] = "mobile='$mobile'";
+            $updates[] = "profile_image='$profile_image'";
+            $updates[] = "updated_at=CURRENT_TIMESTAMP()";
+            
+            $update_admin_profile .= " " . implode(", ", $updates);
+            $update_admin_profile .= " WHERE register_id='$admin_id'";
+            
+            $conn->query($update_admin_profile);
+
+            // Update register table
+            $update_register = "UPDATE register SET";
+            $register_updates = [];
+            if(!empty($full_name)) {
+                $register_updates[] = "name='$full_name'";
+                $_SESSION['name'] = $full_name;
+            }
+            if(!empty($email)) {
+                $register_updates[] = "email='$email'";
+                $_SESSION['email'] = $email;
+            }
+            $register_updates[] = "modified_by='$admin_id'";
+            $register_updates[] = "reg_date=CURRENT_TIMESTAMP()";
+            
+            $update_register .= " " . implode(", ", $register_updates);
+            $update_register .= " WHERE id='$admin_id'";
+            
+            $conn->query($update_register);
+
+            $_SESSION['profile_image'] = $profile_image;
+
+            $conn->commit();
+
+            // Refresh admin data
+            $result = $conn->query($sql);
+            $admin_data = $result->fetch_assoc();
+
+            echo "<script>
+                    alert('Profile Updated Successfully');
+                    window.location='update_adminprofile.php';
+                  </script>";
+
+        } catch(Exception $e){
+            $conn->rollback();
+            $errors['general'] = "Error updating profile: " . $e->getMessage();
+        }
     }
 }
 
@@ -133,13 +212,16 @@ if(isset($_POST['update_password'])) {
     $new_password = mysqli_real_escape_string($conn, $_POST['new_password']);
     $confirm_password = mysqli_real_escape_string($conn, $_POST['confirm_password']);
 
-    $errors = [];
-    if(empty($current_password)) $errors[] = "Current password is required";
-    if(empty($new_password)) $errors[] = "New password is required";
-    if(empty($confirm_password)) $errors[] = "Confirm password is required";
-    if($new_password !== $confirm_password) $errors[] = "New password and confirm password do not match";
+    $password_errors = [];
+    if(empty($current_password)) $password_errors['current_password'] = "Current password is required.";
+    if(empty($new_password)) $password_errors['new_password'] = "New password is required.";
+    if(empty($confirm_password)) $password_errors['confirm_password'] = "Confirm password is required.";
+    if($new_password !== $confirm_password) $password_errors['confirm_password'] = "New password and confirm password do not match.";
+    if(!empty($new_password) && strlen($new_password) < 6) {
+        $password_errors['new_password'] = "New password must be at least 6 characters.";
+    }
 
-    if(empty($errors)) {
+    if(empty($password_errors)) {
         $stored_password = $admin_data['password'];
         if($current_password === $stored_password) {
             $conn->query("
@@ -155,17 +237,8 @@ if(isset($_POST['update_password'])) {
                     window.location='update_adminprofile.php';
                   </script>";
         } else {
-            echo "<script>
-                    alert('Current password is incorrect');
-                    window.location='update_adminprofile.php';
-                  </script>";
+            $password_errors['current_password'] = "Current password is incorrect.";
         }
-    } else {
-        $error_message = implode("\\n", $errors);
-        echo "<script>
-                alert('$error_message');
-                window.location='update_adminprofile.php';
-              </script>";
     }
 }
 
@@ -190,113 +263,7 @@ $user_name = $_SESSION['name'] ?? 'User';
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: #f1f5f9; }
 
-        /* ============================================================
-           SIDEBAR STYLES
-           ============================================================ */
-        #sidebar-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100vh;
-            width: 256px;
-            z-index: 1000;
-            background: #ffffff;
-            border-right: 1px solid #e2e8f0;
-            overflow-y: auto;
-            transition: transform 0.3s ease;
-        }
-        #sidebar-container::-webkit-scrollbar { width: 4px; }
-        #sidebar-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-
-        @media (max-width: 1279px) {
-            #sidebar-container {
-                transform: translateX(-100%);
-                width: 280px;
-                box-shadow: 4px 0 20px rgba(0,0,0,0.1);
-            }
-            #sidebar-container.active { transform: translateX(0); }
-            .sidebar-overlay {
-                display: none;
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0,0,0,0.5);
-                z-index: 999;
-            }
-            .sidebar-overlay.active { display: block; }
-            #main-content { margin-left: 0 !important; }
-        }
-        @media (min-width: 1280px) {
-            #sidebar-container { transform: translateX(0); width: 256px; }
-        }
-
-        /* ============================================================
-           HEADER STYLES
-           ============================================================ */
-        .top-header {
-            background: #ffffff;
-            border-bottom: 1px solid #e2e8f0;
-            padding: 0.75rem 1.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            min-height: 64px;
-        }
-        .top-header .header-left { display: flex; align-items: center; gap: 1rem; }
-        .top-header .header-right { display: flex; align-items: center; gap: 1rem; }
-        .top-header .user-avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: 700;
-            font-size: 0.8rem;
-        }
-        .mobile-toggle {
-            display: none;
-            padding: 0.5rem 0.75rem;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 1.25rem;
-        }
-        .mobile-toggle:hover { background: #f8fafc; }
-        @media (max-width: 1279px) {
-            .mobile-toggle { display: inline-flex; align-items: center; justify-content: center; }
-        }
-
-        /* ============================================================
-           MAIN CONTENT
-           ============================================================ */
-        .main-wrapper {
-            display: flex;
-            min-height: 100vh;
-        }
-
-        .main-content {
-            flex: 1;
-            margin-left: 256px;
-            padding: 1.5rem;
-            min-height: calc(100vh - 64px);
-            transition: margin-left 0.3s ease;
-            background: #f1f5f9;
-        }
-        @media (max-width: 1279px) {
-            .main-content {
-                margin-left: 0 !important;
-                padding: 1rem;
-            }
-        }
+        
 
         /* ============================================================
            PROFILE FORM STYLES
@@ -366,6 +333,18 @@ $user_name = $_SESSION['name'] ?? 'User';
             cursor: not-allowed;
             opacity: 0.8;
         }
+        .form-control.input-error {
+            border-color: #dc2626 !important;
+            background-color: #fef2f2 !important;
+        }
+
+        .error-text {
+            color: #dc2626;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-top: 0.25rem;
+            display: block;
+        }
 
         .profile-image-section {
             display: flex;
@@ -389,6 +368,12 @@ $user_name = $_SESSION['name'] ?? 'User';
             color: #3b82f6;
             flex-shrink: 0;
         }
+        .profile-avatar img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
         .profile-image-section .file-input {
             flex: 1;
             min-width: 200px;
@@ -401,6 +386,10 @@ $user_name = $_SESSION['name'] ?? 'User';
             border-radius: 10px;
             background: #f8fafc;
             color: #475569;
+        }
+        .profile-image-section .file-input .file-error {
+            border-color: #dc2626 !important;
+            background-color: #fef2f2 !important;
         }
 
         .btn {
@@ -515,6 +504,29 @@ $user_name = $_SESSION['name'] ?? 'User';
             font-size: 0.9rem;
         }
 
+        .error-summary {
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            border-radius: 12px;
+            padding: 1rem 1.2rem;
+            margin-bottom: 1.5rem;
+        }
+        .error-summary p {
+            color: #991b1b;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 0.25rem;
+        }
+        .error-summary ul {
+            margin: 0;
+            padding-left: 1.5rem;
+            color: #991b1b;
+            font-size: 0.85rem;
+        }
+        .error-summary ul li {
+            margin-bottom: 0.15rem;
+        }
+
         .no-permission-box {
             text-align: center;
             padding: 2rem;
@@ -532,50 +544,13 @@ $user_name = $_SESSION['name'] ?? 'User';
             color: #64748b;
             font-size: 0.9rem;
         }
-
-        /* ============================================================
-           RESPONSIVE
-           ============================================================ */
-        @media (max-width: 640px) {
-            .grid-2 { grid-template-columns: 1fr; }
-            .form-card { padding: 1.25rem; }
-            .profile-image-section {
-                flex-direction: column;
-                align-items: center;
-                text-align: center;
-            }
-            .profile-image-section .file-input { width: 100%; }
-            .form-actions {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            .form-actions .btn { justify-content: center; }
-            .profile-container { padding: 0 0.5rem; }
-            .top-header {
-                padding: 0.5rem 1rem;
-            }
-            .top-header .header-left h1 {
-                font-size: 1rem;
-            }
-            .top-header .header-left p {
-                font-size: 0.75rem;
-            }
-        }
     </style>
 </head>
 <body>
 
-<!-- ============================================================
-SIDEBAR OVERLAY (MOBILE)
-============================================================ -->
-<div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-<!-- ============================================================
-SIDEBAR
-============================================================ -->
-<div id="sidebar-container">
     <?php include 'Sidebar.php'; ?>
-</div>
+
 
 <!-- ============================================================
 MAIN WRAPPER
@@ -598,6 +573,18 @@ MAIN WRAPPER
                 <span style="font-size:0.9rem; color:#94a3b8;">Back to Dashboard</span>
             </div>
 
+            <!-- Display Profile Errors -->
+            <?php if(!empty($errors)): ?>
+                <div class="error-summary">
+                    <p><i class="fas fa-exclamation-circle"></i> Please fix the following errors:</p>
+                    <ul>
+                        <?php foreach($errors as $field => $message): ?>
+                            <li><?php echo $message; ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
+
             <!-- No Permission Warning - Will be hidden when permissions exist -->
             <div id="permissionWarning" class="alert-warning" style="<?php echo $has_any_permission ? 'display:none;' : 'display:flex;'; ?>">
                 <i class="fas fa-exclamation-triangle"></i>
@@ -617,7 +604,9 @@ MAIN WRAPPER
                     <!-- Profile Image -->
                     <div class="profile-image-section">
                         <?php if(!empty($admin_data['profile_image']) && file_exists($admin_data['profile_image'])): ?>
-                            <img src="<?php echo $admin_data['profile_image']; ?>" class="profile-avatar">
+                            <div class="profile-avatar">
+                                <img src="<?php echo $admin_data['profile_image']; ?>" alt="Profile Image">
+                            </div>
                         <?php else: ?>
                             <div class="profile-avatar">
                                 <?php
@@ -628,32 +617,52 @@ MAIN WRAPPER
                         <?php endif; ?>
                         <div class="file-input">
                             <label style="font-size:0.85rem; font-weight:600; color:#475569; display:block; margin-bottom:0.3rem;">Profile Image</label>
-                            <input type="file" name="profile_image" accept="image/*">
-                            <p style="font-size:0.75rem; color:#94a3b8; margin-top:0.25rem;">Leave empty to keep current image</p>
+                            <input type="file" name="profile_image" accept="image/*" class="<?php echo isset($errors['profile_image']) ? 'file-error' : ''; ?>">
+                            <?php if(isset($errors['profile_image'])): ?>
+                                <span class="error-text"><?php echo $errors['profile_image']; ?></span>
+                            <?php endif; ?>
+                            <p style="font-size:0.75rem; color:#94a3b8; margin-top:0.25rem;">Leave empty to keep current image. Supported: JPG, PNG, GIF, WEBP (Max 3MB)</p>
                         </div>
                     </div>
 
                     <!-- Full Name & Mobile -->
                     <div class="grid-2">
                         <div class="form-group">
-                            <label>Full Name <span class="required">*</span></label>
-                            <input type="text" name="full_name" class="form-control" required
-                                   value="<?php echo htmlspecialchars(!empty($admin_data['full_name']) ? $admin_data['full_name'] : $admin_data['name']); ?>"
+                            <label>Full Name</label>
+                            <input type="text" name="full_name" class="form-control <?php echo isset($errors['full_name']) ? 'input-error' : ''; ?>"
+                                   value="<?php echo htmlspecialchars(!empty($form_data['full_name']) ? $form_data['full_name'] : (!empty($admin_data['full_name']) ? $admin_data['full_name'] : $admin_data['name'])); ?>"
                                    placeholder="Enter full name">
+                            <?php if(isset($errors['full_name'])): ?>
+                                <span class="error-text"><?php echo $errors['full_name']; ?></span>
+                            <?php endif; ?>
                         </div>
                         <div class="form-group">
                             <label>Mobile Number</label>
-                            <input type="tel" name="mobile" class="form-control"
-                                   value="<?php echo htmlspecialchars($admin_data['mobile'] ?? ''); ?>"
+                            <input type="tel" name="mobile" class="form-control <?php echo isset($errors['mobile']) ? 'input-error' : ''; ?>"
+                                   value="<?php echo htmlspecialchars(!empty($form_data['mobile']) ? $form_data['mobile'] : ($admin_data['mobile'] ?? '')); ?>"
                                    placeholder="Enter mobile number">
+                            <?php if(isset($errors['mobile'])): ?>
+                                <span class="error-text"><?php echo $errors['mobile']; ?></span>
+                            <?php endif; ?>
                         </div>
                     </div>
 
-                    <!-- Email (Read Only) -->
+                    <!-- Email -->
                     <div class="form-group">
                         <label>Email Address</label>
-                        <input type="email" class="form-control" 
-                               value="<?php echo htmlspecialchars($admin_data['email'] ?? ''); ?>" 
+                        <input type="email" name="email" class="form-control <?php echo isset($errors['email']) ? 'input-error' : ''; ?>"
+                               value="<?php echo htmlspecialchars(!empty($form_data['email']) ? $form_data['email'] : ($admin_data['email'] ?? '')); ?>"
+                               placeholder="Enter email address">
+                        <?php if(isset($errors['email'])): ?>
+                            <span class="error-text"><?php echo $errors['email']; ?></span>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Role (Read Only) -->
+                    <div class="form-group">
+                        <label>Role</label>
+                        <input type="text" class="form-control" 
+                               value="<?php echo htmlspecialchars($admin_data['role'] ?? ''); ?>" 
                                readonly disabled>
                     </div>
 
@@ -677,35 +686,55 @@ MAIN WRAPPER
                     <i class="fas fa-key" style="color:#22c55e;"></i>
                     Change Password
                 </h2>
+
+                <?php if(!empty($password_errors)): ?>
+                    <div class="error-summary" style="margin-bottom:1.5rem;">
+                        <p><i class="fas fa-exclamation-circle"></i> Please fix the following errors:</p>
+                        <ul>
+                            <?php foreach($password_errors as $field => $message): ?>
+                                <li><?php echo $message; ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
                 
                 <form action="update_adminprofile.php" method="POST">
                     <div class="grid-2">
                         <div class="form-group">
                             <label>Current Password <span class="required">*</span></label>
                             <div class="password-field">
-                                <input type="password" name="current_password" class="form-control" required placeholder="Enter current password">
+                                <input type="password" name="current_password" class="form-control <?php echo isset($password_errors['current_password']) ? 'input-error' : ''; ?>" placeholder="Enter current password">
                                 <span class="password-toggle" onclick="togglePassword(this)">
                                     <i class="fas fa-eye"></i>
                                 </span>
+                                <?php if(isset($password_errors['current_password'])): ?>
+                                    <span class="error-text"><?php echo $password_errors['current_password']; ?></span>
+                                <?php endif; ?>
                             </div>
                         </div>
                         <div></div>
                         <div class="form-group">
                             <label>New Password <span class="required">*</span></label>
                             <div class="password-field">
-                                <input type="password" name="new_password" class="form-control" required placeholder="Enter new password">
+                                <input type="password" name="new_password" class="form-control <?php echo isset($password_errors['new_password']) ? 'input-error' : ''; ?>" placeholder="Enter new password">
                                 <span class="password-toggle" onclick="togglePassword(this)">
                                     <i class="fas fa-eye"></i>
                                 </span>
+                                <?php if(isset($password_errors['new_password'])): ?>
+                                    <span class="error-text"><?php echo $password_errors['new_password']; ?></span>
+                                <?php endif; ?>
                             </div>
                         </div>
                         <div class="form-group">
                             <label>Confirm New Password <span class="required">*</span></label>
                             <div class="password-field">
-                                <input type="password" name="confirm_password" class="form-control" required placeholder="Confirm new password">
+                                <input type="password" name="confirm_password" class="form-control <?php echo isset($password_errors['confirm_password']) ? 'input-error' : ''; ?>" placeholder="Confirm new password">
                                 <span class="password-toggle" onclick="togglePassword(this)">
                                     <i class="fas fa-eye"></i>
                                 </span>
+                                <?php if(isset($password_errors['confirm_password'])): ?>
+                                    <span class="error-text"><?php echo $password_errors['confirm_password']; ?></span>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -735,27 +764,7 @@ MAIN WRAPPER
 SCRIPTS
 ============================================================ -->
 <script>
-// ============================================================
-// SIDEBAR TOGGLE
-// ============================================================
-document.addEventListener('DOMContentLoaded', function() {
-    const mobileToggle = document.getElementById('mobileToggle');
-    const sidebarContainer = document.getElementById('sidebar-container');
-    const sidebarOverlay = document.getElementById('sidebarOverlay');
-    
-    if (mobileToggle) {
-        mobileToggle.addEventListener('click', function() {
-            sidebarContainer.classList.toggle('active');
-            sidebarOverlay.classList.toggle('active');
-        });
-    }
-    if (sidebarOverlay) {
-        sidebarOverlay.addEventListener('click', function() {
-            sidebarContainer.classList.remove('active');
-            sidebarOverlay.classList.remove('active');
-        });
-    }
-});
+/
 
 // ============================================================
 // PASSWORD TOGGLE
@@ -810,6 +819,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 } catch(e) {
                     console.error('Error parsing JSON:', e);
                 }
+
             }
         };
         xhr.onerror = function() {

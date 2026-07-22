@@ -1,47 +1,41 @@
 <?php
-
-
 session_start();
-echo "START<br>";
-echo "ID = " . $_SESSION['id'] . "<br>";
-echo "REGISTER_ID = " . ($_SESSION['register_id'] ?? 'Not Set') . "<br>";
-exit;
-include "../config/hospital.php";
-echo "After hospital.php : " . $_SESSION['id'] . "<br>";
 
-// Check if user is logged in
-if (!isset($_SESSION["id"]) || empty($_SESSION["id"])) {
-    header("Location: ../index.php");
-    exit();
+include "../config/hospital.php";
+include "../config/permission.php";
+
+// ========== FIRST: Get user ID and hospital ID ==========
+if (!isset($_SESSION['id'])) {
+    die("Session ID missing");
 }
 
-$hid = $_SESSION["hospital_id"];
-$user_id = $_SESSION["id"];
-echo "User ID = " . $user_id . "<br>";
+$user_id = (int)$_SESSION['id'];
+$hid = $_SESSION['hospital_id'];
 
-$sql = "SELECT order_id, order_no, technician_id, hospital_id, delete_flag
+// ========== DEBUG: Check technician ID and query ==========
+error_log("Technician User ID: " . $user_id);
+error_log("Hospital ID: " . $hid);
+
+$sql = "SELECT order_id, order_no, technician_id, hospital_id, order_status
         FROM lab_orders
         WHERE technician_id = $user_id";
 
-$result = $conn->query($sql);
+error_log("Dashboard SQL: " . $sql);
 
-echo "Rows = " . $result->num_rows . "<br>";
+$result = mysqli_query($conn, $sql);
 
-while ($row = $result->fetch_assoc()) {
-    echo "<pre>";
-    print_r($row);
-    echo "</pre>";
+if ($result) {
+    error_log("Number of orders found: " . mysqli_num_rows($result));
+} else {
+    error_log("Query error: " . mysqli_error($conn));
 }
-exit;
 
 // ========== FIX: SET SESSION VARIABLES FOR HEADER ==========
-// Get technician info and set session variables
 $technician = null;
 $sql_tech = "SELECT * FROM staff WHERE staff_id = $user_id AND role = 'Lab Technician' AND hospital_id = $hid";
 $result_tech = $conn->query($sql_tech);
 if ($result_tech && $result_tech->num_rows > 0) {
     $technician = $result_tech->fetch_assoc();
-    // Set session variables for header
     $_SESSION["name"] = $technician['name'] ?? 'Technician';
     $_SESSION["role"] = "Lab Technician";
     $_SESSION["profile_image"] = $technician['profile_image'] ?? '';
@@ -69,7 +63,10 @@ $sql_total = "SELECT COUNT(*) as total FROM lab_orders WHERE technician_id = $us
 $result_total = $conn->query($sql_total);
 $total_orders = $result_total ? $result_total->fetch_assoc()['total'] : 0;
 
-$sql_pending = "SELECT COUNT(*) as total FROM lab_orders WHERE technician_id = $user_id AND order_status IN ('Pending','Assigned') AND delete_flag = 0";
+$sql_pending = "SELECT COUNT(*) as total
+FROM lab_orders
+WHERE technician_id = $user_id
+AND order_status IN ('Assigned','Accepted')";
 $result_pending = $conn->query($sql_pending);
 $pending_orders = $result_pending ? $result_pending->fetch_assoc()['total'] : 0;
 
@@ -115,7 +112,7 @@ $sql_pending_tests = "SELECT od.*, t.test_name, t.test_code, t.normal_range, t.u
                       LEFT JOIN patients p ON o.patient_id = p.patient_id
                       LEFT JOIN lab_test_results r ON od.detail_id = r.order_detail_id
                       WHERE o.technician_id = $user_id 
-                      AND o.order_status IN ('Sample Collected', 'In Process', 'Assigned')
+                      AND o.order_status IN ('Accepted','Sample Collected','In Process')
                       AND o.delete_flag = 0
                       AND r.result_id IS NULL
                       ORDER BY o.order_id DESC";
@@ -130,7 +127,14 @@ if ($result_pending_tests) {
 if (isset($_POST['update_order_status'])) {
     $order_id = intval($_POST['order_id'] ?? 0);
     $status = $_POST['status'] ?? '';
-    $valid_statuses = ['Pending','Assigned','Sample Collected','In Process','Completed','Cancelled'];
+    $valid_statuses = [
+        'Assigned',
+        'Accepted',
+        'Sample Collected',
+        'In Process',
+        'Completed',
+        'Rejected'
+    ];
     
     if ($order_id > 0 && in_array($status, $valid_statuses)) {
         $conn->query("UPDATE lab_orders SET order_status = '$status' WHERE order_id = $order_id AND technician_id = $user_id");
@@ -148,7 +152,6 @@ if (isset($_POST['save_result'])) {
     $order_id = intval($_POST['order_id'] ?? 0);
     
     if ($detail_id > 0) {
-        // Get test details for normal_range and unit
         $test_info = $conn->query("SELECT t.normal_range, t.unit FROM lab_order_details od 
                                    LEFT JOIN lab_tests t ON od.test_id = t.test_id 
                                    WHERE od.detail_id = $detail_id");
@@ -156,10 +159,8 @@ if (isset($_POST['save_result'])) {
         $normal_range = $test_data['normal_range'] ?? '';
         $unit = $test_data['unit'] ?? '';
         
-        // Check if result exists
         $check = $conn->query("SELECT result_id FROM lab_test_results WHERE order_detail_id = $detail_id");
         if ($check && $check->num_rows > 0) {
-            // Update existing result
             $sql = "UPDATE lab_test_results SET 
                     result_value = '$result_value',
                     normal_range = '$normal_range',
@@ -169,13 +170,11 @@ if (isset($_POST['save_result'])) {
                     report_status = 'Completed'
                     WHERE order_detail_id = $detail_id";
         } else {
-            // Insert new result
             $sql = "INSERT INTO lab_test_results (order_detail_id, result_value, normal_range, unit, remarks, entered_by, report_status) 
                     VALUES ($detail_id, '$result_value', '$normal_range', '$unit', '$remarks', $user_id, 'Completed')";
         }
         
         if ($conn->query($sql)) {
-            // Check if all tests are completed for this order
             if ($order_id > 0) {
                 $check_all = $conn->query("SELECT COUNT(*) as total FROM lab_order_details od 
                                           LEFT JOIN lab_test_results r ON od.detail_id = r.order_detail_id
@@ -202,14 +201,12 @@ if (isset($_POST['generate_report'])) {
     $report_remarks = trim($_POST['report_remarks'] ?? '');
     
     if ($order_id > 0) {
-        // Get order details
         $order_data = $conn->query("SELECT patient_id, doctor_id FROM lab_orders WHERE order_id = $order_id");
         if ($order_data && $order_data->num_rows > 0) {
             $order = $order_data->fetch_assoc();
             $patient_id = $order['patient_id'];
             $doctor_id = $order['doctor_id'];
             
-            // Generate report number
             $prefix = "RPT";
             $date = date("Ymd");
             $sql = "SELECT MAX(report_no) as max_no FROM lab_reports WHERE report_no LIKE '$prefix$date%'";
@@ -221,7 +218,6 @@ if (isset($_POST['generate_report'])) {
                 $report_no = $prefix . $date . '0001';
             }
             
-            // Handle file upload
             $report_file = '';
             if (isset($_FILES['report_file']) && $_FILES['report_file']['error'] == 0) {
                 $target_dir = "../documents/reports/";
@@ -246,6 +242,42 @@ if (isset($_POST['generate_report'])) {
     }
     header("Location: dashboard.php");
     exit();
+}
+
+// ========== DELETE REPORT ==========
+if (isset($_GET['delete_report']) && isset($_GET['report_id'])) {
+    $report_id = intval($_GET['report_id']);
+    $order_id = intval($_GET['order_id'] ?? 0);
+    
+    // Get report file path
+    $file_query = $conn->query("SELECT report_file FROM lab_reports WHERE report_id = $report_id");
+    if ($file_query && $file_query->num_rows > 0) {
+        $file_data = $file_query->fetch_assoc();
+        if (!empty($file_data['report_file'])) {
+            $file_path = "../documents/reports/" . $file_data['report_file'];
+            if (file_exists($file_path)) {
+                unlink($file_path);
+            }
+        }
+    }
+    
+    $conn->query("DELETE FROM lab_reports WHERE report_id = $report_id");
+    $_SESSION['success'] = "Report deleted successfully!";
+    header("Location: dashboard.php");
+    exit();
+}
+
+// ========== GET EXISTING REPORTS FOR THE ORDER ==========
+$existing_reports = [];
+if (isset($_GET['view_reports']) && isset($_GET['order_id'])) {
+    $view_order_id = intval($_GET['order_id']);
+    $sql_reports = "SELECT * FROM lab_reports WHERE order_id = $view_order_id ORDER BY report_id DESC";
+    $result_reports = $conn->query($sql_reports);
+    if ($result_reports) {
+        while ($row = $result_reports->fetch_assoc()) {
+            $existing_reports[] = $row;
+        }
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -296,6 +328,7 @@ if (isset($_POST['generate_report'])) {
         .btn-outline { background: transparent; color: #6b7280; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: 1px solid #d1d5db; transition: all 0.2s; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
         .btn-outline:hover { background: #f3f4f6; }
         .btn-sm { padding: 4px 10px; font-size: 11px; }
+        .btn-xs { padding: 2px 8px; font-size: 10px; }
         
         .table-container { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -306,6 +339,7 @@ if (isset($_POST['generate_report'])) {
         
         .alert-success { background: #dcfce7; color: #166534; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #22c55e; }
         .alert-error { background: #fecaca; color: #991b1b; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #ef4444; }
+        .alert-info { background: #dbeafe; color: #1e40af; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #3b82f6; }
         
         .status-badge { padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; display: inline-block; }
         .status-badge.pending { background: #fef3c7; color: #92400e; }
@@ -366,6 +400,12 @@ if (isset($_POST['generate_report'])) {
         
         .btn-accept { background: #22c55e; color: white; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500; border: none; transition: all 0.2s; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
         .btn-accept:hover { background: #16a34a; }
+        
+        .report-item { background: #f9fafb; border-radius: 8px; padding: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e5e7eb; }
+        .report-item:hover { background: #f3f4f6; }
+        .report-item .report-info { display: flex; flex-direction: column; gap: 2px; }
+        .report-item .report-info .report-no { font-weight: 600; color: #1f2937; }
+        .report-item .report-info .report-date { font-size: 12px; color: #6b7280; }
     </style>
 </head>
 <body>
@@ -402,7 +442,7 @@ if (isset($_POST['generate_report'])) {
                         <i class="fas fa-check-circle text-green-500"></i>
                         <div class="label">Completed</div>
                     </div>
-                    <div class="quick-action-btn" onclick="window.location.href='../lab_reports.php'">
+                    <div class="quick-action-btn" onclick="switchTab('reports')">
                         <i class="fas fa-file-alt text-purple-500"></i>
                         <div class="label">My Reports</div>
                     </div>
@@ -447,6 +487,7 @@ if (isset($_POST['generate_report'])) {
                     <button class="tab-btn active" onclick="switchTab('orders')"><i class="fas fa-list"></i> My Orders</button>
                     <button class="tab-btn" onclick="switchTab('pending')"><i class="fas fa-edit"></i> Pending Results</button>
                     <button class="tab-btn" onclick="switchTab('completed')"><i class="fas fa-check-circle"></i> Completed</button>
+                    <button class="tab-btn" onclick="switchTab('reports')"><i class="fas fa-file-alt"></i> Reports</button>
                 </div>
 
                 <!-- ========== MY ORDERS TAB ========== -->
@@ -491,52 +532,68 @@ if (isset($_POST['generate_report'])) {
                                                     </td>
                                                     <td class="actions-cell">
                                                         <div class="flex items-center gap-1 flex-wrap">
-                                                            <!-- Accept Order Button -->
-                                                            <?php if ($order['order_status'] == 'Pending'): ?>
+                                                            <?php if ($order['order_status'] == 'Assigned'): ?>
                                                                 <form method="POST" style="display: inline;">
                                                                     <input type="hidden" name="order_id" value="<?php echo $order['order_id']; ?>">
-                                                                    <input type="hidden" name="status" value="Assigned">
+                                                                    <input type="hidden" name="status" value="Accepted">
                                                                     <button type="submit" name="update_order_status" class="btn-accept btn-sm" onclick="return confirm('Accept this order?')">
                                                                         <i class="fas fa-check"></i> Accept
                                                                     </button>
                                                                 </form>
+                                                                <form method="POST" style="display: inline;">
+                                                                    <input type="hidden" name="order_id" value="<?php echo $order['order_id']; ?>">
+                                                                    <input type="hidden" name="status" value="Cancelled">
+                                                                    <button type="submit" name="update_order_status" class="btn-reject btn-sm" onclick="return confirm('Reject this order?')">
+                                                                        <i class="fas fa-times"></i> Reject
+                                                                    </button>
+                                                                </form>
+                                                            <?php elseif ($order['order_status'] == 'Accepted'): ?>
+                                                                <form method="POST" style="display: inline;">
+                                                                    <input type="hidden" name="order_id" value="<?php echo $order['order_id']; ?>">
+                                                                    <input type="hidden" name="status" value="Sample Collected">
+                                                                    <button type="submit" name="update_order_status" class="btn-primary btn-sm">
+                                                                        <i class="fas fa-flask"></i> Collect Sample
+                                                                    </button>
+                                                                </form>
+                                                            <?php elseif ($order['order_status'] == 'Sample Collected'): ?>
+                                                                <form method="POST" style="display: inline;">
+                                                                    <input type="hidden" name="order_id" value="<?php echo $order['order_id']; ?>">
+                                                                    <input type="hidden" name="status" value="In Process">
+                                                                    <button type="submit" name="update_order_status" class="btn-warning btn-sm">
+                                                                        <i class="fas fa-play"></i> Start Test
+                                                                    </button>
+                                                                </form>
+                                                            <?php elseif ($order['order_status'] == 'In Process'): ?>
+                                                                <button onclick="openResultModalForOrder(<?php echo $order['order_id']; ?>)" 
+                                                                        class="btn-info btn-sm">
+                                                                    <i class="fas fa-edit"></i> Enter Result
+                                                                </button>
+                                                            <?php elseif ($order['order_status'] == 'Completed'): ?>
+                                                                <button onclick="openReportModal(<?php echo $order['order_id']; ?>)" 
+                                                                        class="btn-success btn-sm">
+                                                                    <i class="fas fa-file-alt"></i> Report
+                                                                </button>
+                                                                <button onclick="window.location.href='../print_report.php?order_id=<?php echo $order['order_id']; ?>'" 
+                                                                        class="print-btn btn-sm">
+                                                                    <i class="fas fa-print"></i>
+                                                                </button>
+                                                                <a href="?view_reports=1&order_id=<?php echo $order['order_id']; ?>" class="btn-info btn-sm">
+                                                                    <i class="fas fa-eye"></i> View Reports
+                                                                </a>
                                                             <?php endif; ?>
                                                             
-                                                            <!-- Status Update Dropdown -->
                                                             <?php if ($order['order_status'] != 'Completed' && $order['order_status'] != 'Cancelled' && $order['order_status'] != 'Pending'): ?>
                                                                 <form method="POST" style="display: inline;" onchange="this.submit()">
                                                                     <input type="hidden" name="order_id" value="<?php echo $order['order_id']; ?>">
                                                                     <select name="status" class="form-select text-xs" style="width: auto; padding: 2px 6px; font-size: 11px; border-radius: 6px;">
-                                                                        <option value="">Update Status</option>
+                                                                        <option value="">Quick Status</option>
                                                                         <option value="Sample Collected" <?php echo $order['order_status'] == 'Sample Collected' ? 'selected' : ''; ?>>Sample Collected</option>
                                                                         <option value="In Process" <?php echo $order['order_status'] == 'In Process' ? 'selected' : ''; ?>>In Process</option>
                                                                         <option value="Completed">Completed</option>
+                                                                        <option value="Cancelled">Cancel</option>
                                                                     </select>
                                                                     <input type="hidden" name="update_order_status" value="1">
                                                                 </form>
-                                                            <?php endif; ?>
-                                                            
-                                                            <!-- Sample Rejected Button -->
-                                                            <?php if ($order['order_status'] != 'Completed' && $order['order_status'] != 'Cancelled'): ?>
-                                                                <form method="POST" style="display: inline;">
-                                                                    <input type="hidden" name="order_id" value="<?php echo $order['order_id']; ?>">
-                                                                    <input type="hidden" name="status" value="Cancelled">
-                                                                    <button type="submit" name="update_order_status" class="btn-reject btn-sm" onclick="return confirm('Reject this sample?')">
-                                                                        <i class="fas fa-times"></i> Reject
-                                                                    </button>
-                                                                </form>
-                                                            <?php endif; ?>
-                                                            
-                                                            <!-- Generate Report -->
-                                                            <?php if ($order['order_status'] == 'Completed'): ?>
-                                                                <button onclick="openReportModal(<?php echo $order['order_id']; ?>)" 
-                                                                        class="btn-success btn-sm" title="Generate Report">
-                                                                    <i class="fas fa-file-alt"></i>
-                                                                </button>
-                                                                <button onclick="window.location.href='../print_report.php?order_id=<?php echo $order['order_id']; ?>'" 
-                                                                        class="print-btn btn-sm" title="Print Report">
-                                                                    <i class="fas fa-print"></i>
-                                                                </button>
                                                             <?php endif; ?>
                                                         </div>
                                                     </td>
@@ -657,6 +714,9 @@ if (isset($_POST['generate_report'])) {
                                                                     class="print-btn btn-sm">
                                                                 <i class="fas fa-print"></i> Print
                                                             </button>
+                                                            <a href="?view_reports=1&order_id=<?php echo $order['order_id']; ?>" class="btn-info btn-sm">
+                                                                <i class="fas fa-eye"></i> View Reports
+                                                            </a>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -673,6 +733,155 @@ if (isset($_POST['generate_report'])) {
                         </div>
                     </div>
                 </div>
+
+                <!-- ========== REPORTS TAB ========== -->
+                <div id="tab-reports" class="tab-content">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-file-alt mr-2 text-purple-500"></i> My Reports</h3>
+                            <span class="badge-count">Reports</span>
+                        </div>
+                        <div class="card-body">
+                            <?php
+                            // Get all reports generated by this technician
+                            $sql_all_reports = "SELECT r.*, o.order_no, p.patient_name 
+                                               FROM lab_reports r
+                                               LEFT JOIN lab_orders o ON r.order_id = o.order_id
+                                               LEFT JOIN patients p ON r.patient_id = p.patient_id
+                                               WHERE r.technician_id = $user_id
+                                               ORDER BY r.report_id DESC";
+                            $result_all_reports = $conn->query($sql_all_reports);
+                            $all_reports = [];
+                            if ($result_all_reports) {
+                                while ($row = $result_all_reports->fetch_assoc()) {
+                                    $all_reports[] = $row;
+                                }
+                            }
+                            ?>
+                            
+                            <?php if (!empty($all_reports)): ?>
+                                <div class="table-container">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Report No</th>
+                                                <th>Order No</th>
+                                                <th>Patient</th>
+                                                <th>Date</th>
+                                                <th>File</th>
+                                                <th class="text-center">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php $counter = 1; ?>
+                                            <?php foreach ($all_reports as $report): ?>
+                                                <tr>
+                                                    <td><?php echo $counter++; ?></td>
+                                                    <td><span class="test-code-badge"><?php echo htmlspecialchars($report['report_no']); ?></span></td>
+                                                    <td><?php echo htmlspecialchars($report['order_no'] ?? 'N/A'); ?></td>
+                                                    <td><?php echo htmlspecialchars($report['patient_name'] ?? 'N/A'); ?></td>
+                                                    <td><?php echo date('d-m-Y', strtotime($report['report_date'])); ?></td>
+                                                    <td>
+                                                        <?php if (!empty($report['report_file'])): ?>
+                                                            <a href="../documents/reports/<?php echo htmlspecialchars($report['report_file']); ?>" target="_blank" class="btn-info btn-xs">
+                                                                <i class="fas fa-file-pdf"></i> View
+                                                            </a>
+                                                        <?php else: ?>
+                                                            <span class="text-gray-400 text-xs">No file</span>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                    <td class="actions-cell">
+                                                        <div class="flex items-center gap-1 flex-wrap">
+                                                            <?php if (!empty($report['report_file'])): ?>
+                                                                <a href="../documents/reports/<?php echo htmlspecialchars($report['report_file']); ?>" target="_blank" class="print-btn btn-xs">
+                                                                    <i class="fas fa-download"></i>
+                                                                </a>
+                                                            <?php endif; ?>
+                                                            <a href="?delete_report=1&report_id=<?php echo $report['report_id']; ?>&order_id=<?php echo $report['order_id']; ?>" 
+                                                               class="btn-danger btn-xs" 
+                                                               onclick="return confirm('Are you sure you want to delete this report?')">
+                                                                <i class="fas fa-trash"></i>
+                                                            </a>
+                                                            <a href="../print_report.php?order_id=<?php echo $report['order_id']; ?>" target="_blank" class="btn-success btn-xs">
+                                                                <i class="fas fa-print"></i>
+                                                            </a>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php else: ?>
+                                <div class="empty-state">
+                                    <i class="fas fa-file-alt text-gray-300"></i>
+                                    <p class="text-lg font-medium text-gray-700">No reports generated yet</p>
+                                    <p class="text-sm text-gray-400 mt-1">Reports will appear here after you generate them</p>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== VIEW REPORTS FOR ORDER SECTION ========== -->
+                <?php if (isset($_GET['view_reports']) && isset($_GET['order_id'])): 
+                    $view_order_id = intval($_GET['order_id']);
+                    $sql_view_reports = "SELECT r.*, o.order_no, p.patient_name 
+                                        FROM lab_reports r
+                                        LEFT JOIN lab_orders o ON r.order_id = o.order_id
+                                        LEFT JOIN patients p ON r.patient_id = p.patient_id
+                                        WHERE r.order_id = $view_order_id
+                                        ORDER BY r.report_id DESC";
+                    $result_view_reports = $conn->query($sql_view_reports);
+                ?>
+                    <div class="card mt-6">
+                        <div class="card-header">
+                            <h3><i class="fas fa-file-alt mr-2 text-purple-500"></i> Reports for Order</h3>
+                            <a href="dashboard.php" class="btn-secondary btn-sm">Close</a>
+                        </div>
+                        <div class="card-body">
+                            <?php if ($result_view_reports && $result_view_reports->num_rows > 0): ?>
+                                <div class="space-y-2">
+                                    <?php while ($report = $result_view_reports->fetch_assoc()): ?>
+                                        <div class="report-item">
+                                            <div class="report-info">
+                                                <span class="report-no"><?php echo htmlspecialchars($report['report_no']); ?></span>
+                                                <span class="report-date">Patient: <?php echo htmlspecialchars($report['patient_name'] ?? 'N/A'); ?> | Date: <?php echo date('d-m-Y', strtotime($report['report_date'])); ?></span>
+                                                <?php if (!empty($report['remarks'])): ?>
+                                                    <span class="text-xs text-gray-500"><?php echo htmlspecialchars($report['remarks']); ?></span>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="flex gap-2">
+                                                <?php if (!empty($report['report_file'])): ?>
+                                                    <a href="../documents/reports/<?php echo htmlspecialchars($report['report_file']); ?>" target="_blank" class="btn-info btn-xs">
+                                                        <i class="fas fa-file-pdf"></i> View
+                                                    </a>
+                                                    <a href="../documents/reports/<?php echo htmlspecialchars($report['report_file']); ?>" download class="print-btn btn-xs">
+                                                        <i class="fas fa-download"></i> Download
+                                                    </a>
+                                                <?php endif; ?>
+                                                <a href="../print_report.php?order_id=<?php echo $report['order_id']; ?>" target="_blank" class="btn-success btn-xs">
+                                                    <i class="fas fa-print"></i> Print
+                                                </a>
+                                                <a href="?delete_report=1&report_id=<?php echo $report['report_id']; ?>&order_id=<?php echo $report['order_id']; ?>" 
+                                                   class="btn-danger btn-xs" 
+                                                   onclick="return confirm('Are you sure you want to delete this report?')">
+                                                    <i class="fas fa-trash"></i>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    <?php endwhile; ?>
+                                </div>
+                            <?php else: ?>
+                                <div class="empty-state">
+                                    <i class="fas fa-file-alt text-gray-300"></i>
+                                    <p class="text-lg font-medium text-gray-700">No reports for this order</p>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
             </main>
         </div>
     </div>
@@ -729,14 +938,19 @@ if (isset($_POST['generate_report'])) {
             <form method="POST" action="dashboard.php" enctype="multipart/form-data">
                 <input type="hidden" name="order_id" id="report_order_id">
                 
+                <div class="alert-info">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    Generating report for order #<span id="report_order_no">-</span>
+                </div>
+                
                 <div class="form-group">
                     <label>Report Date</label>
                     <input type="date" class="form-input" name="report_date" value="<?php echo date('Y-m-d'); ?>">
                 </div>
 
                 <div class="form-group">
-                    <label>Upload PDF Report</label>
-                    <input type="file" class="form-input" name="report_file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                    <label>Upload PDF Report <span class="required">*</span></label>
+                    <input type="file" class="form-input" name="report_file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" required>
                     <div class="info-text">Supported: PDF, DOC, DOCX, JPG, PNG (Max 10MB)</div>
                 </div>
 
@@ -762,6 +976,11 @@ if (isset($_POST['generate_report'])) {
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
             document.getElementById('tab-' + tab).classList.add('active');
             document.querySelector('.tab-btn[onclick="switchTab(\'' + tab + '\')"]').classList.add('active');
+            
+            // If switching to reports tab, reload to get fresh data
+            if (tab === 'reports') {
+                window.location.href = 'dashboard.php#tab-reports';
+            }
         }
 
         // ========== OPEN RESULT MODAL ==========
@@ -773,9 +992,16 @@ if (isset($_POST['generate_report'])) {
             document.getElementById('resultModal').classList.add('show');
         }
 
+        // ========== OPEN RESULT MODAL FOR ORDER ==========
+        function openResultModalForOrder(orderId) {
+            // Fetch pending tests for this order
+            window.location.href = 'dashboard.php?order_id=' + orderId + '#tab-pending';
+        }
+
         // ========== OPEN REPORT MODAL ==========
         function openReportModal(orderId) {
             document.getElementById('report_order_id').value = orderId;
+            document.getElementById('report_order_no').textContent = orderId;
             document.getElementById('reportModal').classList.add('show');
         }
 
@@ -804,6 +1030,14 @@ if (isset($_POST['generate_report'])) {
         document.addEventListener('click', function(e) {
             if (e.target.classList.contains('modal')) {
                 e.target.classList.remove('show');
+            }
+        });
+
+        // ========== CHECK URL HASH FOR TAB ==========
+        window.addEventListener('load', function() {
+            const hash = window.location.hash;
+            if (hash === '#tab-reports') {
+                switchTab('reports');
             }
         });
     </script>

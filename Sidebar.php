@@ -100,7 +100,7 @@ if (!function_exists('getDashboardUrl')) {
     border-bottom: 1px solid #e2e8f0;
     display: flex;
     align-items: center;
-    justify-content: space-between; /* Adjusted for close button */
+    justify-content: space-between;
     gap: 0.75rem;
     flex-shrink: 0;
     background: #fafbfc;
@@ -125,7 +125,12 @@ if (!function_exists('getDashboardUrl')) {
     .mobile-close-btn { display: block; }
 }
 
-.sidebar-nav { flex: 1; padding: 0.75rem 0.75rem; overflow-y: auto; }
+.sidebar-nav { 
+    flex: 1; 
+    padding: 0.75rem 0.75rem; 
+    overflow-y: auto; 
+    overflow-x: hidden;
+}
 .sidebar-section-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; padding: 0.75rem 0.8rem 0.4rem; color: #94a3b8; font-weight: 600; margin-top: 0.5rem; }
 
 .sidebar-link {
@@ -142,15 +147,70 @@ if (!function_exists('getDashboardUrl')) {
     margin-bottom: 2px;
 }
 
-.sidebar-link i { width: 1.25rem; text-align: center; color: #94a3b8; font-size: 1.1rem; }
+.sidebar-link i { 
+    width: 1.25rem; 
+    text-align: center; 
+    color: #94a3b8; 
+    font-size: 1rem;
+    flex-shrink: 0;
+}
 .sidebar-link:hover { background: #f1f5f9; color: #1e293b; }
 .sidebar-link.active { background: #eff6ff; color: #3b82f6; }
 .sidebar-link.active i { color: #3b82f6; }
 
 .sidebar-dropdown { margin-bottom: 2px; }
-.dropdown-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 0.65rem 0.8rem; background: none; border: none; border-radius: 10px; color: #475569; font-size: 0.9rem; font-weight: 500; cursor: pointer; }
-.dropdown-menu { padding-left: 0.5rem; margin-left: 0.5rem; border-left: 2px solid #e2e8f0; display: none; }
-.dropdown-menu.show { display: block; }
+.dropdown-toggle { 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+    width: 100%; 
+    padding: 0.65rem 0.8rem; 
+    background: none; 
+    border: none; 
+    border-radius: 10px; 
+    color: #475569; 
+    font-size: 0.9rem; 
+    font-weight: 500; 
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.dropdown-toggle:hover {
+    background: #f1f5f9;
+}
+.dropdown-toggle span {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.dropdown-toggle i {
+    width: 1.25rem;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+.dropdown-arrow {
+    transition: transform 0.3s ease;
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+.dropdown-menu { 
+    padding-left: 0.5rem; 
+    margin-left: 0.5rem; 
+    border-left: 2px solid #e2e8f0; 
+    display: none;
+    overflow: hidden;
+}
+.dropdown-menu.show { 
+    display: block; 
+}
+.dropdown-menu .sub-link {
+    padding-left: 1.8rem;
+}
+.dropdown-menu .sub-link i {
+    width: 1rem;
+    font-size: 0.85rem;
+}
 
 /* FOOTER & AVATAR FIX */
 .sidebar-footer {
@@ -161,13 +221,13 @@ if (!function_exists('getDashboardUrl')) {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    overflow: hidden; /* Prevent any footer overflow */
+    overflow: hidden;
 }
 
 .user-avatar {
     width: 38px;
     height: 38px;
-    min-width: 38px; /* Force minimum width */
+    min-width: 38px;
     border-radius: 50%;
     background: linear-gradient(135deg, #3b82f6, #2563eb);
     display: flex;
@@ -176,14 +236,14 @@ if (!function_exists('getDashboardUrl')) {
     color: #ffffff;
     font-weight: 700;
     font-size: 0.85rem;
-    overflow: hidden; /* CRITICAL: Contain the image */
+    overflow: hidden;
     position: relative;
 }
 
 .user-avatar img {
     width: 100%;
     height: 100%;
-    object-fit: cover; /* Ensure image covers the circle without distortion */
+    object-fit: cover;
     display: block;
 }
 
@@ -191,6 +251,7 @@ if (!function_exists('getDashboardUrl')) {
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
 
 .user-name {
@@ -216,6 +277,8 @@ if (!function_exists('getDashboardUrl')) {
 .logout-section { border-top: 1px solid #e2e8f0; margin-top: 1rem; padding-top: 0.5rem; }
 .sidebar-link.logout { color: #ef4444; }
 .sidebar-link.logout:hover { background: #fef2f2; color: #dc2626; }
+.sidebar-link.logout i { color: #ef4444; }
+.sidebar-link.logout:hover i { color: #dc2626; }
 </style>
 
 <!-- Sidebar Overlay -->
@@ -252,57 +315,54 @@ if (!function_exists('getDashboardUrl')) {
             </a>
             <?php endif; ?>
 
-            
+            <?php if (hasAnyPerm(['Patient View', 'Patient Add', 'OPD Visit View', 'IPD Admission View', 'Referral View', 'Call View', 'Call Create'])): ?>
+            <div class="sidebar-section-label">Patient</div>
 
-          <?php if (hasAnyPerm(['Patient View', 'Patient Add', 'OPD Visit View', 'IPD Admission View', 'Referral View', 'Call View', 'Call Create'])): ?>
-<div class="sidebar-section-label">Patient</div>
+            <div class="sidebar-dropdown">
+                <button class="dropdown-toggle" onclick="toggleMenu('patientMenu')">
+                    <span><i class="fas fa-user-injured"></i> Patients</span>
+                    <i class="fas fa-chevron-down dropdown-arrow"></i>
+                </button>
 
-<div class="sidebar-dropdown">
-    <button class="dropdown-toggle" onclick="toggleMenu('patientMenu')">
-        <span><i class="fas fa-user-injured"></i> Patients</span>
-        <i class="fas fa-c-down dropdown-arrow"></i>
-    </button>
+                <div id="patientMenu" class="dropdown-menu">
+                    <?php if (hasPerm('Patient Add')): ?>
+                    <a href="patient_registration.php" class="sidebar-link sub-link">
+                        <i class="fas fa-user-plus"></i> Patient Registration
+                    </a>
+                    <?php endif; ?>
 
-    <div id="patientMenu" class="dropdown-menu">
-        <?php if (hasPerm('Patient Add')): ?>
-        <a href="patient_registration.php" class="sidebar-link sub-link">
-            <i class="fas fa-user-plus"></i> Patient Registration
-        </a>
-        <?php endif; ?>
+                    <?php if (hasPerm('Patient View')): ?>
+                    <a href="patients.php" class="sidebar-link sub-link">
+                        <i class="fas fa-users"></i> All Patients
+                    </a>
+                    <?php endif; ?>
 
-        <?php if (hasPerm('Patient View')): ?>
-        <a href="patients.php" class="sidebar-link sub-link">
-            <i class="fas fa-users"></i> All Patients
-        </a>
-        <?php endif; ?>
+                    <?php if (hasPerm('OPD Visit View')): ?>
+                    <a href="add_patient.php" class="sidebar-link sub-link">
+                        <i class="fas fa-stethoscope"></i> OPD
+                    </a>
+                    <?php endif; ?>
 
-        <?php if (hasPerm('OPD Visit View')): ?>
-        <a href="add_patient.php" class="sidebar-link sub-link">
-            <i class="fas fa-stethoscope"></i> OPD
-        </a>
-        <?php endif; ?>
+                    <?php if (hasPerm('IPD Admission View')): ?>
+                    <a href="add_ipd_patient.php" class="sidebar-link sub-link">
+                        <i class="fas fa-hospital-user"></i> IPD
+                    </a>
+                    <?php endif; ?>
 
-        <?php if (hasPerm('IPD Admission View')): ?>
-        <a href="add_ipd_patient.php" class="sidebar-link sub-link">
-            <i class="fas fa-hospital-user"></i> IPD
-        </a>
-        <?php endif; ?>
+                    <?php if (hasPerm('Referral View')): ?>
+                    <a href="referrals.php" class="sidebar-link sub-link">
+                        <i class="fas fa-share-alt"></i> Referrals
+                    </a>
+                    <?php endif; ?>
 
-        <?php if (hasPerm('Referral View')): ?>
-        <a href="referrals.php" class="sidebar-link sub-link">
-            <i class="fas fa-share-alt"></i> Referrals
-        </a>
-        <?php endif; ?>
-
-        <?php if (hasPerm('Call Patient View')): ?>
-        <a href="add_call_patient.php" class="sidebar-link sub-link">
-            <i class="fas fa-phone"></i> Call
-        </a>
-        <?php endif; ?>
-        
-    </div>
-</div>
-<?php endif; ?>
+                    <?php if (hasPerm('Call Patient View')): ?>
+                    <a href="add_call_patient.php" class="sidebar-link sub-link">
+                        <i class="fas fa-phone"></i> Call
+                    </a>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
 
             <?php if (hasPerm('Appointment View')): ?>
             <a href="appointments.php" class="sidebar-link <?php echo $current_page == 'appointments.php' ? 'active' : ''; ?>">
@@ -322,34 +382,63 @@ if (!function_exists('getDashboardUrl')) {
             </a>
             <?php endif; ?>
 
-
-
             <?php if (hasPerm('Prescription View')): ?>
             <a href="prescriptions.php" class="sidebar-link <?php echo $current_page == 'prescriptions.php' ? 'active' : ''; ?>">
                 <i class="fas fa-prescription"></i> Prescriptions
             </a>
             <?php endif; ?>
 
-           <?php if (hasAnyPerm(['Lab Orders View', 'Lab Reports View'])): ?>
-    <div class="sidebar-section-label">Services</div>
-    <div class="sidebar-dropdown">
-        <button class="dropdown-toggle" onclick="toggleMenu('labMenu')">
-            <span><i class="fas fa-flask"></i> Laboratory</span>
-            <i class="fas fa-chevron-down dropdown-arrow"></i>
-        </button>
-        <div id="labMenu" class="dropdown-menu">
-            <?php if (hasPerm('Lab Reports View')): ?>
-            <a href="lab_test_master.php" class="sidebar-link sub-link"><i class="fas fa-file-alt"></i> Lab Master</a>
+            <?php if (hasAnyPerm(['Surgery View', 'Surgery Create'])): ?>
+            <div class="sidebar-section-label">Operation Theatre</div>
+
+            <div class="sidebar-dropdown">
+                <button class="dropdown-toggle" onclick="toggleMenu('surgeryMenu')">
+                    <span><i class="fas fa-procedures"></i> Surgery</span>
+                    <i class="fas fa-chevron-down dropdown-arrow"></i>
+                </button>
+
+                <div id="surgeryMenu" class="dropdown-menu">
+                    <?php if (hasPerm('Surgery View')): ?>
+                    <a href="surgeries.php" class="sidebar-link sub-link">
+                        <i class="fas fa-list"></i> Surgery List
+                    </a>
+                    <?php endif; ?>
+
+                    <?php if (hasPerm('Surgery Create')): ?>
+                    <a href="add_surgery.php" class="sidebar-link sub-link">
+                        <i class="fas fa-plus-circle"></i> Schedule Surgery
+                    </a>
+                    <?php endif; ?>
+                </div>
+            </div>
             <?php endif; ?>
-            <?php if (hasPerm('Lab Orders View')): ?>
-            <a href="lab_order.php" class="sidebar-link sub-link"><i class="fas fa-vial"></i> Lab Orders</a>
+
+            <?php if (hasAnyPerm(['Lab Orders View', 'Lab Reports View'])): ?>
+            <div class="sidebar-section-label">Services</div>
+            <div class="sidebar-dropdown">
+                <button class="dropdown-toggle" onclick="toggleMenu('labMenu')">
+                    <span><i class="fas fa-flask"></i> Laboratory</span>
+                    <i class="fas fa-chevron-down dropdown-arrow"></i>
+                </button>
+                <div id="labMenu" class="dropdown-menu">
+                    <?php if (hasPerm('Lab Master View')): ?>
+                    <a href="lab_test_master.php" class="sidebar-link sub-link">
+                        <i class="fas fa-file-alt"></i> Lab Master
+                    </a>
+                    <?php endif; ?>
+                    <?php if (hasPerm('Lab Orders View')): ?>
+                    <a href="lab_order.php" class="sidebar-link sub-link">
+                        <i class="fas fa-vial"></i> Lab Orders
+                    </a>
+                    <?php endif; ?>
+                    <?php if (hasPerm('Lab Reports View')): ?>
+                    <a href="lab_report.php" class="sidebar-link sub-link">
+                        <i class="fas fa-file-medical"></i> Lab Reports
+                    </a>
+                    <?php endif; ?>
+                </div>
+            </div>
             <?php endif; ?>
-            <?php if (hasPerm('Lab Reports View')): ?>
-            <a href="lab_report.php" class="sidebar-link sub-link"><i class="fas fa-file-medical"></i> Lab Reports</a>
-            <?php endif; ?>
-        </div>
-    </div>
-<?php endif; ?>
 
             <?php if (hasAnyPerm(['Medicine View', 'Stock View', 'Medicine Sales View'])): ?>
             <div class="sidebar-dropdown">
@@ -359,18 +448,18 @@ if (!function_exists('getDashboardUrl')) {
                 </button>
                 <div id="pharmacyMenu" class="dropdown-menu">
                     <?php if (hasPerm('Stock View')): ?>
-                    <a href="pharmacy_stock.php" class="sidebar-link sub-link"><i class="fas fa-boxes"></i> Stock</a>
+                    <a href="pharmacy_stock.php" class="sidebar-link sub-link">
+                        <i class="fas fa-boxes"></i> Stock
+                    </a>
                     <?php endif; ?>
                     <?php if (hasPerm('Medicine Sales View')): ?>
-                    <a href="pharmacy_sales.php" class="sidebar-link sub-link"><i class="fas fa-cash-register"></i> Sales</a>
+                    <a href="pharmacy_sales.php" class="sidebar-link sub-link">
+                        <i class="fas fa-cash-register"></i> Sales
+                    </a>
                     <?php endif; ?>
-
-                    
                 </div>
             </div>
             <?php endif; ?>
-
-            
 
             <?php if (hasAnyPerm(['Doctor View', 'Staff View', 'Department View', 'Hospital View'])): ?>
             <div class="sidebar-section-label">Management</div>
@@ -393,16 +482,11 @@ if (!function_exists('getDashboardUrl')) {
             </a>
             <?php endif; ?>
 
-            <?php if (
-                    hasPerm('Ward View') ||
-                    hasPerm('Ward Create') ||
-                    hasPerm('Ward Edit') ||
-                    hasPerm('Ward Delete')
-                ): ?>
-                <a href="ward_master.php" class="sidebar-link <?php echo $current_page == 'ward_master.php' ? 'active' : ''; ?>">
-                    <i class="fas fa-procedures"></i> Ward Master
-                </a>
-                <?php endif; ?>
+            <?php if (hasAnyPerm(['Ward View', 'Ward Create', 'Ward Edit', 'Ward Delete'])): ?>
+            <a href="ward_master.php" class="sidebar-link <?php echo $current_page == 'ward_master.php' ? 'active' : ''; ?>">
+                <i class="fas fa-procedures"></i> Ward Master
+            </a>
+            <?php endif; ?>
 
             <?php if (hasPerm('Hospital View')): ?>
             <a href="general_settings.php" class="sidebar-link <?php echo $current_page == 'hospitals.php' ? 'active' : ''; ?>">
@@ -411,73 +495,70 @@ if (!function_exists('getDashboardUrl')) {
             <?php endif; ?>
             <?php endif; ?>
 
-            
-
-
             <?php
-$role = strtolower($_SESSION['role']);
+            $role = strtolower($_SESSION['role']);
 
-switch ($role) {
-    case 'super admin':
-        $profilePage = "superadmin/dashboard.php";
-        break;
+            switch ($role) {
+                case 'super admin':
+                    $profilePage = "superadmin/dashboard.php";
+                    break;
 
-    case 'admin':
-        $profilePage = "dashboard.php"; 
-        break;
+                case 'admin':
+                    $profilePage = "dashboard.php"; 
+                    break;
 
-    case 'doctor':
-        $profilePage = "doctors/dashboard.php";
-        break;
+                case 'doctor':
+                    $profilePage = "doctors/dashboard.php";
+                    break;
 
-    case 'nurse':
-        $profilePage = "staff/dashboard.php";
-        break;
+                case 'nurse':
+                    $profilePage = "staff/dashboard.php";
+                    break;
 
-    case 'ward boy':
-        $profilePage = "staff/dashboard.php";
-        break;
+                case 'ward boy':
+                    $profilePage = "staff/dashboard.php";
+                    break;
 
-    case 'lab technician':
-        $profilePage = "labtechnician/update_profile.php";
-        break;
+                case 'lab technician':
+                    $profilePage = "labtechnician/update_profile.php";
+                    break;
 
-    case 'patient':
-        $profilePage = "patients/profile.php";
-        break;
+                case 'patient':
+                    $profilePage = "patients/profile.php";
+                    break;
 
-    case 'billing staff':
-        $profilePage = "staff/billing_profile.php";
-        break;
+                case 'billing staff':
+                    $profilePage = "staff/billing_profile.php";
+                    break;
 
-    case 'accountant':
-        $profilePage = "staff/accountant_profile.php";
-        break;
+                case 'accountant':
+                    $profilePage = "staff/accountant_profile.php";
+                    break;
 
-    case 'pharmacist':
-        $profilePage = "staff/pharmacist_profile.php";
-        break;
+                case 'pharmacist':
+                    $profilePage = "staff/pharmacist_profile.php";
+                    break;
 
-    case 'staff':
-        $profilePage = "staff/profile.php";
-        break;
+                case 'staff':
+                    $profilePage = "staff/profile.php";
+                    break;
 
-    case 'receptionist':
-        $profilePage = "staff/reception_profile.php";
-        break;
+                case 'receptionist':
+                    $profilePage = "staff/reception_profile.php";
+                    break;
 
-    default:
-        $profilePage = "dashboard.php";
-}
-?>
+                default:
+                    $profilePage = "dashboard.php";
+            }
+            ?>
 
-<div class="sidebar-section-label">Account</div>
+            <div class="sidebar-section-label">Account</div>
 
-<a href="<?php echo $profilePage; ?>"
-   class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == basename($profilePage) ? 'active' : ''; ?>">
-    <i class="fas fa-user-circle"></i>
-    Update Profile
-</a>
+            <a href="update_adminprofile.php"
+               class="sidebar-link <?php echo basename($_SERVER['PHP_SELF']) == 'update_adminprofile.php' ? 'active' : ''; ?>">
+                <i class="fas fa-user-circle"></i>
+                Update Profile
+            </a>
 
             <div class="logout-section">
                 <a href="auth/logout.php" class="sidebar-link logout">
@@ -507,10 +588,19 @@ switch ($role) {
 
 <script>
 function toggleMenu(menuId) {
+    event.preventDefault();
+    event.stopPropagation();
+    
     const menu = document.getElementById(menuId);
+    if (!menu) return;
+    
     const btn = menu.previousElementSibling;
-    const arrow = btn.querySelector('.dropdown-arrow');
+    const arrow = btn ? btn.querySelector('.dropdown-arrow') : null;
+    
+    // Toggle the menu
     menu.classList.toggle('show');
+    
+    // Rotate arrow
     if (arrow) {
         arrow.style.transform = menu.classList.contains('show') ? 'rotate(180deg)' : 'rotate(0deg)';
     }
@@ -520,10 +610,67 @@ function toggleMenu(menuId) {
  * Universal Mobile Sidebar Toggle
  */
 function toggleSidebar() {
+    event.preventDefault();
+    event.stopPropagation();
+    
     const sidebar = document.getElementById('sidebar-container');
     const overlay = document.getElementById('sidebar-overlay');
 
-    sidebar.classList.toggle('active');
-    overlay.classList.toggle('active');
+    if (sidebar) {
+        sidebar.classList.toggle('active');
+    }
+    if (overlay) {
+        overlay.classList.toggle('active');
+    }
 }
+
+// Prevent sidebar from scrolling to top when clicking links
+document.addEventListener('DOMContentLoaded', function() {
+    // Get all sidebar links
+    const sidebarLinks = document.querySelectorAll('.sidebar-link, .dropdown-toggle');
+    
+    sidebarLinks.forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            // Allow dropdown toggles to work
+            if (this.classList.contains('dropdown-toggle')) {
+                return;
+            }
+            // For regular links, prevent default behavior that might cause scroll
+            // The link will still navigate, but we prevent any extra scroll effects
+            e.stopPropagation();
+        });
+    });
+    
+    // Preserve scroll position on page load
+    const sidebarContainer = document.getElementById('sidebar-container');
+    if (sidebarContainer) {
+        // Store scroll position before unload
+        window.addEventListener('beforeunload', function() {
+            sessionStorage.setItem('sidebarScrollPos', sidebarContainer.scrollTop);
+        });
+        
+        // Restore scroll position after load
+        const savedScrollPos = sessionStorage.getItem('sidebarScrollPos');
+        if (savedScrollPos !== null) {
+            setTimeout(function() {
+                sidebarContainer.scrollTop = parseInt(savedScrollPos);
+            }, 100);
+        }
+    }
+});
+
+// Prevent any anchor from causing scroll to top within sidebar
+document.addEventListener('click', function(e) {
+    const target = e.target.closest('a');
+    if (target && target.closest('#sidebar-container')) {
+        // Allow normal navigation but prevent any scroll reset
+        const currentScroll = document.getElementById('sidebar-container')?.scrollTop || 0;
+        setTimeout(function() {
+            const container = document.getElementById('sidebar-container');
+            if (container) {
+                container.scrollTop = currentScroll;
+            }
+        }, 50);
+    }
+});
 </script>

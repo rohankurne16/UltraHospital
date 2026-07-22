@@ -27,7 +27,7 @@ if (isset($_POST['add_new_category'])) {
     $created_by = $_SESSION['id'] ?? 1;
     
     // Get test data from form
-    $test_code = trim($_POST['test_code'] ?? '');
+    
     $test_name = trim($_POST['test_name'] ?? '');
     $price = floatval($_POST['price'] ?? 0);
     $unit = trim($_POST['unit'] ?? '');
@@ -41,9 +41,7 @@ if (isset($_POST['add_new_category'])) {
     if (empty($category_name)) {
         $errors[] = "Category name is required!";
     }
-    if (empty($test_code)) {
-        $errors[] = "Test code is required!";
-    }
+   
     if (empty($test_name)) {
         $errors[] = "Test name is required!";
     }
@@ -222,7 +220,7 @@ if (isset($_GET['toggle_status'])) {
 if (isset($_POST['save_test'])) {
     $test_id = intval($_POST['test_id'] ?? 0);
     $category_id = intval($_POST['category_id'] ?? 0);
-    $test_code = trim($_POST['test_code'] ?? '');
+   
     $test_name = trim($_POST['test_name'] ?? '');
     $price = floatval($_POST['price'] ?? 0);
     $unit = trim($_POST['unit'] ?? '');
@@ -235,7 +233,7 @@ if (isset($_POST['save_test'])) {
     
     $errors = [];
     if (empty($category_id)) $errors[] = "Please select a category";
-    if (empty($test_code)) $errors[] = "Please enter test code";
+    
     if (empty($test_name)) $errors[] = "Please enter test name";
     if ($price <= 0) $errors[] = "Please enter a valid price";
     
@@ -258,10 +256,25 @@ if (isset($_POST['save_test'])) {
                 $_SESSION['error'] = "Error updating test: " . $conn->error;
             }
         } else {
+
+        $sql = "SELECT MAX(test_id) AS last_id FROM lab_tests";
+$result = $conn->query($sql);
+$row = $result->fetch_assoc();
+
+$next_id = ($row['last_id'] ?? 0) + 1;
+$test_code = "LAB" . str_pad($next_id, 4, "0", STR_PAD_LEFT);
             $check = $conn->query("SELECT test_id FROM lab_tests WHERE test_code = '$test_code' AND delete_flag = 0");
             if ($check && $check->num_rows > 0) {
                 $_SESSION['error'] = "Test code already exists!";
             } else {
+
+              $sql = "SELECT MAX(test_id) AS last_id FROM lab_tests";
+    $result = $conn->query($sql);
+    $row = $result->fetch_assoc();
+
+    $next_id = ($row['last_id'] ?? 0) + 1;
+
+    $test_code = "LAB" . str_pad($next_id, 4, "0", STR_PAD_LEFT);
                 $sql = "INSERT INTO lab_tests (
                             category_id, test_code, test_name, price, unit, normal_range, 
                             sample_type, description, status, hospital_id, created_by
@@ -865,13 +878,7 @@ unset($_SESSION['form_data']);
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label>Test Code <?php if (!$edit_test): ?><span class="required">*</span><?php endif; ?></label>
-                    <input type="text" class="form-input" name="test_code" 
-                           value="<?php echo htmlspecialchars($edit_test['test_code'] ?? $form_data['test_code'] ?? ''); ?>" 
-                           <?php echo $edit_test ? 'readonly' : 'required'; ?>
-                           placeholder="<?php echo $edit_test ? 'Cannot be changed' : 'e.g., CBC001'; ?>">
-                </div>
+              
 
                 <div class="form-group">
                     <label>Test Name <span class="required">*</span></label>

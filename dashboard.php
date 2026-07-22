@@ -1,1439 +1,1074 @@
 <?php
-// ============================================================
-// DASHBOARD - WITH DYNAMIC DATA FROM ALL TABLES
-// ============================================================
 
-// Start session
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+session_start();
+include 'config/hospital.php'; // provides $conn (mysqli)
 
-// Include required files
-require_once 'config/permission.php';
-require_once 'config/hospital.php';
-
-// Check login
-if (!isset($_SESSION['id']) || empty($_SESSION['id'])) {
-    header('Location: login.php');
-    exit;
-}
-
-// Get user data
-$user_id = $_SESSION['id'];
-$role_id = $_SESSION['role_id'];
-$role_name = $_SESSION['role'] ?? '';
 $hospital_id = $_SESSION['hospital_id'] ?? 0;
-$page_title = 'Dashboard';
+$admin_name  = $_SESSION['full_name'] ?? 'Admin';
 
-// ============================================================
-// GET DASHBOARD STATISTICS FROM ALL TABLES
-// ============================================================
-
-// Today's date
-$today = date('Y-m-d');
-$current_month = date('m');
-$current_year = date('Y');
-$current_week = date('W');
-
-// Initialize all statistics
-$stats = [
-    'total_patients' => 0,
-    'total_doctors' => 0,
-    'total_staff' => 0,
-    'total_departments' => 0,
-    'total_appointments' => 0,
-    'today_appointments' => 0,
-    'pending_appointments' => 0,
-    'total_opd' => 0,
-    'total_ipd' => 0,
-    'total_prescriptions' => 0,
-    'total_bills' => 0,
-    'total_wards' => 0,
-    'total_rooms' => 0,
-    'total_beds' => 0,
-    'total_lab_tests' => 0,
-    'revenue_today' => 0,
-    'revenue_month' => 0,
-    'revenue_year' => 0,
-    'new_patients_today' => 0,
-    'new_patients_week' => 0,
-    'new_patients_month' => 0,
-    'appointment_today' => 0,
-    'appointment_week' => 0,
-    'appointment_month' => 0,
-    'opd_today' => 0,
-    'opd_month' => 0,
-    'ipd_active' => 0,
-    'ipd_discharged' => 0,
-];
-
-// ============================================================
-// FETCH DATA FROM ALL TABLES
-// ============================================================
-
-// Patients
-if (hasPermission('patient-view')) {
-    // Total Patients
-    $query = "SELECT COUNT(*) as total FROM patients WHERE (delete_flag=0 OR delete_flag IS NULL)";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['total_patients'] = $row['total'] ?? 0;
-    }
-    
-    // New Patients Today
-    $query = "SELECT COUNT(*) as total FROM patients WHERE (delete_flag=0 OR delete_flag IS NULL) AND DATE(created_at) = '$today'";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['new_patients_today'] = $row['total'] ?? 0;
-    }
-    
-    // New Patients This Week
-    $query = "SELECT COUNT(*) as total FROM patients WHERE (delete_flag=0 OR delete_flag IS NULL) AND WEEK(created_at) = '$current_week' AND YEAR(created_at) = '$current_year'";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['new_patients_week'] = $row['total'] ?? 0;
-    }
-    
-    // New Patients This Month
-    $query = "SELECT COUNT(*) as total FROM patients WHERE (delete_flag=0 OR delete_flag IS NULL) AND MONTH(created_at) = '$current_month' AND YEAR(created_at) = '$current_year'";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['new_patients_month'] = $row['total'] ?? 0;
-    }
+if(!$hospital_id){
+    header('Location:index.php');
+    exit();
 }
 
-// Doctors
-if (hasPermission('doctor-view')) {
-    $query = "SELECT COUNT(*) as total FROM doctor WHERE (delete_flag=0 OR delete_flag IS NULL)";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['total_doctors'] = $row['total'] ?? 0;
-    }
-}
-
-// Staff
-if (hasPermission('staff-view')) {
-    $query = "SELECT COUNT(*) as total FROM staff WHERE (delete_flag=0 OR delete_flag IS NULL)";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['total_staff'] = $row['total'] ?? 0;
-    }
-}
-
-// Departments
-if (hasPermission('department-view')) {
-    $query = "SELECT COUNT(*) as total FROM department WHERE (delete_flag=0 OR delete_flag IS NULL)";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['total_departments'] = $row['total'] ?? 0;
-    }
-}
-
-// Appointments
-if (hasPermission('appointment-view')) {
-    // Total Appointments
-    $query = "SELECT COUNT(*) as total FROM appointments WHERE (delete_flag=0 OR delete_flag IS NULL)";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['total_appointments'] = $row['total'] ?? 0;
-    }
-    
-    // Today's Appointments
-    $query = "SELECT COUNT(*) as total FROM appointments WHERE (delete_flag=0 OR delete_flag IS NULL) AND appointment_date = '$today'";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['appointment_today'] = $row['total'] ?? 0;
-        $stats['today_appointments'] = $row['total'] ?? 0;
-    }
-    
-    // Week Appointments
-    $query = "SELECT COUNT(*) as total FROM appointments WHERE (delete_flag=0 OR delete_flag IS NULL) AND WEEK(appointment_date) = '$current_week' AND YEAR(appointment_date) = '$current_year'";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['appointment_week'] = $row['total'] ?? 0;
-    }
-    
-    // Month Appointments
-    $query = "SELECT COUNT(*) as total FROM appointments WHERE (delete_flag=0 OR delete_flag IS NULL) AND MONTH(appointment_date) = '$current_month' AND YEAR(appointment_date) = '$current_year'";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['appointment_month'] = $row['total'] ?? 0;
-    }
-    
-    // Pending Appointments
-    $query = "SELECT COUNT(*) as total FROM appointments WHERE (delete_flag=0 OR delete_flag IS NULL) AND status = 'Pending'";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['pending_appointments'] = $row['total'] ?? 0;
-    }
-}
-
-// OPD
-if (hasPermission('opd-view')) {
-    // Total OPD
-    $query = "SELECT COUNT(*) as total FROM opd WHERE (delete_flag=0 OR delete_flag IS NULL)";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['total_opd'] = $row['total'] ?? 0;
-    }
-    
-    // OPD Today
-    $query = "SELECT COUNT(*) as total FROM opd WHERE (delete_flag=0 OR delete_flag IS NULL) AND DATE(created_at) = '$today'";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['opd_today'] = $row['total'] ?? 0;
-    }
-    
-    // OPD Month
-    $query = "SELECT COUNT(*) as total FROM opd WHERE (delete_flag=0 OR delete_flag IS NULL) AND MONTH(created_at) = '$current_month' AND YEAR(created_at) = '$current_year'";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['opd_month'] = $row['total'] ?? 0;
-    }
-}
-
-// IPD Admissions
-if (hasPermission('ipd-view')) {
-    // Total IPD
-    $query = "SELECT COUNT(*) as total FROM ipd_admissions WHERE (delete_flag=0 OR delete_flag IS NULL)";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['total_ipd'] = $row['total'] ?? 0;
-    }
-    
-    // Active IPD
-    $query = "SELECT COUNT(*) as total FROM ipd_admissions WHERE (delete_flag=0 OR delete_flag IS NULL) AND (status = 'Active' OR status = 'Admitted')";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['ipd_active'] = $row['total'] ?? 0;
-    }
-    
-    // Discharged IPD
-    $query = "SELECT COUNT(*) as total FROM ipd_admissions WHERE (delete_flag=0 OR delete_flag IS NULL) AND status = 'Discharged'";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['ipd_discharged'] = $row['total'] ?? 0;
-    }
-}
-
-// Prescriptions
-if (hasPermission('prescription-view')) {
-    $query = "SELECT COUNT(*) as total FROM prescriptions WHERE (delete_flag=0 OR delete_flag IS NULL)";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['total_prescriptions'] = $row['total'] ?? 0;
-    }
-}
-
-// Billing - Check if columns exist first
-if (hasPermission('billing-view')) {
-    // First check if billing table has records
-    $query = "SELECT COUNT(*) as total FROM billing WHERE (delete_flag=0 OR delete_flag IS NULL)";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['total_bills'] = $row['total'] ?? 0;
-    }
-    
-    // Try to get revenue - check if total_amount column exists
-    // First, check if column exists
-    $check_col = mysqli_query($conn, "SHOW COLUMNS FROM billing LIKE 'total_amount'");
-    $has_total_amount = mysqli_num_rows($check_col) > 0;
-    
-    if ($has_total_amount) {
-        // Today's Revenue
-        $query = "SELECT COALESCE(SUM(total_amount), 0) as total FROM billing WHERE (delete_flag=0 OR delete_flag IS NULL) AND DATE(created_at) = '$today'";
-        if ($hospital_id > 0) {
-            $query .= " AND hospital_id = '$hospital_id'";
-        }
-        $result = mysqli_query($conn, $query);
-        if ($result) {
-            $row = mysqli_fetch_assoc($result);
-            $stats['revenue_today'] = $row['total'] ?? 0;
-        }
-        
-        // Month's Revenue
-        $query = "SELECT COALESCE(SUM(total_amount), 0) as total FROM billing WHERE (delete_flag=0 OR delete_flag IS NULL) AND MONTH(created_at) = '$current_month' AND YEAR(created_at) = '$current_year'";
-        if ($hospital_id > 0) {
-            $query .= " AND hospital_id = '$hospital_id'";
-        }
-        $result = mysqli_query($conn, $query);
-        if ($result) {
-            $row = mysqli_fetch_assoc($result);
-            $stats['revenue_month'] = $row['total'] ?? 0;
-        }
-        
-        // Year's Revenue
-        $query = "SELECT COALESCE(SUM(total_amount), 0) as total FROM billing WHERE (delete_flag=0 OR delete_flag IS NULL) AND YEAR(created_at) = '$current_year'";
-        if ($hospital_id > 0) {
-            $query .= " AND hospital_id = '$hospital_id'";
-        }
-        $result = mysqli_query($conn, $query);
-        if ($result) {
-            $row = mysqli_fetch_assoc($result);
-            $stats['revenue_year'] = $row['total'] ?? 0;
-        }
+function scalar($conn, $sql, $types = '', $params = []) {
+    if ($types) {
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $res = $stmt->get_result();
     } else {
-        // Try alternative column names
-        $check_col = mysqli_query($conn, "SHOW COLUMNS FROM billing LIKE 'amount'");
-        $has_amount = mysqli_num_rows($check_col) > 0;
-        
-        $check_col = mysqli_query($conn, "SHOW COLUMNS FROM billing LIKE 'bill_amount'");
-        $has_bill_amount = mysqli_num_rows($check_col) > 0;
-        
-        $check_col = mysqli_query($conn, "SHOW COLUMNS FROM billing LIKE 'total'");
-        $has_total = mysqli_num_rows($check_col) > 0;
-        
-        $amount_col = 'total_amount';
-        if ($has_amount) $amount_col = 'amount';
-        elseif ($has_bill_amount) $amount_col = 'bill_amount';
-        elseif ($has_total) $amount_col = 'total';
-        
-        if ($has_amount || $has_bill_amount || $has_total) {
-            // Today's Revenue
-            $query = "SELECT COALESCE(SUM($amount_col), 0) as total FROM billing WHERE (delete_flag=0 OR delete_flag IS NULL) AND DATE(created_at) = '$today'";
-            if ($hospital_id > 0) {
-                $query .= " AND hospital_id = '$hospital_id'";
-            }
-            $result = mysqli_query($conn, $query);
-            if ($result) {
-                $row = mysqli_fetch_assoc($result);
-                $stats['revenue_today'] = $row['total'] ?? 0;
-            }
-            
-            // Month's Revenue
-            $query = "SELECT COALESCE(SUM($amount_col), 0) as total FROM billing WHERE (delete_flag=0 OR delete_flag IS NULL) AND MONTH(created_at) = '$current_month' AND YEAR(created_at) = '$current_year'";
-            if ($hospital_id > 0) {
-                $query .= " AND hospital_id = '$hospital_id'";
-            }
-            $result = mysqli_query($conn, $query);
-            if ($result) {
-                $row = mysqli_fetch_assoc($result);
-                $stats['revenue_month'] = $row['total'] ?? 0;
-            }
-            
-            // Year's Revenue
-            $query = "SELECT COALESCE(SUM($amount_col), 0) as total FROM billing WHERE (delete_flag=0 OR delete_flag IS NULL) AND YEAR(created_at) = '$current_year'";
-            if ($hospital_id > 0) {
-                $query .= " AND hospital_id = '$hospital_id'";
-            }
-            $result = mysqli_query($conn, $query);
-            if ($result) {
-                $row = mysqli_fetch_assoc($result);
-                $stats['revenue_year'] = $row['total'] ?? 0;
-            }
-        }
+        $res = $conn->query($sql);
     }
+    $row = $res->fetch_row();
+    return $row ? $row[0] : 0;
 }
 
-// Wards
-if (hasPermission('ward-view') || hasPermission('bed-view')) {
-    $query = "SELECT COUNT(*) as total FROM wards WHERE (delete_flag=0 OR delete_flag IS NULL)";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['total_wards'] = $row['total'] ?? 0;
-    }
+$totalPatients = scalar($conn,
+    "SELECT COUNT(*) FROM patients WHERE delete_flag = 0 AND hospital_id = ?",
+    'i', [$hospital_id]);
+
+$totalDoctors = scalar($conn,
+    "SELECT COUNT(*) FROM doctor WHERE delete_flag = 0 AND status='Active' AND hospital_id = ?",
+    'i', [$hospital_id]);
+
+$totalStaff = scalar($conn,
+    "SELECT COUNT(*) FROM staff WHERE delete_flag = 0 AND status='Active' AND hospital_id = ?",
+    'i', [$hospital_id]);
+
+$totalDepartments = scalar($conn,
+    "SELECT COUNT(*) FROM department WHERE delete_flag = 0 AND status='Active' AND hospital_id = ?",
+    'i', [$hospital_id]);
+
+$todayAppointments = scalar($conn,
+    "SELECT COUNT(*) FROM appointments WHERE delete_flag = 0 AND hospital_id = ? AND appointment_date = CURDATE()",
+    'i', [$hospital_id]);
+
+$todayOPDAppointments = scalar($conn,
+    "SELECT COUNT(*) FROM appointments WHERE delete_flag = 0 AND hospital_id = ? AND appointment_date = CURDATE() AND opd_ipd_type = 'OPD'",
+    'i', [$hospital_id]);
+
+$todayIPDAppointments = scalar($conn,
+    "SELECT COUNT(*) FROM appointments WHERE delete_flag = 0 AND hospital_id = ? AND appointment_date = CURDATE() AND opd_ipd_type = 'IPD'",
+    'i', [$hospital_id]);
+
+$totalAppointments = scalar($conn,
+    "SELECT COUNT(*) FROM appointments WHERE delete_flag = 0 AND hospital_id = ?",
+    'i', [$hospital_id]);
+
+$pendingAppointments = scalar($conn,
+    "SELECT COUNT(*) FROM appointments WHERE delete_flag = 0 AND hospital_id = ? AND status IN ('Scheduled','Confirmed')",
+    'i', [$hospital_id]);
+
+$totalRevenue = scalar($conn,
+    "SELECT COALESCE(SUM(paid_amount),0) FROM billing WHERE delete_flag = 0 AND hospital_id = ?",
+    'i', [$hospital_id]);
+
+$pendingRevenue = scalar($conn,
+    "SELECT COALESCE(SUM(pending_amount),0) FROM billing WHERE delete_flag = 0 AND hospital_id = ?",
+    'i', [$hospital_id]);
+
+$trendLabels = [];
+$trendData   = [];
+for ($i = 6; $i >= 0; $i--) {
+    $date = date('Y-m-d', strtotime("-$i day"));
+    $trendLabels[] = date('D', strtotime($date));
+    $count = scalar($conn,
+        "SELECT COUNT(*) FROM appointments WHERE delete_flag = 0 AND hospital_id = ? AND appointment_date = ?",
+        'is', [$hospital_id, $date]);
+    $trendData[] = (int)$count;
 }
 
-// Room Master
-if (hasPermission('room-view') || hasPermission('bed-view')) {
-    $query = "SELECT COUNT(*) as total FROM room_master WHERE (delete_flag=0 OR delete_flag IS NULL)";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['total_rooms'] = $row['total'] ?? 0;
-    }
+$opdCount = (int)scalar($conn,
+    "SELECT COUNT(*) FROM appointments WHERE delete_flag=0 AND hospital_id=? AND opd_ipd_type='OPD'",
+    'i', [$hospital_id]);
+$ipdCount = (int)scalar($conn,
+    "SELECT COUNT(*) FROM appointments WHERE delete_flag=0 AND hospital_id=? AND opd_ipd_type='IPD'",
+    'i', [$hospital_id]);
+
+$departments = [];
+$deptStmt = $conn->prepare(
+    "SELECT id, department_name, description, status
+     FROM department
+     WHERE delete_flag = 0 AND hospital_id = ?
+     ORDER BY department_name ASC"
+);
+$deptStmt->bind_param('i', $hospital_id);
+$deptStmt->execute();
+$deptRows = $deptStmt->get_result();
+
+$docStmt = $conn->prepare(
+    "SELECT doctor_id, doctor_name, specialization, status
+     FROM doctor
+     WHERE delete_flag = 0 AND hospital_id = ? AND LOWER(TRIM(department)) = LOWER(TRIM(?))
+     ORDER BY doctor_name ASC"
+);
+
+while ($d = $deptRows->fetch_assoc()) {
+    $docStmt->bind_param('is', $hospital_id, $d['department_name']);
+    $docStmt->execute();
+    $docRes = $docStmt->get_result();
+    $doctors = [];
+    while ($doc = $docRes->fetch_assoc()) $doctors[] = $doc;
+
+    $d['doctors'] = $doctors;
+    $d['doctor_count'] = count($doctors);
+    $departments[] = $d;
 }
 
-// Bed Master
-if (hasPermission('bed-view')) {
-    $query = "SELECT COUNT(*) as total FROM bed_master WHERE (delete_flag=0 OR delete_flag IS NULL)";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['total_beds'] = $row['total'] ?? 0;
-    }
+$deptColors = ['primary', 'success', 'info', 'warning', 'purple', 'danger'];
+
+$recentAppointments = [];
+$stmt = $conn->prepare(
+    "SELECT a.appointment_id, a.appointment_no, p.patient_id, p.patient_name, p.patient_image, d.doctor_id, d.doctor_name, a.appointment_date,
+            a.appointment_time, a.status, a.opd_ipd_type
+     FROM appointments a
+     LEFT JOIN patients p ON p.patient_id = a.patient_id
+     LEFT JOIN doctor d ON d.doctor_id = a.doctor_id
+     WHERE a.delete_flag = 0 AND a.hospital_id = ?
+     ORDER BY a.created_at DESC LIMIT 6"
+);
+$stmt->bind_param('i', $hospital_id);
+$stmt->execute();
+$res = $stmt->get_result();
+while ($row = $res->fetch_assoc()) $recentAppointments[] = $row;
+
+$recentPatients = [];
+$stmt = $conn->prepare(
+    "SELECT patient_id, patient_name, patient_image, gender, mobile, status, created_at
+     FROM patients WHERE delete_flag = 0 AND hospital_id = ?
+     ORDER BY created_at DESC LIMIT 5"
+);
+$stmt->bind_param('i', $hospital_id);
+$stmt->execute();
+$res = $stmt->get_result();
+while ($row = $res->fetch_assoc()) $recentPatients[] = $row;
+
+function statusBadge($status) {
+    $map = [
+        'Scheduled' => 'secondary', 'Confirmed' => 'info', 'Completed' => 'success',
+        'Cancelled' => 'danger', 'Active' => 'success', 'Inactive' => 'secondary',
+        'Pending' => 'warning', 'Paid' => 'success', 'Unpaid' => 'danger'
+    ];
+    $color = $map[$status] ?? 'secondary';
+    return "<span class=\"uh-badge uh-badge-{$color}\">{$status}</span>";
 }
 
-// Lab Tests
-if (hasPermission('lab-test-view')) {
-    $query = "SELECT COUNT(*) as total FROM lab_test_master WHERE (delete_flag=0 OR delete_flag IS NULL)";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $stats['total_lab_tests'] = $row['total'] ?? 0;
-    }
+function initials($name) {
+    $name = trim($name ?: '?');
+    $parts = preg_split('/\s+/', $name);
+    $ini = strtoupper(substr($parts[0], 0, 1));
+    if (count($parts) > 1) $ini .= strtoupper(substr(end($parts), 0, 1));
+    return $ini;
 }
 
-// ============================================================
-// GET CHART DATA
-// ============================================================
+$trendLabelsJson = json_encode($trendLabels);
+$trendDataJson   = json_encode($trendData);
 
-// Monthly Patient Data for Chart
-$monthly_patients = [];
-for ($i = 1; $i <= 12; $i++) {
-    $query = "SELECT COUNT(*) as total FROM patients WHERE (delete_flag=0 OR delete_flag IS NULL) AND MONTH(created_at) = '$i' AND YEAR(created_at) = '$current_year'";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    $count = 0;
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $count = $row['total'] ?? 0;
-    }
-    $monthly_patients[] = $count;
-}
-
-// Monthly Appointment Data for Chart
-$monthly_appointments = [];
-for ($i = 1; $i <= 12; $i++) {
-    $query = "SELECT COUNT(*) as total FROM appointments WHERE (delete_flag=0 OR delete_flag IS NULL) AND MONTH(appointment_date) = '$i' AND YEAR(appointment_date) = '$current_year'";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    $count = 0;
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $count = $row['total'] ?? 0;
-    }
-    $monthly_appointments[] = $count;
-}
-
-// Monthly Revenue Data for Chart - Only if billing table has amount column
-$monthly_revenue = array_fill(0, 12, 0);
-if (hasPermission('billing-view')) {
-    // Check if any amount column exists
-    $check_col = mysqli_query($conn, "SHOW COLUMNS FROM billing LIKE 'total_amount'");
-    $has_total_amount = mysqli_num_rows($check_col) > 0;
-    if (!$has_total_amount) {
-        $check_col = mysqli_query($conn, "SHOW COLUMNS FROM billing LIKE 'amount'");
-        $has_total_amount = mysqli_num_rows($check_col) > 0;
-        if (!$has_total_amount) {
-            $check_col = mysqli_query($conn, "SHOW COLUMNS FROM billing LIKE 'bill_amount'");
-            $has_total_amount = mysqli_num_rows($check_col) > 0;
-        }
-        if (!$has_total_amount) {
-            $check_col = mysqli_query($conn, "SHOW COLUMNS FROM billing LIKE 'total'");
-            $has_total_amount = mysqli_num_rows($check_col) > 0;
-        }
-    }
-    
-    if ($has_total_amount) {
-        $amount_col = 'total_amount';
-        // Find the correct column name
-        $check_col = mysqli_query($conn, "SHOW COLUMNS FROM billing");
-        while ($col = mysqli_fetch_assoc($check_col)) {
-            if (in_array($col['Field'], ['total_amount', 'amount', 'bill_amount', 'total'])) {
-                $amount_col = $col['Field'];
-                break;
-            }
-        }
-        
-        for ($i = 1; $i <= 12; $i++) {
-            $query = "SELECT COALESCE(SUM($amount_col), 0) as total FROM billing WHERE (delete_flag=0 OR delete_flag IS NULL) AND MONTH(created_at) = '$i' AND YEAR(created_at) = '$current_year'";
-            if ($hospital_id > 0) {
-                $query .= " AND hospital_id = '$hospital_id'";
-            }
-            $result = mysqli_query($conn, $query);
-            $count = 0;
-            if ($result) {
-                $row = mysqli_fetch_assoc($result);
-                $count = $row['total'] ?? 0;
-            }
-            $monthly_revenue[$i-1] = $count;
-        }
-    }
-}
-
-// Department-wise Patient Distribution
-// Department-wise Patient Distribution
-$department_patients = [];
-$department_names = [];
-
-// First, check what the primary key column name is in patients table
-$pk_check = mysqli_query($conn, "SHOW KEYS FROM patients WHERE Key_name = 'PRIMARY'");
-$pk_row = mysqli_fetch_assoc($pk_check);
-$pk_column = $pk_row['Column_name'] ?? 'id';
-
-// Also check if department_id column exists
-$dept_col_check = mysqli_query($conn, "SHOW COLUMNS FROM patients LIKE 'department_id'");
-$has_dept_col = mysqli_num_rows($dept_col_check) > 0;
-
-if ($has_dept_col) {
-    $query = "SELECT d.department_name, COUNT(p.$pk_column) as total 
-              FROM department d 
-              LEFT JOIN patients p ON d.id = p.department_id AND (p.delete_flag=0 OR p.delete_flag IS NULL)
-              WHERE (d.delete_flag=0 OR d.delete_flag IS NULL)";
-    if ($hospital_id > 0) {
-        $query .= " AND d.hospital_id = '$hospital_id'";
-    }
-    $query .= " GROUP BY d.id LIMIT 6";
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        while ($row = mysqli_fetch_assoc($result)) {
-            $department_names[] = $row['department_name'];
-            $department_patients[] = (int)$row['total'];
-        }
-    }
-} else {
-    // If department_id doesn't exist, try other possible column names
-    $possible_dept_cols = ['dept_id', 'deptartment', 'department', 'dept'];
-    foreach ($possible_dept_cols as $col) {
-        $col_check = mysqli_query($conn, "SHOW COLUMNS FROM patients LIKE '$col'");
-        if (mysqli_num_rows($col_check) > 0) {
-            $query = "SELECT d.department_name, COUNT(p.$pk_column) as total 
-                      FROM department d 
-                      LEFT JOIN patients p ON d.id = p.$col AND (p.delete_flag=0 OR p.delete_flag IS NULL)
-                      WHERE (d.delete_flag=0 OR d.delete_flag IS NULL)";
-            if ($hospital_id > 0) {
-                $query .= " AND d.hospital_id = '$hospital_id'";
-            }
-            $query .= " GROUP BY d.id LIMIT 6";
-            $result = mysqli_query($conn, $query);
-            if ($result) {
-                while ($row = mysqli_fetch_assoc($result)) {
-                    $department_names[] = $row['department_name'];
-                    $department_patients[] = (int)$row['total'];
-                }
-            }
-            break;
-        }
-    }
-}
-
-// If no department column found, just show department names with 0
-if (empty($department_names)) {
-    $query = "SELECT department_name FROM department WHERE (delete_flag=0 OR delete_flag IS NULL)";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $query .= " LIMIT 6";
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        while ($row = mysqli_fetch_assoc($result)) {
-            $department_names[] = $row['department_name'];
-            $department_patients[] = 0;
-        }
-    }
-}
-
-// Appointment Status Distribution
-$status_data = [];
-$status_labels = ['Pending', 'Confirmed', 'Completed', 'Cancelled'];
-foreach ($status_labels as $status) {
-    $query = "SELECT COUNT(*) as total FROM appointments WHERE (delete_flag=0 OR delete_flag IS NULL) AND status = '$status'";
-    if ($hospital_id > 0) {
-        $query .= " AND hospital_id = '$hospital_id'";
-    }
-    $result = mysqli_query($conn, $query);
-    $count = 0;
-    if ($result) {
-        $row = mysqli_fetch_assoc($result);
-        $count = $row['total'] ?? 0;
-    }
-    $status_data[] = $count;
-}
-
-// Gender Distribution
-$gender_data = [];
-$query = "SELECT gender, COUNT(*) as total FROM patients WHERE (delete_flag=0 OR delete_flag IS NULL) GROUP BY gender";
-if ($hospital_id > 0) {
-    $query .= " AND hospital_id = '$hospital_id'";
-}
-$result = mysqli_query($conn, $query);
-$gender_counts = ['Male' => 0, 'Female' => 0, 'Other' => 0];
-if ($result) {
-    while ($row = mysqli_fetch_assoc($result)) {
-        $gender = $row['gender'] ?? 'Other';
-        if ($gender == 'Male' || $gender == 'male' || $gender == 'M' || $gender == 'm') {
-            $gender_counts['Male'] = (int)$row['total'];
-        } elseif ($gender == 'Female' || $gender == 'female' || $gender == 'F' || $gender == 'f') {
-            $gender_counts['Female'] = (int)$row['total'];
-        } else {
-            $gender_counts['Other'] = (int)$row['total'];
-        }
-    }
-}
-$gender_labels = ['Male', 'Female', 'Other'];
-$gender_values = array_values($gender_counts);
-
-// ============================================================
-// GET TODAY'S APPOINTMENTS LIST
-// ============================================================
-$today_appointments_list = [];
-if (hasPermission('appointment-view')) {
-    $query = "SELECT a.*, p.name as patient_name, p.id as patient_id, d.doctor_name 
-              FROM appointments a 
-              LEFT JOIN patients p ON a.patient_id = p.id 
-              LEFT JOIN doctor d ON a.doctor_id = d.id 
-              WHERE (a.delete_flag=0 OR a.delete_flag IS NULL) AND a.appointment_date = '$today'";
-    if ($hospital_id > 0) {
-        $query .= " AND a.hospital_id = '$hospital_id'";
-    }
-    $query .= " ORDER BY a.appointment_time LIMIT 5";
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        while ($row = mysqli_fetch_assoc($result)) {
-            $today_appointments_list[] = $row;
-        }
-    }
-}
-
-// ============================================================
-// GET RECENT ACTIVITY
-// ============================================================
-$recent_activities = [];
-$query = "SELECT module, action, created_at, register_id FROM audit_logs";
-if ($hospital_id > 0) {
-    $query .= " WHERE hospital_id = '$hospital_id' OR hospital_id IS NULL";
-}
-$query .= " ORDER BY created_at DESC LIMIT 10";
-$result = mysqli_query($conn, $query);
-if ($result) {
-    while ($row = mysqli_fetch_assoc($result)) {
-        $recent_activities[] = $row;
-    }
-}
-
-// ============================================================
-// GET HOSPITAL NAME AND USER DATA
-// ============================================================
-$hospital_name = isset($hospital['hospital_name']) ? $hospital['hospital_name'] : 'Hospital';
-$hospital_logo = isset($hospital['hospital_logo']) ? $hospital['hospital_logo'] : '';
-$user_name = $_SESSION['name'] ?? 'User';
-$profile_image = $_SESSION['profile_image'] ?? '';
-$user_role = $_SESSION['role'] ?? '';
-
-// Build modules array for widgets
-$modules = [];
-if (hasPermission('appointment-view')) {
-    $modules[] = ['title' => 'Appointments', 'count' => $stats['total_appointments'], 'icon' => 'fa-calendar-check', 'color' => 'blue', 'sub' => $stats['today_appointments'] . ' today'];
-}
-if (hasPermission('patient-view')) {
-    $modules[] = ['title' => 'Patients', 'count' => $stats['total_patients'], 'icon' => 'fa-users', 'color' => 'green', 'sub' => $stats['new_patients_today'] . ' new today'];
-}
-if (hasPermission('doctor-view')) {
-    $modules[] = ['title' => 'Doctors', 'count' => $stats['total_doctors'], 'icon' => 'fa-user-md', 'color' => 'purple', 'sub' => 'Available'];
-}
-if (hasPermission('opd-view')) {
-    $modules[] = ['title' => 'OPD Visits', 'count' => $stats['total_opd'], 'icon' => 'fa-stethoscope', 'color' => 'orange', 'sub' => $stats['opd_today'] . ' today'];
-}
-if (hasPermission('ipd-view')) {
-    $modules[] = ['title' => 'IPD Admissions', 'count' => $stats['total_ipd'], 'icon' => 'fa-hospital-user', 'color' => 'red', 'sub' => $stats['ipd_active'] . ' active'];
-}
-if (hasPermission('prescription-view')) {
-    $modules[] = ['title' => 'Prescriptions', 'count' => $stats['total_prescriptions'], 'icon' => 'fa-prescription', 'color' => 'pink', 'sub' => 'Total issued'];
-}
-if (hasPermission('billing-view')) {
-    $modules[] = ['title' => 'Bills', 'count' => $stats['total_bills'], 'icon' => 'fa-file-invoice', 'color' => 'indigo', 'sub' => '₹' . number_format($stats['revenue_today']) . ' today'];
-}
-if (hasPermission('staff-view')) {
-    $modules[] = ['title' => 'Staff', 'count' => $stats['total_staff'], 'icon' => 'fa-user-tie', 'color' => 'cyan', 'sub' => 'Total'];
-}
-if (hasPermission('department-view')) {
-    $modules[] = ['title' => 'Departments', 'count' => $stats['total_departments'], 'icon' => 'fa-building', 'color' => 'teal', 'sub' => 'Active'];
-}
-if (hasPermission('bed-view')) {
-    $modules[] = ['title' => 'Beds', 'count' => $stats['total_beds'], 'icon' => 'fa-bed', 'color' => 'rose', 'sub' => 'Available'];
-}
-
-// Month names for charts
-$month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $page_title; ?> - <?php echo htmlspecialchars($hospital_name); ?></title>
-    <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($hospital_logo); ?>">
-   
-    
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title> Hospital Dashboard - <?php echo $hospital['hospital_name'] ?></title>
+    <link rel="icon" type="image/png" href="<?php echo $hospital['hospital_logo'] ?>">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Inter', sans-serif; 
-            background: #f0f2f5;
-        }
+        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #f8fafc; }
         
-        .main-content {
-            margin-left: 260px;
-            padding: 20px;
-            min-height: 100vh;
+        .uh-dash{ --uhp:#4f6ef7; --uhp-d:#3a56d4; --uhp-l:#eef1fd;
+            --uhs:#1aa053; --uhw:#f2a93b; --uhr:#e5484d; --uhi:#2fb5d2; --uhu:#7b3fe4;
+            --ink:#1f2430; --muted:#6b7a8f; --border:#e8ebf0;
+            font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            padding:24px 28px 44px; 
+            max-width:1500px; 
+            margin-left:280px;
+            margin-right:0;
+            font-size:14px; 
+            line-height:1.5; 
+            color:var(--ink);
             transition: margin-left 0.3s ease;
         }
+        .uh-dash *{ box-sizing:border-box; }
+        .uh-dash .uh-head{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:24px; }
+        .uh-dash .uh-head h4{ font-weight:600; font-size:1.5rem; color:var(--ink); margin:0; letter-spacing:-0.02em; }
+        .uh-dash .uh-head h4 span{ font-weight:400; font-size:1rem; }
+        .uh-dash .uh-head p{ color:var(--muted); margin:4px 0 0; font-size:0.875rem; }
+        .uh-dash .uh-date{ background:#fff; border:1px solid var(--border); border-radius:40px; padding:8px 18px;
+            font-size:0.8rem; font-weight:500; color:var(--muted); box-shadow:0 2px 8px rgba(31,36,48,.04); white-space:nowrap; }
+        .uh-dash .uh-date i{ color:var(--uhp); margin-right:6px; }
+
+        .uh-dash .uh-grid{ display:grid; gap:16px; margin-bottom:16px; }
+        .uh-dash .uh-grid-4{ grid-template-columns:repeat(4,1fr); }
+        .uh-dash .uh-grid-2-1{ grid-template-columns:2fr 1fr; }
+        .uh-dash .uh-grid-7-5{ grid-template-columns:1.4fr 1fr; }
+
+        @media (max-width:1100px){
+            .uh-dash .uh-grid-4{ grid-template-columns:repeat(2,1fr); }
+            .uh-dash .uh-grid-2-1, .uh-dash .uh-grid-7-5{ grid-template-columns:1fr; }
+            .uh-dash{ margin-left:240px; padding:20px; }
+        }
+        @media (max-width:991px){
+            .uh-dash{ margin-left:0 !important; padding:16px; }
+        }
+        @media (max-width:560px){ 
+            .uh-dash .uh-grid-4{ grid-template-columns:1fr; }
+            .uh-dash{ padding:12px; }
+        }
+
+        .uh-dash .stat{ background:#fff; border:1px solid var(--border); border-radius:14px; padding:18px 20px;
+            box-shadow:0 2px 8px rgba(31,36,48,.04); transition:all 0.2s ease; cursor:pointer; }
+        .uh-dash .stat:hover{ transform:translateY(-3px); box-shadow:0 8px 20px rgba(31,36,48,.08); border-color:var(--uhp); }
+        .uh-dash .stat .ic{ width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+            font-size:1.1rem; margin-bottom:14px; }
+        .uh-dash .stat .val{ font-size:1.6rem; font-weight:600; color:var(--ink); line-height:1.1; letter-spacing:-0.02em; }
+        .uh-dash .stat .lbl{ color:var(--muted); font-size:0.78rem; font-weight:500; margin-top:6px; }
+
+        .uh-dash .soft-primary{ background:var(--uhp-l); color:var(--uhp); }
+        .uh-dash .soft-success{ background:#e6f7ed; color:var(--uhs); }
+        .uh-dash .soft-warning{ background:#fef4e4; color:var(--uhw); }
+        .uh-dash .soft-info{ background:#e4f5fa; color:var(--uhi); }
+        .uh-dash .soft-danger{ background:#fdeaea; color:var(--uhr); }
+        .uh-dash .soft-purple{ background:#f0e9fd; color:var(--uhu); }
+
+        .uh-dash .card{ background:#fff; border:1px solid var(--border); border-radius:14px; padding:22px 24px;
+            box-shadow:0 2px 8px rgba(31,36,48,.04); }
+        .uh-dash .card-title{ font-weight:600; color:var(--ink); font-size:1rem; margin:0 0 2px; }
+        .uh-dash .card-sub{ color:var(--muted); font-size:0.78rem; margin:0 0 16px; }
+        .uh-dash .card-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; }
+        .uh-dash .view-all{ font-size:0.8rem; font-weight:500; color:var(--uhp); text-decoration:none; white-space:nowrap; padding:4px 0; }
+        .uh-dash .view-all:hover{ color:var(--uhp-d); text-decoration:underline; }
+
+        .uh-dash .chart-box{ position:relative; height:260px; }
+        .uh-dash .chart-box.sm{ height:210px; }
+
+        .uh-dash table{ width:100%; border-collapse:separate; border-spacing:0; font-size:0.85rem; }
+        .uh-dash thead th{ text-align:left; color:var(--muted); font-weight:600; text-transform:uppercase;
+            font-size:0.62rem; letter-spacing:0.04em; padding:0 8px 10px; border-bottom:1px solid var(--border); }
+        .uh-dash tbody td{ padding:12px 8px; border-bottom:1px solid #f0f2f6; color:var(--ink); vertical-align:middle; }
+        .uh-dash tbody tr:last-child td{ border-bottom:none; }
+        .uh-dash tbody tr{ cursor:pointer; transition:background 0.15s; }
+        .uh-dash tbody tr:hover{ background:#f8fafc; }
         
-        .main-content.sidebar-collapsed {
-            margin-left: 70px;
+        .uh-dash .name-cell{ display:flex; align-items:center; gap:8px; }
+        .uh-dash .name-cell a{ color:var(--ink); text-decoration:none; display:flex; align-items:center; gap:8px; }
+        .uh-dash .name-cell a:hover{ color:var(--uhp); text-decoration:underline; }
+        .uh-dash .avatar{ width:32px; height:32px; border-radius:50%; background:var(--uhp-l); color:var(--uhp);
+            display:flex; align-items:center; justify-content:center; font-weight:600; font-size:0.7rem; flex-shrink:0; }
+
+        .uh-dash .uh-badge{ display:inline-block; font-weight:500; font-size:0.7rem; border-radius:20px; padding:3px 11px; letter-spacing:0.01em; }
+        .uh-dash .uh-badge-primary{ background:var(--uhp-l); color:var(--uhp); }
+        .uh-dash .uh-badge-success{ background:#e6f7ed; color:var(--uhs); }
+        .uh-dash .uh-badge-info{ background:#e4f5fa; color:#1e8ea8; }
+        .uh-dash .uh-badge-warning{ background:#fef4e4; color:#b87a1e; }
+        .uh-dash .uh-badge-danger{ background:#fdeaea; color:var(--uhr); }
+        .uh-dash .uh-badge-secondary{ background:#eef0f4; color:var(--muted); }
+        .uh-dash .uh-badge-purple{ background:#f0e9fd; color:var(--uhu); }
+
+        .uh-dash .empty{ text-align:center; color:var(--muted); padding:30px 10px; font-size:0.85rem; }
+
+        .uh-dash .dept-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(250px,1fr)); gap:14px; }
+        .uh-dash .dept-card{ border:1px solid var(--border); border-radius:14px; padding:16px 18px; background:#fafcff;
+            transition:all 0.2s ease; cursor:pointer; }
+        .uh-dash .dept-card:hover{ box-shadow:0 6px 16px rgba(31,36,48,.06); transform:translateY(-2px); border-color:var(--uhp); }
+        .uh-dash .dept-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+        .uh-dash .dept-icon{ width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:0.95rem; }
+        .uh-dash .dept-name{ font-weight:600; color:var(--ink); font-size:0.9rem; margin:10px 0 1px; }
+        .uh-dash .dept-name a{ color:var(--ink); text-decoration:none; display:block; }
+        .uh-dash .dept-name a:hover{ color:var(--uhp); text-decoration:underline; }
+        .uh-dash .dept-count{ color:var(--muted); font-size:0.75rem; margin-bottom:10px; }
+        .uh-dash .doc-stack{ display:flex; align-items:center; flex-wrap:wrap; gap:2px; }
+        .uh-dash .doc-stack .avatar{ margin-left:-8px; border:2px solid #fff; cursor:pointer; }
+        .uh-dash .doc-stack .avatar:first-child{ margin-left:0; }
+        .uh-dash .doc-more{ font-size:0.7rem; color:var(--muted); margin-left:8px; font-weight:500; }
+
+        .uh-dash .quick-links{ display:flex; flex-direction:column; gap:8px; }
+        .uh-dash .quick-link{ display:flex; align-items:center; gap:12px; padding:13px 16px; border-radius:12px;
+            border:1px solid var(--border); text-decoration:none; color:var(--ink); font-weight:500; font-size:0.85rem;
+            background:#fafcff; transition:all 0.2s ease; }
+        .uh-dash .quick-link:hover{ background:var(--uhp-l); color:var(--uhp); border-color:var(--uhp); transform:translateX(4px); }
+        .uh-dash .quick-link i{ width:20px; text-align:center; font-size:1rem; color:var(--uhp); }
+
+        .uh-dash .stat-link{ text-decoration:none; display:block; }
+        
+        .uh-dash .clickable-row{ cursor:pointer; }
+        .uh-dash .clickable-row:hover{ background:#f1f5f9; }
+
+        /* ============================================================
+           ATTRACTIVE TABLE STYLES FOR RECENT APPOINTMENTS & NEW PATIENTS
+           ============================================================ */
+        .table-wrapper {
+            position: relative;
+            overflow: hidden;
         }
         
-        .dashboard-card {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-            transition: all 0.3s ease;
-            border: 1px solid #e2e8f0;
-            cursor: pointer;
-            height: 100%;
+        .table-wrapper .table-header-bg {
+            background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
         }
         
-        .dashboard-card:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            transform: translateY(-2px);
+        .uh-dash .table-modern {
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
         }
         
-        .dashboard-card .card-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 10px;
+        .uh-dash .table-modern thead th {
+            padding: 14px 16px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #64748b;
+            border-bottom: 2px solid #e2e8f0;
+            background: #f8fafc;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        .uh-dash .table-modern thead th:first-child {
+            border-radius: 12px 0 0 0;
+            padding-left: 20px;
+        }
+        
+        .uh-dash .table-modern thead th:last-child {
+            border-radius: 0 12px 0 0;
+            padding-right: 20px;
+        }
+        
+        .uh-dash .table-modern tbody tr {
+            transition: all 0.25s ease;
+            border-bottom: 1px solid #f1f5f9;
+            position: relative;
+        }
+        
+        .uh-dash .table-modern tbody tr:last-child {
+            border-bottom: none;
+        }
+        
+        .uh-dash .table-modern tbody tr:last-child td:first-child {
+            border-radius: 0 0 0 12px;
+        }
+        
+        .uh-dash .table-modern tbody tr:last-child td:last-child {
+            border-radius: 0 0 12px 0;
+        }
+        
+        .uh-dash .table-modern tbody tr:hover {
+            background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+            transform: scale(1.01);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+        }
+        
+        .uh-dash .table-modern tbody td {
+            padding: 14px 16px;
+            vertical-align: middle;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.85rem;
+            color: #1e293b;
+            background: transparent;
+        }
+        
+        .uh-dash .table-modern tbody td:first-child {
+            padding-left: 20px;
+        }
+        
+        .uh-dash .table-modern tbody td:last-child {
+            padding-right: 20px;
+        }
+        
+        /* Enhanced Avatar */
+        .uh-dash .avatar-modern {
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.2rem;
-        }
-        .quick-action-btn {
-    padding: 16px 12px;
-    border-radius: 12px;
-    border: 1px solid #f1f5f9;
-    background: #fafbfc;
-    transition: all 0.3s ease;
-    text-align: center;
-    text-decoration: none;
-    color: #1e293b;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    position: relative;
-    overflow: hidden;
-}
-
-.quick-action-btn::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(135deg, transparent 50%, rgba(59, 130, 246, 0.03));
-    pointer-events: none;
-}
-
-.quick-action-btn:hover {
-    background: #ffffff;
-    border-color: #e2e8f0;
-    transform: translateY(-4px);
-    box-shadow: 0 8px 25px rgba(0,0,0,0.08);
-}
-
-.quick-action-btn .icon-wrapper {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s ease;
-}
-
-.quick-action-btn:hover .icon-wrapper {
-    transform: scale(1.05);
-}
-
-.quick-action-btn .action-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #1e293b;
-    margin-top: 4px;
-    transition: color 0.3s ease;
-}
-
-.quick-action-btn:hover .action-label {
-    color: #3b82f6;
-}
-
-.quick-action-btn .action-sub {
-    font-size: 0.6rem;
-    color: #94a3b8;
-    margin-top: 1px;
-}
-        .dashboard-card .card-value {
-            font-size: 1.8rem;
             font-weight: 700;
-            color: #1e293b;
+            font-size: 0.8rem;
+            color: #fff;
+            flex-shrink: 0;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
         
-        .dashboard-card .card-label {
-            font-size: 0.85rem;
-            color: #94a3b8;
+        .uh-dash .avatar-modern:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
         }
         
-        .dashboard-card .card-sub {
-            font-size: 0.7rem;
-            color: #94a3b8;
-            margin-top: 2px;
-        }
+        .uh-dash .avatar-blue { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .uh-dash .avatar-green { background: linear-gradient(135deg, #22c55e, #16a34a); }
+        .uh-dash .avatar-purple { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+        .uh-dash .avatar-pink { background: linear-gradient(135deg, #ec4899, #db2777); }
+        .uh-dash .avatar-orange { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .uh-dash .avatar-red { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .uh-dash .avatar-teal { background: linear-gradient(135deg, #14b8a6, #0d9488); }
+        .uh-dash .avatar-indigo { background: linear-gradient(135deg, #6366f1, #4f46e5); }
         
-        .color-blue { background: #dbeafe; color: #3b82f6; }
-        .color-green { background: #dcfce7; color: #22c55e; }
-        .color-purple { background: #f3e8ff; color: #8b5cf6; }
-        .color-orange { background: #fef3c7; color: #f59e0b; }
-        .color-red { background: #fee2e2; color: #dc2626; }
-        .color-pink { background: #fce7f3; color: #ec4899; }
-        .color-indigo { background: #e0e7ff; color: #6366f1; }
-        .color-cyan { background: #cffafe; color: #06b6d4; }
-        .color-teal { background: #ccfbf1; color: #14b8a6; }
-        .color-yellow { background: #fef9c3; color: #eab308; }
-        .color-rose { background: #ffe4e6; color: #f43f5e; }
-        
-        .quick-action-btn {
-            padding: 12px 16px;
-            border-radius: 10px;
-            border: 1px solid #e2e8f0;
-            background: #f8fafc;
-            transition: all 0.2s ease;
-            text-align: center;
-            text-decoration: none;
-            color: #1e293b;
-            display: flex;
-            flex-direction: column;
+        /* Enhanced Badges */
+        .uh-dash .badge-modern {
+            display: inline-flex;
             align-items: center;
             gap: 4px;
-        }
-        .quick-action-btn:hover {
-            background: #eff6ff;
-            border-color: #3b82f6;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(59,130,246,0.15);
-        }
-        .quick-action-btn i {
-            font-size: 1.5rem;
+            padding: 5px 14px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
         }
         
-        .welcome-card {
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
-            border-radius: 12px;
-            padding: 30px;
-            color: white;
+        .uh-dash .badge-modern:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
-        .welcome-card .text-blue-light { color: rgba(255,255,255,0.8); }
         
-        .activity-item {
-            display: flex;
+        .uh-dash .badge-modern.badge-confirmed {
+            background: #dbeafe;
+            color: #1e40af;
+            border-color: #bfdbfe;
+        }
+        
+        .uh-dash .badge-modern.badge-scheduled {
+            background: #fef3c7;
+            color: #92400e;
+            border-color: #fde68a;
+        }
+        
+        .uh-dash .badge-modern.badge-completed {
+            background: #d1fae5;
+            color: #065f46;
+            border-color: #a7f3d0;
+        }
+        
+        .uh-dash .badge-modern.badge-cancelled {
+            background: #fee2e2;
+            color: #991b1b;
+            border-color: #fca5a5;
+        }
+        
+        .uh-dash .badge-modern.badge-active {
+            background: #d1fae5;
+            color: #065f46;
+            border-color: #a7f3d0;
+        }
+        
+        .uh-dash .badge-modern.badge-inactive {
+            background: #f1f5f9;
+            color: #64748b;
+            border-color: #e2e8f0;
+        }
+        
+        .uh-dash .badge-modern.badge-pending {
+            background: #fef3c7;
+            color: #92400e;
+            border-color: #fde68a;
+        }
+        
+        .uh-dash .badge-modern.badge-warning {
+            background: #fef3c7;
+            color: #92400e;
+            border-color: #fde68a;
+        }
+        
+        .uh-dash .badge-modern.badge-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border-color: #bfdbfe;
+        }
+        
+        .uh-dash .badge-modern.badge-success {
+            background: #d1fae5;
+            color: #065f46;
+            border-color: #a7f3d0;
+        }
+        
+        .uh-dash .badge-modern.badge-danger {
+            background: #fee2e2;
+            color: #991b1b;
+            border-color: #fca5a5;
+        }
+        
+        .uh-dash .badge-modern.badge-secondary {
+            background: #f1f5f9;
+            color: #64748b;
+            border-color: #e2e8f0;
+        }
+        
+        .uh-dash .badge-modern.badge-purple {
+            background: #ede9fe;
+            color: #6d28d9;
+            border-color: #ddd6fe;
+        }
+        
+        /* Appointment Type Badge */
+        .uh-dash .type-badge {
+            display: inline-flex;
             align-items: center;
-            gap: 12px;
-            padding: 8px 0;
-            border-bottom: 1px solid #f1f5f9;
+            gap: 4px;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
         }
-        .activity-item:last-child { border-bottom: none; }
-        .activity-dot {
+        
+        .uh-dash .type-badge.type-opd {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .uh-dash .type-badge.type-ipd {
+            background: #ede9fe;
+            color: #6d28d9;
+        }
+        
+        /* Table row number */
+        .uh-dash .row-number-modern {
+            font-weight: 600;
+            color: #94a3b8;
+            font-size: 0.75rem;
+            width: 24px;
+            text-align: center;
+            display: inline-block;
+        }
+        
+        /* Status indicator dot */
+        .uh-dash .status-dot {
+            display: inline-block;
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            flex-shrink: 0;
-        }
-        .activity-dot.blue { background: #3b82f6; }
-        .activity-dot.green { background: #22c55e; }
-        .activity-dot.orange { background: #f59e0b; }
-        .activity-dot.red { background: #dc2626; }
-        .activity-dot.purple { background: #8b5cf6; }
-        
-        .activity-text { font-size: 0.85rem; color: #1e293b; }
-        .activity-time { font-size: 0.7rem; color: #94a3b8; }
-        
-        .chart-container {
-            position: relative;
-            height: 250px;
+            margin-right: 6px;
         }
         
-        .appointment-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 8px 0;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        .appointment-item:last-child { border-bottom: none; }
-        .appointment-time {
-            font-weight: 600;
-            font-size: 0.85rem;
-            color: #1e293b;
-            min-width: 70px;
-        }
-        .appointment-patient {
-            flex: 1;
-            font-size: 0.85rem;
-            color: #1e293b;
-        }
-        .appointment-doctor {
+        .uh-dash .status-dot.active { background: #22c55e; }
+        .uh-dash .status-dot.inactive { background: #94a3b8; }
+        .uh-dash .status-dot.pending { background: #f59e0b; }
+        .uh-dash .status-dot.completed { background: #3b82f6; }
+        .uh-dash .status-dot.cancelled { background: #ef4444; }
+        
+        /* Card footer with shimmer */
+        .uh-dash .card-footer-shimmer {
+            background: linear-gradient(90deg, #f8fafc 25%, #eef2ff 50%, #f8fafc 75%);
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite;
+            padding: 8px 16px;
+            border-radius: 0 0 12px 12px;
+            text-align: center;
             font-size: 0.75rem;
             color: #94a3b8;
         }
-        .appointment-status {
-            font-size: 0.7rem;
-            padding: 2px 10px;
-            border-radius: 20px;
-        }
-        .status-pending { background: #fef3c7; color: #d97706; }
-        .status-confirmed { background: #dbeafe; color: #2563eb; }
-        .status-completed { background: #dcfce7; color: #16a34a; }
-        .status-cancelled { background: #fee2e2; color: #dc2626; }
         
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        
+        /* Scrollable table wrapper for mobile */
+        .table-scroll {
+            overflow-x: auto;
+            margin: 0 -4px;
+            padding: 0 4px;
+        }
+        
+        .table-scroll::-webkit-scrollbar {
+            height: 4px;
+        }
+        
+        .table-scroll::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        
+        .table-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        
+        .table-scroll::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        /* Responsive table adjustments */
         @media (max-width: 768px) {
-            .main-content {
-                margin-left: 0;
-                padding: 16px;
+            .uh-dash .table-modern thead th,
+            .uh-dash .table-modern tbody td {
+                padding: 10px 12px;
+                font-size: 0.78rem;
+            }
+            
+            .uh-dash .table-modern tbody td:first-child,
+            .uh-dash .table-modern thead th:first-child {
+                padding-left: 12px;
+            }
+            
+            .uh-dash .table-modern tbody td:last-child,
+            .uh-dash .table-modern thead th:last-child {
+                padding-right: 12px;
+            }
+            
+            .uh-dash .avatar-modern {
+                width: 32px;
+                height: 32px;
+                min-width: 32px;
+                font-size: 0.65rem;
+            }
+            
+            .uh-dash .badge-modern {
+                padding: 3px 10px;
+                font-size: 0.6rem;
             }
         }
     </style>
 </head>
 <body>
 
-<!-- Include Dynamic Sidebar -->
-  <?php include 'header.php'; ?>
-<?php include 'Sidebar.php'; ?>
+<?php 
+include 'header.php';
+include 'Sidebar.php';
+?>
 
-<!-- Main Content -->
-<div class="main-content <?php echo isset($_COOKIE['sidebar_collapsed']) && $_COOKIE['sidebar_collapsed'] == 'true' ? 'sidebar-collapsed' : ''; ?>" id="mainContent">
-    
-    <!-- Welcome Card -->
-    <div class="welcome-card mb-6">
-        <div class="flex flex-wrap justify-between items-center">
-            <div>
-                <h1 class="text-2xl font-bold">Welcome back, <?php echo htmlspecialchars($user_name); ?>!</h1>
-                <p class="text-blue-light mt-1">
-                    <i class="fas fa-calendar-alt mr-1"></i> <?php echo date('l, F j, Y'); ?>
-                    <span class="mx-2">|</span>
-                    <i class="fas fa-clock mr-1"></i> <?php echo date('h:i A'); ?>
-                </p>
-            </div>
-            <div class="flex items-center gap-3 mt-2 sm:mt-0 flex-wrap">
-                <span class="px-3 py-1 bg-white/20 text-white rounded-full text-sm flex items-center">
-                    <i class="fas fa-user-tag mr-1"></i> <?php echo htmlspecialchars($user_role); ?>
-                </span>
-                <?php if (!empty($hospital_name)): ?>
-                <span class="px-3 py-1 bg-white/20 text-white rounded-full text-sm flex items-center">
-                    <i class="fas fa-hospital mr-1"></i> <?php echo htmlspecialchars($hospital_name); ?>
-                </span>
-                <?php endif; ?>
-            </div>
+<div class="uh-dash" id="uhDashboardRoot">
+
+    <div class="uh-head">
+        <div>
+            <h4>Welcome back, <?= htmlspecialchars($admin_name) ?> <span>👋</span></h4>
+            <p>Here's what's happening at your hospital today.</p>
         </div>
-        
+        <div class="uh-date"><i class="fa-regular fa-calendar"></i><?= date('l, d M Y') ?></div>
+    </div>
+
+    <!-- KPI ROW 1 -->
+    <div class="uh-grid uh-grid-4">
+         <a href="departments.php" class="stat-link">
+            <div class="stat">
+                <div class="ic soft-purple"><i class="fa-solid fa-building"></i></div>
+                <div class="val"><?= number_format($totalDepartments) ?></div>
+                <div class="lbl">Departments</div>
+            </div>
+        </a>
+       
+        <a href="doctors.php" class="stat-link">
+            <div class="stat">
+                <div class="ic soft-success"><i class="fa-solid fa-user-doctor"></i></div>
+                <div class="val"><?= number_format($totalDoctors) ?></div>
+                <div class="lbl">Active Doctors</div>
+            </div>
+        </a>
+          <a href="staff.php" class="stat-link">
+            <div class="stat">
+                <div class="ic soft-warning"><i class="fa-solid fa-users"></i></div>
+                <div class="val"><?= number_format($totalStaff) ?></div>
+                <div class="lbl">Active Staff</div>
+            </div>
+        </a>
+        <a href="patients.php" class="stat-link">
+            <div class="stat">
+                <div class="ic soft-primary"><i class="fa-solid fa-user-injured"></i></div>
+                <div class="val"><?= number_format($totalPatients) ?></div>
+                <div class="lbl">Total Patients</div>
+            </div>
+        </a>
       
+    </div>
 
-    <!-- Main Statistics Cards -->
-    <?php if (!empty($modules)): ?>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-6">
-        <?php foreach ($modules as $module): ?>
-        <div class="dashboard-card">
-            <div class="flex items-center justify-between">
+    <!-- KPI ROW 2 -->
+    <div class="uh-grid uh-grid-4">
+       
+         <a href="show_opd_appointments.php?date=<?= date('Y-m-d') ?>" class="stat-link">
+            <div class="stat">
+                <div class="ic soft-info"><i class="fa-solid fa-calendar-check"></i></div>
+                <div class="val"><?= number_format($todayOPDAppointments) ?></div>
+                <div class="lbl">Today's OPD</div>
+            </div>
+        </a>
+        <a href="show_ipd_appointments.php?date=<?= date('Y-m-d') ?>" class="stat-link">
+            <div class="stat">
+                <div class="ic soft-danger"><i class="fa-solid fa-hospital-user"></i></div>
+                <div class="val"><?= number_format($todayIPDAppointments) ?></div>
+                <div class="lbl">Today's IPD</div>
+            </div>
+        </a>
+      
+    </div>
+
+    <!-- CHARTS -->
+    <div class="uh-grid uh-grid-2-1">
+        <div class="card">
+            <div class="card-title">Appointments Overview</div>
+            <div class="card-sub">Last 7 days trend</div>
+            <div class="chart-box"><canvas id="trendChart"></canvas></div>
+        </div>
+        <div class="card">
+            <div class="card-title">OPD vs IPD</div>
+            <div class="card-sub">Current distribution</div>
+            <div class="chart-box sm"><canvas id="opdIpdChart"></canvas></div>
+        </div>
+    </div>
+
+    <!-- TABLES with Attractive Design -->
+    <div class="uh-grid uh-grid-7-5">
+        <!-- Recent Appointments -->
+        <div class="card" style="padding: 0; overflow: hidden;">
+            <div class="card-head" style="padding: 20px 24px 16px 24px; border-bottom: 1px solid #e2e8f0;">
                 <div>
-                    <div class="card-value"><?php echo $module['count']; ?></div>
-                    <div class="card-label"><?php echo htmlspecialchars($module['title']); ?></div>
-                    <?php if (isset($module['sub'])): ?>
-                    <div class="card-sub"><?php echo $module['sub']; ?></div>
-                    <?php endif; ?>
+                    <div class="card-title" style="font-size: 1.05rem;">
+                        <i class="fas fa-calendar-week" style="color: #3b82f6; margin-right: 8px;"></i>
+                        Recent Appointments
+                    </div>
+                    <div class="card-sub" style="margin-bottom: 0; font-size: 0.8rem;">
+                        <i class="fas fa-clock" style="margin-right: 4px;"></i>
+                        Latest bookings across departments
+                    </div>
                 </div>
-                <div class="card-icon color-<?php echo $module['color'] ?? 'blue'; ?>">
-                    <i class="fas <?php echo $module['icon']; ?>"></i>
-                </div>
-            </div>
-        </div>
-        <?php endforeach; ?>
-    </div>
-    <?php endif; ?>
-
-  <!-- Quick Actions -->
-  <!-- Quick Stats Mini -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mt-4">
-            <div class="bg-white/10 rounded-lg p-3 text-center">
-                <div class="text-2xl font-bold"><?php echo $stats['today_appointments']; ?></div>
-                <div class="text-xs text-blue-light">Today's Appointments</div>
-            </div>
-            <div class="bg-white/10 rounded-lg p-3 text-center">
-                <div class="text-2xl font-bold"><?php echo $stats['new_patients_today']; ?></div>
-                <div class="text-xs text-blue-light">New Patients</div>
-            </div>
-            <div class="bg-white/10 rounded-lg p-3 text-center">
-                <div class="text-2xl font-bold"><?php echo $stats['ipd_active']; ?></div>
-                <div class="text-xs text-blue-light">Active IPD</div>
-            </div>
-            <div class="bg-white/10 rounded-lg p-3 text-center">
-                <div class="text-2xl font-bold"><?php echo $stats['opd_today']; ?></div>
-                <div class="text-xs text-blue-light">OPD Today</div>
-            </div>
-            <div class="bg-white/10 rounded-lg p-3 text-center">
-                <div class="text-2xl font-bold"><?php echo $stats['pending_appointments']; ?></div>
-                <div class="text-xs text-blue-light">Pending</div>
-            </div>
-            <div class="bg-white/10 rounded-lg p-3 text-center">
-                <div class="text-2xl font-bold">₹<?php echo number_format($stats['revenue_today']); ?></div>
-                <div class="text-xs text-blue-light">Today's Revenue</div>
-            </div>
-        </div>
-    </div>
-    <!-- Charts Row -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <!-- Patient & Appointment Chart -->
-        <div class="dashboard-card">
-            <h4 class="font-semibold text-gray-700 mb-4">
-                <i class="fas fa-chart-line text-blue-600 mr-2"></i> Patients & Appointments Overview
-            </h4>
-            <div class="chart-container">
-                <canvas id="patientAppointmentChart"></canvas>
-            </div>
-        </div>
-        
-        <!-- Revenue Chart -->
-        <div class="dashboard-card">
-            <h4 class="font-semibold text-gray-700 mb-4">
-                <i class="fas fa-chart-bar text-green-600 mr-2"></i> Monthly Revenue
-            </h4>
-            <div class="chart-container">
-                <canvas id="revenueChart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <!-- Second Row Charts -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <!-- Department Distribution -->
-        <div class="dashboard-card">
-            <h4 class="font-semibold text-gray-700 mb-4">
-                <i class="fas fa-building text-purple-600 mr-2"></i> Department Patients
-            </h4>
-            <div class="chart-container" style="height: 200px;">
-                <canvas id="departmentChart"></canvas>
-            </div>
-        </div>
-        
-        <!-- Appointment Status -->
-        <div class="dashboard-card">
-            <h4 class="font-semibold text-gray-700 mb-4">
-                <i class="fas fa-chart-pie text-orange-600 mr-2"></i> Appointment Status
-            </h4>
-            <div class="chart-container" style="height: 200px;">
-                <canvas id="statusChart"></canvas>
-            </div>
-        </div>
-        
-        <!-- Gender Distribution -->
-        <div class="dashboard-card">
-            <h4 class="font-semibold text-gray-700 mb-4">
-                <i class="fas fa-venus-mars text-pink-600 mr-2"></i> Gender Distribution
-            </h4>
-            <div class="chart-container" style="height: 200px;">
-                <canvas id="genderChart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <!-- Two Column Layout - Today's Appointments & Recent Activity -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        <!-- Left Column - Today's Appointments -->
-        <div class="dashboard-card">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="font-semibold text-gray-700">
-                    <i class="fas fa-calendar-day text-blue-600 mr-2"></i> Today's Appointments
-                </h3>
-                <a href="appointments.php" class="text-sm text-blue-600 hover:underline">View All</a>
+                <a href="appointments.php" class="view-all" style="background: #f1f5f9; padding: 6px 16px; border-radius: 20px; font-size: 0.75rem;">
+                    View all <i class="fas fa-arrow-right" style="margin-left: 4px;"></i>
+                </a>
             </div>
             
-            <div class="space-y-1 max-h-[300px] overflow-y-auto">
-                <?php if (!empty($today_appointments_list)): ?>
-                    <?php foreach ($today_appointments_list as $appt): ?>
-                    <div class="appointment-item">
-                        <span class="appointment-time">
-                            <?php echo date('h:i A', strtotime($appt['appointment_time'] ?? '00:00:00')); ?>
-                        </span>
-                        <div class="appointment-patient">
-                            <div><?php echo htmlspecialchars($appt['patient_name'] ?? 'Unknown'); ?></div>
-                            <div class="appointment-doctor">
-                                <i class="fas fa-user-md"></i> <?php echo htmlspecialchars($appt['doctor_name'] ?? 'N/A'); ?>
-                            </div>
-                        </div>
-                        <span class="appointment-status status-<?php echo strtolower($appt['status'] ?? 'pending'); ?>">
-                            <?php echo htmlspecialchars($appt['status'] ?? 'Pending'); ?>
-                        </span>
-                    </div>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <div class="text-center py-8 text-gray-400">
-                        <i class="fas fa-calendar-check text-3xl block mb-2"></i>
-                        <p>No appointments scheduled for today</p>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <!-- Right Column - Recent Activity -->
-        <div class="dashboard-card">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="font-semibold text-gray-700">
-                    <i class="fas fa-clock text-blue-600 mr-2"></i> Recent Activity
-                </h3>
-                <a href="audit_logs.php" class="text-sm text-blue-600 hover:underline">View All</a>
-            </div>
-            
-            <div class="space-y-1 max-h-[300px] overflow-y-auto">
-                <?php if (!empty($recent_activities)): ?>
-                    <?php foreach ($recent_activities as $log): 
-                        $dot_color = 'blue';
-                        if (strpos($log['action'], 'Create') !== false || strpos($log['action'], 'Add') !== false) {
-                            $dot_color = 'green';
-                        } elseif (strpos($log['action'], 'Delete') !== false || strpos($log['action'], 'Remove') !== false) {
-                            $dot_color = 'red';
-                        } elseif (strpos($log['action'], 'Update') !== false || strpos($log['action'], 'Edit') !== false) {
-                            $dot_color = 'orange';
-                        } elseif (strpos($log['action'], 'Login') !== false) {
-                            $dot_color = 'purple';
-                        }
+            <div class="table-scroll" style="padding: 0 4px;">
+                <table class="table-modern">
+                    <thead>
+                        <tr>
+                            <th style="width: 30px;">#</th>
+                            <th>Patient</th>
+                            <th>Doctor</th>
+                            <th>Date &amp; Time</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php if (empty($recentAppointments)): ?>
+                        <tr>
+                            <td colspan="6" class="empty" style="padding: 40px 20px;">
+                                <i class="fas fa-calendar-times" style="font-size: 2rem; color: #cbd5e1; display: block; margin-bottom: 10px;"></i>
+                                No appointments yet
+                            </td>
+                        </tr>
+                    <?php else: 
+                        $avatarColors = ['avatar-blue', 'avatar-green', 'avatar-purple', 'avatar-pink', 'avatar-orange', 'avatar-red', 'avatar-teal', 'avatar-indigo'];
+                        $colorIndex = 0;
+                        foreach ($recentAppointments as $a): 
+                            $avatarClass = $avatarColors[$colorIndex % count($avatarColors)];
+                            $colorIndex++;
                     ?>
-                    <div class="activity-item">
-                        <span class="activity-dot <?php echo $dot_color; ?>"></span>
-                        <div class="flex-1">
-                            <div class="activity-text">
-                                <strong><?php echo htmlspecialchars($log['module']); ?></strong> 
-                                <?php echo htmlspecialchars($log['action']); ?>
-                            </div>
-                            <div class="activity-time">
-                                <?php echo date('d M Y h:i A', strtotime($log['created_at'])); ?>
-                            </div>
+                        <tr class="clickable-row" onclick="window.location='view_appointment.php?id=<?= $a['appointment_id'] ?? 0 ?>'">
+                            <td>
+                                <span class="row-number-modern"><?= $colorIndex ?></span>
+                            </td>
+                            <td>
+                                <div class="name-cell">
+                                    <?php if (!empty($a['patient_image']) && file_exists($a['patient_image'])): ?>
+                                        <div class="avatar-modern <?= $avatarClass ?>" style="overflow: hidden; padding: 0;">
+                                            <img src="<?= htmlspecialchars($a['patient_image']) ?>" alt="<?= htmlspecialchars($a['patient_name']) ?>" style="width: 100%; height: 100%; object-fit: cover;">
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="avatar-modern <?= $avatarClass ?>"><?= initials($a['patient_name'] ?? '?') ?></div>
+                                    <?php endif; ?>
+                                    <div>
+                                        <a href="view_patient.php?id=<?= $a['patient_id'] ?? 0 ?>" style="font-weight: 600; color: #1e293b;">
+                                            <?= htmlspecialchars($a['patient_name'] ?? 'N/A') ?>
+                                        </a>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <a href="view_doctor.php?id=<?= $a['doctor_id'] ?? 0 ?>" style="color: #475569; text-decoration: none; font-weight: 500;">
+                                    <i class="fas fa-user-md" style="color: #94a3b8; margin-right: 4px; font-size: 0.7rem;"></i>
+                                    <?= htmlspecialchars($a['doctor_name'] ?? 'N/A') ?>
+                                </a>
+                            </td>
+                            <td style="white-space: nowrap;">
+                                <div style="font-weight: 500; color: #1e293b;"><?= date('d M', strtotime($a['appointment_date'])) ?></div>
+                                <div style="font-size: 0.7rem; color: #94a3b8;"><?= date('h:i A', strtotime($a['appointment_time'])) ?></div>
+                            </td>
+                            <td>
+                                <span class="type-badge type-<?= strtolower($a['opd_ipd_type']) ?>">
+                                    <?= $a['opd_ipd_type'] ?>
+                                </span>
+                            </td>
+                            <td>
+                                <?php 
+                                $statusMap = [
+                                    'Confirmed' => 'badge-confirmed',
+                                    'Scheduled' => 'badge-scheduled',
+                                    'Completed' => 'badge-completed',
+                                    'Cancelled' => 'badge-cancelled',
+                                    'Active' => 'badge-active',
+                                    'Inactive' => 'badge-inactive',
+                                    'Pending' => 'badge-pending'
+                                ];
+                                $badgeClass = $statusMap[$a['status']] ?? 'badge-secondary';
+                                ?>
+                                <span class="badge-modern <?= $badgeClass ?>">
+                                    <span class="status-dot <?= strtolower($a['status']) ?>"></span>
+                                    <?= $a['status'] ?>
+                                </span>
+                            </td>
+                        </tr>
+                    <?php endforeach; endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="card-footer-shimmer">
+                <i class="fas fa-sync-alt" style="margin-right: 6px;"></i>
+                Showing latest <?= count($recentAppointments) ?> appointments
+            </div>
+        </div>
+
+        <!-- New Patients -->
+        <div class="card" style="padding: 0; overflow: hidden;">
+            <div class="card-head" style="padding: 20px 24px 16px 24px; border-bottom: 1px solid #e2e8f0;">
+                <div>
+                    <div class="card-title" style="font-size: 1.05rem;">
+                        <i class="fas fa-user-plus" style="color: #22c55e; margin-right: 8px;"></i>
+                        New Patients
+                    </div>
+                    <div class="card-sub" style="margin-bottom: 0; font-size: 0.8rem;">
+                        <i class="fas fa-clock" style="margin-right: 4px;"></i>
+                        Recently registered
+                    </div>
+                </div>
+                <a href="patients.php" class="view-all" style="background: #f1f5f9; padding: 6px 16px; border-radius: 20px; font-size: 0.75rem;">
+                    View all <i class="fas fa-arrow-right" style="margin-left: 4px;"></i>
+                </a>
+            </div>
+            
+            <div class="table-scroll" style="padding: 0 4px;">
+                <table class="table-modern">
+                    <thead>
+                        <tr>
+                            <th style="width: 30px;">#</th>
+                            <th>Name</th>
+                            <th>Mobile</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php if (empty($recentPatients)): ?>
+                        <tr>
+                            <td colspan="4" class="empty" style="padding: 40px 20px;">
+                                <i class="fas fa-user-slash" style="font-size: 2rem; color: #cbd5e1; display: block; margin-bottom: 10px;"></i>
+                                No patients yet
+                            </td>
+                        </tr>
+                    <?php else: 
+                        $avatarColors = ['avatar-blue', 'avatar-green', 'avatar-purple', 'avatar-pink', 'avatar-orange'];
+                        $colorIndex = 0;
+                        foreach ($recentPatients as $p): 
+                            $avatarClass = $avatarColors[$colorIndex % count($avatarColors)];
+                            $colorIndex++;
+                    ?>
+                        <tr class="clickable-row" onclick="window.location='view_patient.php?id=<?= $p['patient_id'] ?? 0 ?>'">
+                            <td>
+                                <span class="row-number-modern"><?= $colorIndex ?></span>
+                            </td>
+                            <td>
+                                <div class="name-cell">
+                                    <?php if (!empty($p['patient_image']) && file_exists($p['patient_image'])): ?>
+                                        <div class="avatar-modern <?= $avatarClass ?>" style="overflow: hidden; padding: 0;">
+                                            <img src="<?= htmlspecialchars($p['patient_image']) ?>" alt="<?= htmlspecialchars($p['patient_name']) ?>" style="width: 100%; height: 100%; object-fit: cover;">
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="avatar-modern <?= $avatarClass ?>"><?= initials($p['patient_name'] ?? '?') ?></div>
+                                    <?php endif; ?>
+                                    <div>
+                                        <a href="view_patient.php?id=<?= $p['patient_id'] ?? 0 ?>" style="font-weight: 600; color: #1e293b;">
+                                            <?= htmlspecialchars($p['patient_name'] ?? 'N/A') ?>
+                                        </a>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <?php if (!empty($p['mobile']) && $p['mobile'] != '—'): ?>
+                                    <a href="tel:<?= $p['mobile'] ?>" style="color: #475569; text-decoration: none;">
+                                        <i class="fas fa-phone" style="color: #22c55e; margin-right: 4px; font-size: 0.7rem;"></i>
+                                        <?= htmlspecialchars($p['mobile']) ?>
+                                    </a>
+                                <?php else: ?>
+                                    <span style="color: #94a3b8;">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php 
+                                $statusMap = [
+                                    'Active' => 'badge-active',
+                                    'Inactive' => 'badge-inactive',
+                                    'Pending' => 'badge-pending'
+                                ];
+                                $badgeClass = $statusMap[$p['status']] ?? 'badge-secondary';
+                                ?>
+                                <span class="badge-modern <?= $badgeClass ?>">
+                                    <span class="status-dot <?= strtolower($p['status']) ?>"></span>
+                                    <?= $p['status'] ?? 'N/A' ?>
+                                </span>
+                            </td>
+                        </tr>
+                    <?php endforeach; endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="card-footer-shimmer">
+                <i class="fas fa-user-plus" style="margin-right: 6px;"></i>
+                Showing latest <?= count($recentPatients) ?> patients
+            </div>
+        </div>
+    </div>
+
+    <!-- DEPARTMENTS + DOCTORS (fully dynamic) + QUICK ACTIONS -->
+    <div class="uh-grid uh-grid-7-5">
+        <div class="card">
+            <div class="card-head">
+                <div>
+                    <div class="card-title">Departments &amp; Doctors</div>
+                    <div class="card-sub">Live staffing per department</div>
+                </div>
+                <a href="departments.php" class="view-all">Manage →</a>
+            </div>
+
+            <?php if (empty($departments)): ?>
+                <div class="empty">No departments added yet</div>
+            <?php else: ?>
+                <div class="dept-grid">
+                    <?php foreach ($departments as $i => $dep):
+                        $color = $deptColors[$i % count($deptColors)];
+                        $shown = array_slice($dep['doctors'], 0, 3);
+                        $extra = $dep['doctor_count'] - count($shown);
+                    ?>
+                    <div class="dept-card" onclick="window.location='departments.php?view=<?= $dep['id'] ?>'">
+                        <div class="dept-top">
+                            <div class="dept-icon soft-<?= $color ?>"><i class="fa-solid fa-building"></i></div>
+                            <?= statusBadge($dep['status']) ?>
                         </div>
+                        <div class="dept-name"><a href="departments.php?view=<?= $dep['id'] ?>"><?= htmlspecialchars($dep['department_name']) ?></a></div>
+                        <div class="dept-count"><?= $dep['doctor_count'] ?> doctor<?= $dep['doctor_count'] == 1 ? '' : 's' ?></div>
+
+                        <?php if ($dep['doctor_count'] > 0): ?>
+                            <div class="doc-stack">
+                                <?php foreach ($shown as $doc): ?>
+                                    <a href="view_doctor.php?id=<?= $doc['doctor_id'] ?? 0 ?>" class="avatar" title="<?= htmlspecialchars($doc['doctor_name']) ?>">
+                                        <?= initials($doc['doctor_name']) ?>
+                                    </a>
+                                <?php endforeach; ?>
+                                <?php if ($extra > 0): ?>
+                                    <span class="doc-more">+<?= $extra ?> more</span>
+                                <?php endif; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="dept-empty">No doctors assigned yet</div>
+                        <?php endif; ?>
                     </div>
                     <?php endforeach; ?>
-                <?php else: ?>
-                    <div class="text-center py-8 text-gray-400">
-                        <i class="fas fa-inbox text-3xl block mb-2"></i>
-                        <p>No recent activity</p>
-                    </div>
-                <?php endif; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <div class="card">
+            <div class="card-title" style="margin-bottom:14px;">Quick Actions</div>
+            <div class="quick-links">
+                <a href="add_patient.php?action=add" class="quick-link">
+                    <i class="fa-solid fa-user-plus"></i> Register New Patient
+                </a>
+                <a href="appointments.php?action=add" class="quick-link">
+                    <i class="fa-solid fa-calendar-plus"></i> Book Appointment
+                </a>
+                <a href="add_doctor.php?action=add" class="quick-link">
+                    <i class="fa-solid fa-user-doctor"></i> Add Doctor
+                </a>
+                <a href="billing/create_bill.php?action=add" class="quick-link">
+                    <i class="fa-solid fa-file-invoice-dollar"></i> Create Bill
+                </a>
             </div>
         </div>
     </div>
 
 </div>
 
-<!-- Chart.js Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // 1. Patients & Appointments Chart (Bar Chart)
-    const ctx1 = document.getElementById('patientAppointmentChart').getContext('2d');
-    new Chart(ctx1, {
-        type: 'bar',
-        data: {
-            labels: <?php echo json_encode($month_names); ?>,
-            datasets: [
-                {
-                    label: 'Patients',
-                    data: <?php echo json_encode($monthly_patients); ?>,
-                    backgroundColor: 'rgba(59, 130, 246, 0.7)',
-                    borderColor: '#3b82f6',
-                    borderWidth: 2,
-                    borderRadius: 4,
-                },
-                {
-                    label: 'Appointments',
-                    data: <?php echo json_encode($monthly_appointments); ?>,
-                    backgroundColor: 'rgba(34, 197, 94, 0.7)',
-                    borderColor: '#22c55e',
-                    borderWidth: 2,
-                    borderRadius: 4,
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top',
-                    labels: {
-                        boxWidth: 12,
-                        padding: 15,
-                        font: { size: 11 }
-                    }
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: { display: false }
-                },
-                x: {
-                    grid: { display: false }
-                }
-            }
-        }
-    });
+    document.addEventListener('DOMContentLoaded', function () {
+        const trendLabels = <?= $trendLabelsJson ?>;
+        const trendData = <?= $trendDataJson ?>;
+        const opdCount = <?= $opdCount ?>;
+        const ipdCount = <?= $ipdCount ?>;
 
-    // 2. Revenue Chart (Line Chart)
-    const ctx2 = document.getElementById('revenueChart').getContext('2d');
-    new Chart(ctx2, {
-        type: 'line',
-        data: {
-            labels: <?php echo json_encode($month_names); ?>,
-            datasets: [{
-                label: 'Revenue (₹)',
-                data: <?php echo json_encode($monthly_revenue); ?>,
-                backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                borderColor: '#22c55e',
-                borderWidth: 3,
-                fill: true,
-                tension: 0.4,
-                pointBackgroundColor: '#22c55e',
-                pointBorderColor: '#fff',
-                pointBorderWidth: 2,
-                pointRadius: 4,
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top',
-                    labels: {
-                        boxWidth: 12,
-                        padding: 15,
-                        font: { size: 11 }
-                    }
+        const trendEl = document.getElementById('trendChart');
+        if (trendEl) {
+            const ctx = trendEl.getContext('2d');
+            const grad = ctx.createLinearGradient(0, 0, 0, 260);
+            grad.addColorStop(0, 'rgba(79,110,247,.2)');
+            grad.addColorStop(1, 'rgba(79,110,247,0)');
+
+            new Chart(trendEl, {
+                type: 'line',
+                data: {
+                    labels: trendLabels,
+                    datasets: [{
+                        label: 'Appointments',
+                        data: trendData,
+                        borderColor: '#4f6ef7',
+                        backgroundColor: grad,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#fff',
+                        pointBorderColor: '#4f6ef7',
+                        pointBorderWidth: 2,
+                        pointHoverRadius: 6,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f0f2f7' }, ticks: { precision: 0, font: { size: 11 } } },
+                        x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+                    },
+                    interaction: { intersect: false, mode: 'index' }
                 }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    grid: { display: false },
-                    ticks: {
-                        callback: function(value) {
-                            return '₹' + value.toLocaleString();
+            });
+        }
+
+        const opdEl = document.getElementById('opdIpdChart');
+        if (opdEl) {
+            new Chart(opdEl, {
+                type: 'doughnut',
+                data: {
+                    labels: ['OPD', 'IPD'],
+                    datasets: [{
+                        data: [opdCount, ipdCount],
+                        backgroundColor: ['#4f6ef7', '#2fb5d2'],
+                        borderWidth: 0,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { boxWidth: 10, font: { size: 11, weight: '500' }, usePointStyle: true, padding: 14 }
                         }
                     }
-                },
-                x: {
-                    grid: { display: false }
                 }
-            }
+            });
         }
     });
-
-    // 3. Department Chart (Doughnut)
-    const ctx3 = document.getElementById('departmentChart').getContext('2d');
-    const deptColors = ['#3b82f6', '#22c55e', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d4'];
-    new Chart(ctx3, {
-        type: 'doughnut',
-        data: {
-            labels: <?php echo json_encode($department_names); ?>,
-            datasets: [{
-                data: <?php echo json_encode($department_patients); ?>,
-                backgroundColor: deptColors.slice(0, <?php echo count($department_patients); ?>),
-                borderWidth: 2,
-                borderColor: '#fff',
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'right',
-                    labels: {
-                        boxWidth: 12,
-                        padding: 8,
-                        font: { size: 10 }
-                    }
-                }
-            },
-            cutout: '65%'
-        }
-    });
-
-    // 4. Appointment Status Chart (Pie)
-    const ctx4 = document.getElementById('statusChart').getContext('2d');
-    const statusColors = ['#f59e0b', '#3b82f6', '#22c55e', '#ef4444'];
-    new Chart(ctx4, {
-        type: 'pie',
-        data: {
-            labels: <?php echo json_encode($status_labels); ?>,
-            datasets: [{
-                data: <?php echo json_encode($status_data); ?>,
-                backgroundColor: statusColors,
-                borderWidth: 2,
-                borderColor: '#fff',
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'right',
-                    labels: {
-                        boxWidth: 12,
-                        padding: 8,
-                        font: { size: 10 }
-                    }
-                }
-            }
-        }
-    });
-
-    // 5. Gender Distribution Chart (Doughnut)
-    const ctx5 = document.getElementById('genderChart').getContext('2d');
-    const genderColors = ['#3b82f6', '#ec4899', '#8b5cf6'];
-    new Chart(ctx5, {
-        type: 'doughnut',
-        data: {
-            labels: <?php echo json_encode($gender_labels); ?>,
-            datasets: [{
-                data: <?php echo json_encode($gender_values); ?>,
-                backgroundColor: genderColors,
-                borderWidth: 2,
-                borderColor: '#fff',
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'right',
-                    labels: {
-                        boxWidth: 12,
-                        padding: 8,
-                        font: { size: 10 }
-                    }
-                }
-            },
-            cutout: '60%'
-        }
-    });
-});
-
-// Update main content margin when sidebar toggles
-document.addEventListener('DOMContentLoaded', function() {
-    const sidebar = document.getElementById('sidebar');
-    const mainContent = document.getElementById('mainContent');
-    
-    if (sidebar && mainContent) {
-        const isCollapsed = sidebar.classList.contains('collapsed');
-        if (isCollapsed) {
-            mainContent.style.marginLeft = '70px';
-        }
-    }
-});
-
-// Set sidebar toggle listener
-document.addEventListener('sidebarToggled', function(e) {
-    const mainContent = document.getElementById('mainContent');
-    if (mainContent) {
-        mainContent.style.marginLeft = e.detail.collapsed ? '70px' : '260px';
-        mainContent.classList.toggle('sidebar-collapsed', e.detail.collapsed);
-    }
-});
 </script>
 
 </body>

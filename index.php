@@ -177,11 +177,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         if (strtolower(trim($role_name_from_db)) == 'lab technician') {
 
-    $staffQuery = mysqli_query($conn,
-        "SELECT staff_id, register_id
-         FROM staff
-         WHERE register_id = '{$row['id']}'
-         LIMIT 1");
+   $staffQuery = mysqli_query($conn,
+    "SELECT staff_id, register_id
+     FROM staff
+     WHERE email = '{$row['email']}'
+     AND delete_flag = 0
+     LIMIT 1");
 
     if ($staffQuery && mysqli_num_rows($staffQuery) > 0) {
         $staff = mysqli_fetch_assoc($staffQuery);
@@ -189,10 +190,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $_SESSION['id'] = $staff['staff_id'];          // 11
         $_SESSION['register_id'] = $staff['register_id']; // 1040
 
-        echo "<pre>";
-print_r($staff);
-print_r($_SESSION);
-exit;
     }
 }
         $_SESSION['name'] = $row['name'];
@@ -256,6 +253,7 @@ exit;
         exit();
 
     case 'lab technician':
+        
         header("Location: labtechnician/dashboard.php");
         exit();
 

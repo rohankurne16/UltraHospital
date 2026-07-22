@@ -11,6 +11,9 @@ $appointment_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $appointment_details = null;
 $patient_details = null;
 $doctor_details = null;
+$ward_details = null;
+$bed_details = null;
+$allocation_details = null;
 $error_message = null;
 $redirect_page = 'show_opd_appointments.php'; // Default redirect
 
@@ -90,6 +93,66 @@ if ($appointment_id > 0) {
             // Set redirect page based on OPD/IPD type
             if ($data['opd_ipd_type'] == 'IPD') {
                 $redirect_page = 'show_ipd_appointments.php';
+                
+                // Fetch ward, bed, and allocation details for IPD
+                $patient_id = $data['patient_id'];
+                
+                // Get bed allocation details
+                $allocation_sql = "SELECT 
+                                    ba.allocation_id,
+                                    ba.patient_id,
+                                    ba.bed_id,
+                                    ba.admit_date,
+                                    ba.discharge_date,
+                                    ba.status as allocation_status,
+                                    b.bed_no,
+                                    b.bed_type,
+                                    b.status as bed_status,
+                                    w.ward_name,
+                                    w.ward_type,
+                                    w.floor_no,
+                                    w.status as ward_status
+                                FROM bed_allocation ba
+                                LEFT JOIN bed_master b ON ba.bed_id = b.bed_id
+                                LEFT JOIN ward_master w ON b.room_id = w.ward_id
+                                WHERE ba.patient_id = ? 
+                                AND (ba.status = 'Occupied' OR ba.status = 'Active')
+                                ORDER BY ba.allocation_id DESC LIMIT 1";
+
+                $alloc_stmt = $conn->prepare($allocation_sql);
+                if ($alloc_stmt) {
+                    $alloc_stmt->bind_param("i", $patient_id);
+                    $alloc_stmt->execute();
+                    $alloc_result = $alloc_stmt->get_result();
+                    
+                    if ($alloc_result && $alloc_result->num_rows > 0) {
+                        $alloc_data = $alloc_result->fetch_assoc();
+                        
+                        $allocation_details = [
+                            'allocation_id' => $alloc_data['allocation_id'] ?? null,
+                            'patient_id' => $alloc_data['patient_id'] ?? null,
+                            'bed_id' => $alloc_data['bed_id'] ?? null,
+                            'admit_date' => $alloc_data['admit_date'] ?? null,
+                            'discharge_date' => $alloc_data['discharge_date'] ?? null,
+                            'allocation_status' => $alloc_data['allocation_status'] ?? null
+                        ];
+                        
+                        $bed_details = [
+                            'bed_no' => $alloc_data['bed_no'] ?? 'N/A',
+                            'bed_type' => $alloc_data['bed_type'] ?? 'N/A',
+                            'status' => $alloc_data['bed_status'] ?? 'N/A'
+                        ];
+                        
+                        $ward_details = [
+                            'ward_name' => $alloc_data['ward_name'] ?? 'N/A',
+                            'ward_type' => $alloc_data['ward_type'] ?? 'N/A',
+                            'floor_no' => $alloc_data['floor_no'] ?? 'N/A',
+                            'status' => $alloc_data['ward_status'] ?? 'N/A'
+                        ];
+                    }
+                    $alloc_stmt->close();
+                }
+                
             } elseif ($data['opd_ipd_type'] == 'OPD') {
                 $redirect_page = 'show_opd_appointments.php';
             }
@@ -134,8 +197,6 @@ if ($appointment_id > 0) {
 } else {
     $error_message = "Invalid appointment ID.";
 }
-
-$conn->close();
 
 function getStatusClass($status) {
     switch ($status) {
@@ -216,6 +277,8 @@ $hospital_logo = isset($hospital['hospital_logo']) ? $hospital['hospital_logo'] 
         .status-completed { background: #d1fae5; color: #065f46; }
         .status-cancelled { background: #fee2e2; color: #991b1b; }
         .status-in-progress { background: #e0e7ff; color: #3730a3; }
+        .status-available { background: #d1fae5; color: #065f46; }
+        .status-occupied { background: #fee2e2; color: #991b1b; }
         
         .info-card {
             background: white;
@@ -243,6 +306,15 @@ $hospital_logo = isset($hospital['hospital_logo']) ? $hospital['hospital_logo'] 
             padding: 12px 16px;
             border-radius: 8px;
             border-left: 4px solid #3b82f6;
+        }
+        .info-item.ward-info {
+            border-left-color: #8b5cf6;
+        }
+        .info-item.bed-info {
+            border-left-color: #10b981;
+        }
+        .info-item.allocation-info {
+            border-left-color: #f59e0b;
         }
         .info-label {
             font-size: 11px;
@@ -286,11 +358,29 @@ $hospital_logo = isset($hospital['hospital_logo']) ? $hospital['hospital_logo'] 
             align-items: center;
             gap: 10px;
         }
+        .ward-status-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .ward-status-available { background: #d1fae5; color: #065f46; }
+        .ward-status-occupied { background: #fee2e2; color: #991b1b; }
+        .ward-status-maintenance { background: #fef3c7; color: #92400e; }
+        
+        .ipd-info-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
         @media (max-width: 1024px) {
             .main-content { margin-left: 0; padding: 16px; }
+            .ipd-info-grid { grid-template-columns: 1fr 1fr; }
         }
         @media (max-width: 768px) {
             .grid-cols-2 { grid-template-columns: 1fr; }
+            .ipd-info-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -350,6 +440,75 @@ $hospital_logo = isset($hospital['hospital_logo']) ? $hospital['hospital_logo'] 
                                 </span>
                             </div>
                         </div>
+
+                        <!-- IPD Ward, Bed & Allocation Information - Only shown for IPD -->
+                        <?php if ($appointment_details['opd_ipd_type'] == 'IPD'): ?>
+                        <div class="bg-white rounded-lg border border-purple-200 p-4 mb-6 shadow-sm">
+                            <div class="flex items-center gap-2 mb-3">
+                                <i data-lucide="hospital" class="w-5 h-5 text-purple-600"></i>
+                                <h3 class="font-semibold text-gray-900">IPD Admission Details</h3>
+                                <span class="ml-auto text-xs text-gray-500">Bed Allocation</span>
+                            </div>
+                            
+                            <?php if ($ward_details && $bed_details && $allocation_details): ?>
+                            <div class="ipd-info-grid">
+                                <!-- Ward Information -->
+                                <div class="info-item ward-info">
+                                    <div class="info-label"><i class="fas fa-building mr-1"></i> Ward</div>
+                                    <div class="info-value"><?php echo htmlspecialchars($ward_details['ward_name'] ?? 'N/A'); ?></div>
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        Type: <?php echo htmlspecialchars($ward_details['ward_type'] ?? 'N/A'); ?> | 
+                                        Floor: <?php echo htmlspecialchars($ward_details['floor_no'] ?? 'N/A'); ?>
+                                    </div>
+                                    <div class="mt-1">
+                                        <span class="ward-status-badge ward-status-<?php echo strtolower($ward_details['status'] ?? ''); ?>">
+                                            <?php echo htmlspecialchars($ward_details['status'] ?? 'N/A'); ?>
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Bed Information -->
+                                <div class="info-item bed-info">
+                                    <div class="info-label"><i class="fas fa-bed mr-1"></i> Bed</div>
+                                    <div class="info-value"><?php echo htmlspecialchars($bed_details['bed_no'] ?? 'N/A'); ?></div>
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        Type: <?php echo htmlspecialchars($bed_details['bed_type'] ?? 'N/A'); ?>
+                                    </div>
+                                    <div class="mt-1">
+                                        <span class="ward-status-badge ward-status-<?php echo strtolower($bed_details['status'] ?? ''); ?>">
+                                            <?php echo htmlspecialchars($bed_details['status'] ?? 'N/A'); ?>
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Allocation Information -->
+                                <div class="info-item allocation-info">
+                                    <div class="info-label"><i class="fas fa-calendar-check mr-1"></i> Allocation</div>
+                                    <div class="info-value">Admit: <?php echo formatDate($allocation_details['admit_date'] ?? ''); ?></div>
+                                    <?php if (!empty($allocation_details['discharge_date']) && $allocation_details['discharge_date'] != '0000-00-00'): ?>
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        Discharge: <?php echo formatDate($allocation_details['discharge_date']); ?>
+                                    </div>
+                                    <?php else: ?>
+                                    <div class="text-xs text-green-600 mt-1">
+                                        <i class="fas fa-check-circle"></i> Currently Admitted
+                                    </div>
+                                    <?php endif; ?>
+                                    <div class="mt-1">
+                                        <span class="ward-status-badge ward-status-<?php echo strtolower($allocation_details['allocation_status'] ?? ''); ?>">
+                                            <?php echo htmlspecialchars($allocation_details['allocation_status'] ?? 'N/A'); ?>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php else: ?>
+                            <div class="text-center py-4 text-gray-500">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                No active bed allocation found for this patient.
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                        <?php endif; ?>
 
                         <!-- Appointment Details -->
                         <div class="info-card mb-6">

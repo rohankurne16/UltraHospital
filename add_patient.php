@@ -115,6 +115,26 @@ if (isset($_POST['email'])) {
                 if ($conn->query($insert) === true) {
                     $patient_id = $conn->insert_id;
 
+                    if (!empty($allergy)) {
+
+                        $sql = "INSERT INTO patient_alerts
+                        (patient_id, hospital_id, alert_type, description, status,created_by)
+                        VALUES
+                        ('$patient_id','$hospital_id','Allergy','$allergy','Active','Admin')";
+
+                        mysqli_query($conn, $sql);
+                    }
+
+                    if (!empty($medical_history)) {
+
+                        $sql = "INSERT INTO patient_alerts
+                        (patient_id, hospital_id, alert_type, description, status,created_by)
+                        VALUES
+                        ('$patient_id','$hospital_id','Medical History','$medical_history','Active','Admin')";
+
+                        mysqli_query($conn, $sql);
+                    }
+
                     $message = "
                     Congratulations! Your patient account has been created successfully in
                     <strong>{$hospital['hospital_name']}</strong>.
@@ -396,14 +416,14 @@ if (isset($_POST['email'])) {
                                         <div class="input-wrapper">
                                             <input id="age" type="number" name="age" placeholder="Enter age"
                                                 class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                                                min="0" max="150"
+                                                min="0" max="120"
                                                 data-validation="age"
-                                                title="Age must be between 0 and 150">
+                                                title="Age must be between 0 and 120">
                                             <i class="fas fa-check-circle input-icon" id="age_icon"></i>
                                         </div>
                                         <div class="validation-message error" id="age_error">
                                             <i class="fas fa-exclamation-circle"></i>
-                                            <span>Age must be between 0 and 150</span>
+                                            <span>Age must be between 0 and 120</span>
                                         </div>
                                         <div class="validation-message success" id="age_success">
                                             <i class="fas fa-check-circle"></i>
@@ -702,7 +722,7 @@ if (isset($_POST['email'])) {
                 // Special validation for age
                 if (fieldId === 'age' && value) {
                     const ageNum = parseInt(value);
-                    if (isNaN(ageNum) || ageNum < 0 || ageNum > 150) {
+                    if (isNaN(ageNum) || ageNum < 0 || ageNum > 120) {
                         input.classList.add('error');
                         if (errorMsg) errorMsg.classList.add('show');
                         if (icon) icon.classList.add('invalid');

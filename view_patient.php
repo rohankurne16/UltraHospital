@@ -85,6 +85,7 @@ if($document_result && $document_result->num_rows > 0){
     }
 }
 
+
 // ============================================================
 // FETCH APPOINTMENTS COUNT AND LAST VISIT
 // ============================================================
@@ -95,13 +96,14 @@ $appointment_query = "SELECT COUNT(*) as total_visits, MAX(appointment_date) as 
 $appointment_result = $conn->query($appointment_query);
 $appointment_data = $appointment_result->fetch_assoc();
 $total_visits = $appointment_data['total_visits'] ?? 0;
-$last_visit = $appointment_data['last_visit'] ?? 'N/A';
+$last_visit = $appointment_data['last_visit'] ?? '-';
+$next_visit = $appointment_data[''] ??'-';
 
 // ============================================================
 // FETCH SURGERIES COUNT AND LAST SURGERY
 // ============================================================
 $surgery_query = "SELECT COUNT(*) as total_surgeries, MAX(created_at) as last_surgery 
-                  FROM ipd_admissions 
+                  FROM surgeries 
                   WHERE patient_id='$patient_id' 
                   AND (delete_flag=0 OR delete_flag IS NULL)";
 $surgery_result = $conn->query($surgery_query);
@@ -143,8 +145,8 @@ $timeline_query = "
         'appointment' as event_type,
         a.appointment_date as event_date,
         a.appointment_time as event_time,
-        CONCAT('Appointment Completed - ', a.status) as title,
-        CONCAT('Dr. ', COALESCE(d.doctor_name, 'Unknown'), ' • ', a.opd_ipd_type, ' Consultation') as description,
+        CONCAT('Appointment - ', a.status) as title,
+        CONCAT(COALESCE(d.doctor_name, 'Unknown'), ' • ', a.opd_ipd_type, ' Consultation') as description,
         a.created_at as created_date,
         a.appointment_id as event_id
     FROM appointments a
@@ -186,7 +188,7 @@ $timeline_query = "
         NULL as event_time,
         'Diagnosis Added' as title,
         COALESCE(p2.medical_history, 'No diagnosis') as description,
-        p2.created_at as created_date,
+        p2.modified_at as created_date,
         p2.patient_id as event_id
     FROM patients p2
     WHERE p2.patient_id='$patient_id' AND p2.medical_history IS NOT NULL AND p2.medical_history != '')
@@ -219,22 +221,34 @@ if($timeline_result && $timeline_result->num_rows > 0){
 // ============================================================
 // FETCH ALL SURGERIES FOR HISTORY TABLE - FIXED (removed admission_time)
 // ============================================================
+$hospital_id = $_SESSION['hospital_id'];
+
 $surgeries_history_query = "
-    SELECT 
-        ia.id,
-        ia.admission_date as surgery_date,
-        ia.created_at as surgery_created,
-        'Laparoscopic Appendectomy' as surgery_title,
-        'Laparoscopic Appendectomy' as surgery_full_name,
-        h.hospital_name as hospital_name,
-        d.doctor_name as surgeon
-    FROM ipd_admissions ia
-    LEFT JOIN hospital_master h ON ia.hospital_id = h.hospital_id
-    LEFT JOIN doctor d ON ia.doctor_id = d.doctor_id
-    WHERE ia.patient_id='$patient_id' 
-    AND (ia.delete_flag=0 OR ia.delete_flag IS NULL)
-    ORDER BY ia.admission_date DESC
+SELECT
+    s.surgery_id,
+    s.surgery_no,
+    s.surgery_title,
+    s.surgery_full_name,
+    s.surgery_date,
+    s.surgery_time,
+    s.status,
+    s.surgery_type,
+    s.surgery_category,
+    s.surgeon_name,
+    h.hospital_name,
+    d.doctor_name
+FROM surgeries s
+LEFT JOIN hospital_master h
+    ON s.hospital_id = h.hospital_id
+LEFT JOIN doctor d
+    ON s.doctor_id = d.doctor_id
+WHERE s.patient_id = '$patient_id'
+AND s.hospital_id = '$hospital_id'
+AND (s.delete_flag = 0 OR s.delete_flag IS NULL)
+ORDER BY s.surgery_date DESC, s.created_at DESC
 ";
+
+$surgeries_history_result = mysqli_query($conn, $surgeries_history_query);
 
 $surgeries_history_result = $conn->query($surgeries_history_query);
 $surgeries_history = [];
@@ -275,7 +289,10 @@ $patient_appointment = "SELECT a.*, d.doctor_name
                         WHERE a.patient_id='$patient_id' 
                         AND (a.delete_flag=0 OR a.delete_flag IS NULL) 
                         ORDER BY a.appointment_date DESC";
+
 $appointment_info = $conn->query($patient_appointment);
+
+
 ?>
 <!DOCTYPE html>
 <html lang="en" class="h-full bg-gray-50">
@@ -396,7 +413,7 @@ $appointment_info = $conn->query($patient_appointment);
     <div class="min-h-screen flex flex-col">
         <?php include 'header.php'; ?> 
 
-        <div class="flex flex-1 overflow-hidden" style="margin-top: 5%;">
+        <div class="flex flex-1 overflow-hidden">
             <?php include 'Sidebar.php'; ?> 
 
             <main class="flex-1 overflow-y-auto xl:ml-64 bg-gray-50/50">
@@ -447,51 +464,120 @@ $appointment_info = $conn->query($patient_appointment);
                                     <div class="flex items-center flex-wrap gap-x-3 gap-y-1 text-sm text-gray-600 mt-1">
                                         <span><?php echo $gender ?>: <?php echo $age ?> Yrs</span>
                                         <span>•</span>
-                                        <span class="flex items-center gap-1"><i data-lucide="phone" class="w-3 h-3"></i> Phone-1: <?php echo $mobile ?></span>
+                                        <span class="flex items-center gap-1"><i data-lucide="phone" class="w-3 h-3"></i> Self Number: <?php echo $mobile ?></span>
                                         <?php if(!empty($emergency_contact)): ?>
                                         <span>•</span>
-                                        <span class="flex items-center gap-1"><i data-lucide="phone" class="w-3 h-3"></i> Phone-2: <?php echo $emergency_contact ?></span>
+                                        <span class="flex items-center gap-1"><i data-lucide="phone" class="w-3 h-3"></i> Relative Number: <?php echo $emergency_contact ?></span>
                                         <?php endif; ?>
                                     </div>
-                                    <div class="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                                        <i data-lucide="map-pin" class="w-3 h-3"></i>
-                                        <span><?php echo $address ?></span>
+                                    <div class="flex items-center gap-2 text-sm text-gray-600 mt-2">
+                                        <i data-lucide="map-pin" class="w-4 h-4 text-blue-500"></i>
+                                        <span class="font-medium"><?php echo $address ?></span>
                                     </div>
-                                    <div class="flex items-center gap-2 text-sm text-gray-600 mt-1">
-                                        <span class="font-medium">Relatives:</span>
-                                        <span><?php echo $address ?></span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="mt-4 md:mt-0">
-                                <div class="flex flex-wrap gap-2">
-                                    <?php 
-                                    $alert_types = ['Penicillin Allergy' => 'alert-penicillin', 'Blood Thinner Active' => 'alert-blood', 'Diabetic' => 'alert-diabetic'];
-                                    foreach($alerts as $alert): 
-                                        $class = $alert_types[$alert['type']] ?? 'alert-penicillin';
-                                    ?>
-                                        <span class="alert-badge <?php echo $class; ?> flex items-center gap-1">
-                                            <i data-lucide="alert-circle" class="w-3 h-3"></i>
-                                            <?php echo $alert['description']; ?>
+
+                                    <div class="flex items-center gap-3 text-sm text-gray-600 mt-2">
+                                        <span class="font-medium text-gray-700">Blood Group:</span>
+                                        <span class="px-2 py-1 bg-red-100 text-red-600 rounded-md font-semibold">
+                                            <?php echo $blood_group ?>
                                         </span>
-                                    <?php endforeach; ?>
+
+                                        <span class="text-gray-400">•</span>
+
+                                        <span class="font-medium text-gray-700">DOB:</span>
+                                        <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded-md">
+                                            <?php echo $dob ?>
+                                        </span>
+                                    </div>
+
+                                    <div class="flex items-center gap-4 mt-3 text-sm">
+                                        <div class="flex items-center gap-1 bg-green-50 px-3 py-1 rounded-lg">
+                                            <span class="font-semibold text-green-700">Last Visit:</span>
+                                            <span class="text-gray-700"><?php echo $last_visit ?></span>
+                                        </div>
+
+                                        <div class="flex items-center gap-1 bg-blue-50 px-3 py-1 rounded-lg">
+                                            <span class="font-semibold text-blue-700">Next Visit:</span>
+                                            <span class="text-gray-700"><?php echo $next_visit ?></span>
+                                        </div>
+                                    </div>
+                                     
                                 </div>
-                                <?php if(!empty($alerts)): ?>
-                                <div class="mt-2 text-sm text-gray-600">
-                                    Last INR: 2.8 (12 Jul 2026)
-                                </div>
-                                <?php endif; ?>
-                                <button class="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
-                                    View All Alerts →
-                                </button>
                             </div>
+                            <div class="bg-white rounded-xl border border-gray-200 p-4">
+                                <h3 class="text-sm font-medium text-gray-700 mb-3">Quick Actions</h3>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button onclick="window.location.href='appointments.php?patient_id=<?php echo $patient_id; ?>'" class="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors quick-action-btn">
+                                        <i data-lucide="calendar-plus" class="w-4 h-4 text-gray-600"></i>
+                                        <span class="text-xs font-medium text-gray-700">Add Appointment</span>
+                                    </button>
+                                  
+                                   
+                                    <button onclick="window.location.href='add_surgery.php?patient_id=<?php echo $patient_id; ?>'" class="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors quick-action-btn">
+                                        <i data-lucide="scissors" class="w-4 h-4 text-gray-600"></i>
+                                        <span class="text-xs font-medium text-gray-700">Add Surgery</span>
+                                    </button>
+                                    <button onclick="window.location.href='#'" class="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors quick-action-btn">
+                                        <i data-lucide="user-plus" class="w-4 h-4 text-gray-600"></i>
+                                        <span class="text-xs font-medium text-gray-700">Call Patient</span>
+                                    </button>
+                                    <button onclick="window.location.href='last_prescription.php?patient_id=<?php echo $patient_id; ?>'" class="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors quick-action-btn">
+                                        <i data-lucide="clipboard-list" class="w-4 h-4 text-gray-600"></i>
+                                        <span class="text-xs font-medium text-gray-700">Last Prescription</span>
+                                    </button
+   
+                                </div>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+
+                    <?php
+                   
+
+                    $alert_query = "SELECT alert_type, description
+                                    FROM patient_alerts
+                                    WHERE patient_id = '$id'
+                                    AND status = 'Active'
+                                    AND delete_flag = 0";
+
+                    $alert_result = mysqli_query($conn, $alert_query);
+
+                    $alerts = [];
+
+                    if ($alert_result && mysqli_num_rows($alert_result) > 0) {
+                        while ($row = mysqli_fetch_assoc($alert_result)) {
+                            $alerts[] = $row;
+                        }
+                    }
+                    ?>
+
+                    <?php if (!empty($alerts)): ?>
+
+                    <div class="bg-red-100 border border-red-500 rounded-lg p-3 mt-3">
+                        <div class="flex flex-wrap gap-4">
+
+                            <?php foreach ($alerts as $alert): ?>
+
+                                <div class="flex items-center text-red-700 font-medium">
+                                    <i data-lucide="alert-circle" class="w-4 h-4 mr-2"></i>
+
+                                    <span>
+                                        <strong><?php echo htmlspecialchars($alert['alert_type']); ?>:</strong>
+                                        <?php echo htmlspecialchars($alert['description']); ?>
+                                    </span>
+                                </div>
+
+                            <?php endforeach; ?>
+
                         </div>
                     </div>
 
-                    <!-- ============================================================ -->
-                    <!-- STATS CARDS -->
-                    <!-- ============================================================ -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <?php endif; ?>
+
+                        <!-- STATS CARDS -->
+                   
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6" style="margin-top:2%;">
                         <div class="bg-blue-50 rounded-xl border border-gray-200 p-4 stat-card">
                             <div class="flex items-center justify-between">
                                 <div>
@@ -556,14 +642,7 @@ $appointment_info = $conn->query($patient_appointment);
                                     <p class="text-sm text-gray-600">Diagnosis</p>
                                     <p class="text-xl font-semibold text-gray-900"><?php echo $diagnosis_count; ?></p>
                                 </div>
-                                <div>
-                                    <p class="text-sm text-gray-600">Co-morbidities</p>
-                                    <p class="text-xl font-semibold text-gray-900"><?php echo $diagnosis_count > 0 ? floor($diagnosis_count/2) : 0; ?></p>
-                                </div>
-                                <div>
-                                    <p class="text-sm text-gray-600">Complaints</p>
-                                    <p class="text-xl font-semibold text-gray-900"><?php echo $diagnosis_count > 0 ? 1 : 0; ?></p>
-                                </div>
+                              
                             </div>
                         </div>
                         <div class="bg-white rounded-xl border border-gray-200 p-4">
@@ -595,8 +674,12 @@ $appointment_info = $conn->query($patient_appointment);
                             <div class="bg-white rounded-xl border border-gray-200 p-4">
                                 <div class="flex items-center justify-between mb-4">
                                     <h3 class="text-lg font-semibold text-gray-900">Patient Timeline</h3>
-                                    <button class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                                   <button 
+                                        onclick="window.location.href='view_full_timeline.php?id=<?php echo $patient_id; ?>'"
+                                        class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+
                                         View Full Timeline →
+
                                     </button>
                                 </div>
                                 <div class="space-y-4">
@@ -655,52 +738,46 @@ $appointment_info = $conn->query($patient_appointment);
                         <div class="space-y-6">
                             
                             <!-- Quick Actions -->
-                            <div class="bg-white rounded-xl border border-gray-200 p-4">
-                                <h3 class="text-sm font-medium text-gray-700 mb-3">Quick Actions</h3>
-                                <div class="grid grid-cols-2 gap-2">
-                                    <button onclick="window.location.href='add_appointment.php?patient_id=<?php echo $patient_id; ?>'" class="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors quick-action-btn">
-                                        <i data-lucide="calendar-plus" class="w-4 h-4 text-gray-600"></i>
-                                        <span class="text-xs font-medium text-gray-700">Add Appointment</span>
-                                    </button>
-                                    <button onclick="window.location.href='update_patient.php?id=<?php echo $patient_id; ?>'" class="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors quick-action-btn">
-                                        <i data-lucide="file-edit" class="w-4 h-4 text-gray-600"></i>
-                                        <span class="text-xs font-medium text-gray-700">Update Records</span>
-                                    </button>
-                                    <button onclick="window.location.href='add_diagnosis.php?patient_id=<?php echo $patient_id; ?>'" class="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors quick-action-btn">
-                                        <i data-lucide="stethoscope" class="w-4 h-4 text-gray-600"></i>
-                                        <span class="text-xs font-medium text-gray-700">Add Diagnosis</span>
-                                    </button>
-                                    <button onclick="window.location.href='add_surgery.php?patient_id=<?php echo $patient_id; ?>'" class="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors quick-action-btn">
-                                        <i data-lucide="scissors" class="w-4 h-4 text-gray-600"></i>
-                                        <span class="text-xs font-medium text-gray-700">Add Surgery</span>
-                                    </button>
-                                    <button onclick="window.location.href='add_patient.php'" class="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors quick-action-btn">
-                                        <i data-lucide="user-plus" class="w-4 h-4 text-gray-600"></i>
-                                        <span class="text-xs font-medium text-gray-700">Add Patient</span>
-                                    </button>
-                                    <button onclick="window.location.href='add_summary.php?patient_id=<?php echo $patient_id; ?>'" class="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors quick-action-btn">
-                                        <i data-lucide="clipboard-list" class="w-4 h-4 text-gray-600"></i>
-                                        <span class="text-xs font-medium text-gray-700">Add Summary</span>
-                                    </button>
-                                </div>
-                            </div>
+                            
 
                             <!-- Recent Documents -->
                             <div class="bg-white rounded-xl border border-gray-200 p-4">
                                 <h3 class="text-sm font-medium text-gray-700 mb-3">Recent Documents</h3>
+
                                 <div class="space-y-2">
                                     <?php if(!empty($recent_docs)): ?>
                                         <?php foreach($recent_docs as $doc): ?>
-                                            <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
-                                                <div class="flex items-center gap-2">
+                                            <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50 rounded-lg px-2 transition group">
+                                                
+                                                <!-- Document Name - Click to View -->
+                                                <div onclick="viewDocument('<?php echo $doc['upload_file']; ?>')" 
+                                                    class="flex items-center gap-2 flex-1 cursor-pointer">
                                                     <i data-lucide="file-text" class="w-4 h-4 text-gray-400"></i>
-                                                    <span class="text-sm text-gray-700"><?php echo $doc['document_name']; ?></span>
+                                                    <span class="text-sm text-blue-600 hover:underline">
+                                                        <?php echo htmlspecialchars($doc['document_name']); ?>
+                                                    </span>
                                                 </div>
-                                                <span class="text-xs text-gray-500"><?php echo date("d M Y", strtotime($doc['document_date'])); ?></span>
+
+                                                <!-- Right side: Date and Download -->
+                                                <div class="flex items-center gap-3">
+                                                    <span class="text-xs text-gray-500">
+                                                        <?php echo date("d M Y", strtotime($doc['document_date'])); ?>
+                                                    </span>
+                                                    
+                                                    <!-- Download Button -->
+                                                    <button onclick="downloadDocument('<?php echo $doc['upload_file']; ?>', '<?php echo htmlspecialchars($doc['document_name']); ?>')" 
+                                                            class="text-gray-400 hover:text-blue-600 transition-colors p-1 rounded hover:bg-blue-50"
+                                                            title="Download document">
+                                                        <i data-lucide="download" class="w-4 h-4"></i>
+                                                    </button>
+                                                </div>
+
                                             </div>
                                         <?php endforeach; ?>
                                     <?php else: ?>
-                                        <p class="text-sm text-gray-400 italic text-center py-2">No documents found</p>
+                                        <p class="text-sm text-gray-400 italic text-center py-2">
+                                            No documents found
+                                        </p>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -713,7 +790,7 @@ $appointment_info = $conn->query($patient_appointment);
                     <div class="mt-6 bg-white rounded-xl border border-gray-200 p-4">
                         <div class="flex items-center justify-between mb-4">
                             <h3 class="text-lg font-semibold text-gray-900">Surgery History</h3>
-                            <button class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                            <button class="text-sm text-blue-600 hover:text-blue-800 font-medium" onclick="window.location='surgeries.php'">
                                 View and manage all surgeries performed →
                             </button>
                         </div>
@@ -734,16 +811,18 @@ $appointment_info = $conn->query($patient_appointment);
                                     <?php foreach($surgeries_history as $surgery): ?>
                                     <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                                         <td class="py-2 px-3 text-gray-800">
-                                            <?php echo date("d M Y", strtotime($surgery['surgery_date'])); ?>
+                                            <?php echo date("d M Y", strtotime($surgery['surgery_date']));
+                                                 $surgery_id = $surgery['surgery_id'];
+                                            ?>
                                         </td>
                                         <td class="py-2 px-3 text-gray-800"><?php echo $surgery['surgery_title']; ?></td>
                                         <td class="py-2 px-3 text-gray-800"><?php echo $surgery['surgery_full_name']; ?></td>
                                         <td class="py-2 px-3 text-gray-800"><?php echo $surgery['hospital_name'] ?? 'N/A'; ?></td>
-                                        <td class="py-2 px-3 text-gray-800"><?php echo $surgery['surgeon'] ?? 'N/A'; ?></td>
+                                        <td class="py-2 px-3 text-gray-800"><?php echo $surgery['surgeon_name'] ?? 'N/A'; ?></td>
                                         <td class="py-2 px-3">
-                                            <button class="text-blue-600 hover:text-blue-800 font-medium text-xs">
-                                                View
-                                            </button>
+                                                <button class="text-blue-600 hover:text-blue-800 font-medium text-xs" onclick="window.location.href='view_surgery.php?id=<?php echo $surgery_id; ?>'">
+                                                    View
+                                                </button>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>
@@ -761,9 +840,14 @@ $appointment_info = $conn->query($patient_appointment);
                             </div>
                             <?php endif; ?>
                         </div>
+                        
                     </div>
 
                 </div>
+                <!-- Tabs -->
+
+
+
             </main>
         </div>
     </div>
@@ -795,6 +879,49 @@ $appointment_info = $conn->query($patient_appointment);
                 window.location.href = `delete_document.php?id=${docId}&patient_id=<?php echo $patient_id; ?>`;
             }
         }
+        function viewDocument(filePath) {
+
+            if(filePath && filePath !== '') {
+
+                window.open(filePath, '_blank');
+
+            } else {
+
+                alert("Document file not available");
+
+            }
+
+        }
+
+       function downloadDocument(filePath, documentName) {
+
+    if(!filePath || filePath.trim() === '') {
+        alert("Document file not available");
+        return;
+    }
+
+    let link = document.createElement('a');
+
+    link.href = filePath;
+    link.download = documentName;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+    // Add keyboard shortcut for download (optional)
+    document.addEventListener('keydown', function(e) {
+        // Ctrl+Shift+D to download selected document (you can implement as needed)
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'D') {
+            e.preventDefault();
+            const firstDoc = document.querySelector('[onclick*="downloadDocument"]');
+            if (firstDoc) {
+                firstDoc.click();
+            }
+        }
+    });
+        
     </script>
 </body>
 </html>
@@ -802,5 +929,8 @@ $appointment_info = $conn->query($patient_appointment);
 <?php
         }
     }
+}
+else{
+    header('Location:index.php');
 }
 ?>

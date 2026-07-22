@@ -136,7 +136,25 @@ if (isset($_POST['email'])){
                 if ($conn->query($insert)) {
                     $patient_id = $conn->insert_id;
 
-                    // Insert into bed_allocation
+                    if (!empty($allergy)) {
+
+                        $sql = "INSERT INTO patient_alerts
+                        (patient_id, hospital_id, alert_type, description, status,created_by)
+                        VALUES
+                        ('$patient_id','$hospital_id','Allergy','$allergy','Active','Admin')";
+
+                        mysqli_query($conn, $sql);
+                    }
+
+                    if (!empty($medical_history)) {
+
+                        $sql = "INSERT INTO patient_alerts
+                        (patient_id, hospital_id, alert_type, description, status,created_by)
+                        VALUES
+                        ('$patient_id','$hospital_id','Medical History','$medical_history','Active','Admin')";
+
+                        mysqli_query($conn, $sql);
+                    }
                  
                     if (!empty($bed_id)) {
                         $admit_date = date('Y-m-d H:i:s');
@@ -516,14 +534,14 @@ $wards = fetchData($conn, "SELECT ward_id, ward_name, ward_type, floor_no, (SELE
                                         <div class="input-wrapper">
                                             <input id="age" type="number" name="age" placeholder="Enter age"
                                                 class="form-input"
-                                                min="0" max="150"
+                                                min="0" max="120"
                                                 data-validation="age"
-                                                title="Age must be between 0 and 150">
+                                                title="Age must be between 0 and 120">
                                             <i class="fas fa-check-circle input-icon" id="age_icon"></i>
                                         </div>
                                         <div class="validation-message error" id="age_error">
                                             <i class="fas fa-exclamation-circle"></i>
-                                            <span>Age must be between 0 and 150</span>
+                                            <span>Age must be between 0 and 120</span>
                                         </div>
                                         <div class="validation-message success" id="age_success">
                                             <i class="fas fa-check-circle"></i>
@@ -860,7 +878,7 @@ $wards = fetchData($conn, "SELECT ward_id, ward_name, ward_type, floor_no, (SELE
                 // Special validation for age
                 if (fieldId === 'age' && value) {
                     const ageNum = parseInt(value);
-                    if (isNaN(ageNum) || ageNum < 0 || ageNum > 150) {
+                    if (isNaN(ageNum) || ageNum < 0 || ageNum > 120) {
                         input.classList.add('error');
                         if (errorMsg) errorMsg.classList.add('show');
                         if (icon) icon.classList.add('invalid');

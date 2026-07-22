@@ -22,60 +22,84 @@ if (!function_exists('getUserProfile')) {
     function getUserProfile($user_id) {
         global $conn;
         
-        if (!isset($conn) || $conn === null) {
-            return ['name' => $_SESSION['name'] ?? 'User', 'profile_image' => ''];
+        // Check if connection exists and is open
+        if (!isset($conn) || $conn === null || !$conn->ping()) {
+            // Connection is closed or not available, use session data
+            return [
+                'name' => $_SESSION['name'] ?? 'User', 
+                'profile_image' => $_SESSION['profile_image'] ?? ''
+            ];
         }
         
-        $query = "SELECT u.*, r.role_name, h.hospital_name 
+        // Get profile image from admin_profile table
+        $query = "SELECT 
+                    u.id,
+                    u.name,
+                    u.email,
+                    u.role,
+                    u.role_id,
+                    COALESCE(ap.profile_image, '') as profile_image
                   FROM register u
-                  LEFT JOIN roles r ON u.role_id = r.role_id
-                  LEFT JOIN hospital_master h ON u.hospital_id = h.hospital_id
-                  WHERE u.id = '$user_id' AND (u.delete_flag = 0 OR u.delete_flag IS NULL)";
+                  LEFT JOIN admin_profile ap ON u.id = ap.register_id
+                  WHERE u.id = '$user_id' 
+                  AND (u.delete_flag = 0 OR u.delete_flag IS NULL)";
         
-        
-        
-    
         $result = mysqli_query($conn, $query);
         if ($result && mysqli_num_rows($result) > 0) {
-            return mysqli_fetch_assoc($result);
+            $data = mysqli_fetch_assoc($result);
+            
+            // Update session with profile image if exists
+            if (!empty($data['profile_image']) && file_exists($data['profile_image'])) {
+                $_SESSION['profile_image'] = $data['profile_image'];
+            } else {
+                $_SESSION['profile_image'] = '';
+            }
+            
+            return $data;
         }
-        return ['name' => $_SESSION['name'] ?? 'User', 'profile_image' => ''];
+        
+        // Fallback to session data
+        return [
+            'name' => $_SESSION['name'] ?? 'User', 
+            'profile_image' => $_SESSION['profile_image'] ?? ''
+        ];
     }
 }
 
 if (!function_exists('getNotificationCount')) {
     function getNotificationCount($user_id) {
-    global $conn;
+        global $conn;
 
-    if (!isset($conn) || $conn === null) {
+        // Check if connection exists and is open
+        if (!isset($conn) || $conn === null || !$conn->ping()) {
+            return 0;
+        }
+
+        $check_query = "SHOW COLUMNS FROM audit_logs LIKE 'is_read'";
+        $check_result = mysqli_query($conn, $check_query);
+        $has_is_read = ($check_result && mysqli_num_rows($check_result) > 0);
+
+        if ($has_is_read) {
+            $query = "SELECT COUNT(*) as count
+                      FROM audit_logs
+                      WHERE register_id = '$user_id'
+                      AND is_read = 0
+                      AND (delete_flag = 0 OR delete_flag IS NULL)";
+        } else {
+            $query = "SELECT COUNT(*) as count
+                      FROM audit_logs
+                      WHERE register_id = '$user_id'
+                      AND (delete_flag = 0 OR delete_flag IS NULL)";
+        }
+
+        $result = mysqli_query($conn, $query);
+
+        if ($result && mysqli_num_rows($result) > 0) {
+            $row = mysqli_fetch_assoc($result);
+            return $row['count'];
+        }
+
         return 0;
-    }
-
-    $check_query = "SHOW COLUMNS FROM audit_logs LIKE 'is_read'";
-    $check_result = mysqli_query($conn, $check_query);
-    $has_is_read = ($check_result && mysqli_num_rows($check_result) > 0);
-
-    if ($has_is_read) {
-        $query = "SELECT COUNT(*) as count
-                  FROM audit_logs
-                  WHERE register_id = '$user_id'
-                  AND is_read = 0
-                  AND (delete_flag = 0 OR delete_flag IS NULL)";
-    } else {
-        $query = "SELECT COUNT(*) as count
-                  FROM audit_logs
-                  WHERE register_id = '$user_id'
-                  AND (delete_flag = 0 OR delete_flag IS NULL)";
-    }
-
-    $result = mysqli_query($conn, $query);
-
-    if ($result && mysqli_num_rows($result) > 0) {
-        $row = mysqli_fetch_assoc($result);
-        return $row['count'];
-    }
-
-    return 0;
     }
 }
 
@@ -113,22 +137,41 @@ if (!function_exists('hasPermission')) {
 // ============================================================
 // Get user data
 // ============================================================
-$profile_id = $_SESSION['register_id'] ?? $_SESSION['id'];
+$profile_id = $_SESSION['register_id'] ?? $_SESSION['id'] ?? 0;
 $user_id = $_SESSION['id'] ?? 0;
 $role_id = $_SESSION['role_id'] ?? 0;
 $role_name = $_SESSION['role'] ?? '';
 $user_profile = getUserProfile($profile_id);
 $notification_count = getNotificationCount($user_id);
-$user_id = $_SESSION['id'] ?? 0;
 
-$user_permissions = getUserPermissions($profile_id);
-$permission_names = array_column($user_permissions, 'permission_name');
+// Get permissions
+if (function_exists('getUserPermissions')) {
+    $user_permissions = getUserPermissions($profile_id);
+} else {
+    $user_permissions = [];
+}
+
+if (is_array($user_permissions)) {
+    if (isset($user_permissions[0]) && is_array($user_permissions[0])) {
+        $permission_names = array_column($user_permissions, 'permission_name');
+    } else {
+        $permission_names = $user_permissions;
+    }
+} else {
+    $permission_names = [];
+}
 $theme = $_SESSION['theme'] ?? 'light';
 
 // Store permissions in session for future use
 if (!isset($_SESSION['permissions']) || empty($_SESSION['permissions'])) {
     $_SESSION['permissions'] = $permission_names;
 }
+
+// Ensure profile image is in session
+if (!isset($_SESSION['profile_image']) || empty($_SESSION['profile_image'])) {
+    $_SESSION['profile_image'] = $user_profile['profile_image'] ?? '';
+}
+
 ?>
 
 <style>
@@ -253,6 +296,8 @@ if (!isset($_SESSION['permissions']) || empty($_SESSION['permissions'])) {
     justify-content: center;
     font-weight: 600;
     font-size: 0.85rem;
+    overflow: hidden;
+    flex-shrink: 0;
 }
 
 .header-right .nav-link .avatar img {
@@ -416,21 +461,26 @@ if (!isset($_SESSION['permissions']) || empty($_SESSION['permissions'])) {
         <!-- User Profile -->
         <div class="nav-item">
             <button class="nav-link" onclick="toggleDropdown('profileDropdown')" title="Profile">
-                <?php if (!empty($user_profile['profile_image'])): ?>
+                <?php 
+                // Get profile image from session
+                $profile_image = $_SESSION['profile_image'] ?? '';
+                $user_name = $_SESSION['name'] ?? 'User';
+                ?>
+                <?php if (!empty($profile_image) && file_exists($profile_image)): ?>
                 <div class="avatar">
-                    <img src="<?php echo htmlspecialchars($user_profile['profile_image']); ?>" alt="Profile">
+                    <img src="<?php echo htmlspecialchars($profile_image); ?>" alt="Profile">
                 </div>
                 <?php else: ?>
                 <div class="avatar">
-                    <?php echo strtoupper(substr($user_profile['name'] ?? 'U', 0, 1)); ?>
+                    <?php echo strtoupper(substr($user_name, 0, 1)); ?>
                 </div>
                 <?php endif; ?>
-                <span class="label"><?php echo htmlspecialchars($user_profile['name'] ?? 'User'); ?></span>
+                <span class="label"><?php echo htmlspecialchars($user_name); ?></span>
                 <i class="fas fa-chevron-down" style="font-size:0.6rem;color:#94a3b8;"></i>
             </button>
             <div class="dropdown-menu" id="profileDropdown">
                 <div class="dropdown-header">
-                    <?php echo htmlspecialchars($user_profile['name'] ?? 'User'); ?>
+                    <?php echo htmlspecialchars($user_name); ?>
                     <div style="font-weight:400;font-size:0.75rem;color:#94a3b8;text-transform:capitalize;">
                         <?php echo htmlspecialchars($role_name); ?>
                     </div>
@@ -487,8 +537,6 @@ document.addEventListener('click', function(e) {
     }
 });
 
-
-
 /**
  * Toggle mobile sidebar
  */
@@ -525,6 +573,16 @@ function markAllRead() {
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         document.querySelectorAll('.dropdown-menu').forEach(d => d.classList.remove('open'));
+    }
+});
+
+// Refresh profile image on page load if session has profile image
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if profile image exists in session
+    const profileImage = '<?php echo $_SESSION['profile_image'] ?? ''; ?>';
+    if (profileImage) {
+        // Profile image is already in session, no need to do anything
+        console.log('Profile image loaded from session');
     }
 });
 </script>

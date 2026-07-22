@@ -725,7 +725,7 @@ $month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 
 <!-- Main Content -->
 <div class="main-content">
-    
+    <?php include '../header.php'; ?>
     <!-- Welcome Section -->
     <div class="welcome-section">
         <div class="row align-items-center">

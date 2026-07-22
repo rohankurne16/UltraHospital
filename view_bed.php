@@ -43,11 +43,24 @@ $bedStatsQuery = "SELECT
 $bedStatsResult = $conn->query($bedStatsQuery);
 $bedStats = $bedStatsResult->fetch_assoc();
 
+// If no beds exist, set stats to 0
+if (!$bedStats) {
+    $bedStats = [
+        'total_beds' => 0,
+        'available_beds' => 0,
+        'occupied_beds' => 0,
+        'maintenance_beds' => 0
+    ];
+}
+
 // Fetch all beds
 $bedsQuery = "SELECT * FROM bed_master 
               WHERE room_id = $room_id AND (delete_flag = 0 OR delete_flag IS NULL)
               ORDER BY bed_no ASC";
 $bedsResult = $conn->query($bedsQuery);
+
+// Debug: Check if query returns any rows
+$bedCount = $bedsResult->num_rows;
 
 // Store all beds in array for JavaScript filtering
 $allBeds = [];
@@ -514,36 +527,45 @@ if (isset($_GET['delete_id']) && !empty($_GET['delete_id'])) {
                 margin-bottom: 4px;
             }
         }
-        /* Container for the button and title */
-.page-header {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 28px;
-}
+        
+        .page-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 28px;
+        }
 
-/* The Back Button style */
-.back-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
-    border: 1px solid #e5e7eb;
-    background: white;
-    color: #64748b;
-    transition: all 0.2s ease;
-    text-decoration: none;
-    cursor: pointer;
-}
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            background: white;
+            color: #64748b;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            cursor: pointer;
+        }
 
-.back-btn:hover {
-    background: #f1f5f9;
-    color: #0f172a;
-    border-color: #cbd5e1;
-}
+        .back-btn:hover {
+            background: #f1f5f9;
+            color: #0f172a;
+            border-color: #cbd5e1;
+        }
 
+        /* Debug message style */
+        .debug-message {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            color: #92400e;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -555,30 +577,37 @@ if (isset($_GET['delete_id']) && !empty($_GET['delete_id'])) {
                 <div class="max-w-7xl mx-auto w-full">
                     
                     <!-- Page Header -->
-                   <!-- Page Header -->
-<div class="page-header flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-7">
-    <div class="flex items-center gap-4">
-        <a href="view_ward.php?id=<?php echo $ward_id; ?>" class="back-btn" title="Back to Ward">
-            <i class="fa-solid fa-arrow-left"></i> 
-        </a>
-        <div>
-            <h1 class="page-title text-2xl font-bold text-gray-900">
-                Room <?php echo htmlspecialchars($room['room_no']); ?>
-            </h1>
-            <p class="page-subtitle text-gray-500">
-                <?php echo htmlspecialchars($room['ward_name']); ?> - Bed Management
-            </p>
-        </div>
-    </div>
-    
-    <div class="flex flex-wrap gap-3">
-        <a href="add_bed.php?room_id=<?php echo $room_id; ?>&ward_id=<?php echo $ward_id; ?>" 
-           class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-all shadow-sm">
-            Add Bed
-        </a>
-    </div>
-</div>
+                    <div class="page-header flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-7">
+                        <div class="flex items-center gap-4">
+                            <a href="view_ward.php?id=<?php echo $ward_id; ?>" class="back-btn" title="Back to Ward">
+                                <i class="fa-solid fa-arrow-left"></i> 
+                            </a>
+                            <div>
+                                <h1 class="page-title text-2xl font-bold text-gray-900">
+                                    Room <?php echo htmlspecialchars($room['room_no']); ?>
+                                </h1>
+                                <p class="page-subtitle text-gray-500">
+                                    <?php echo htmlspecialchars($room['ward_name']); ?> - Bed Management
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex flex-wrap gap-3">
+                            <a href="add_bed.php?room_id=<?php echo $room_id; ?>&ward_id=<?php echo $ward_id; ?>" 
+                               class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-all shadow-sm">
+                                <i class="fa-solid fa-plus mr-2"></i> Add Bed
+                            </a>
+                        </div>
+                    </div>
 
+                    <!-- Debug Information (Remove after fixing) -->
+                    <?php if ($bedCount == 0): ?>
+                    <div class="debug-message">
+                        <strong><i class="fa-solid fa-info-circle"></i> Debug Info:</strong> 
+                        No beds found for Room ID: <?php echo $room_id; ?>. 
+                        Please check if beds exist in the bed_master table for this room.
+                    </div>
+                    <?php endif; ?>
 
                     <!-- Room Information -->
                     <div class="card mb-6">
@@ -587,9 +616,7 @@ if (isset($_GET['delete_id']) && !empty($_GET['delete_id'])) {
                                 <i class="fa-solid fa-info-circle text-blue-600"></i>
                                 Room Information
                             </h3>
-                            <span class="status-badge status-<?php echo strtolower($
-                            
-                            ['status'] ?? 'available'); ?>">
+                            <span class="status-badge status-<?php echo strtolower($room['status'] ?? 'available'); ?>">
                                 <?php echo $room['status'] ?? 'Available'; ?>
                             </span>
                         </div>
@@ -810,6 +837,11 @@ if (isset($_GET['delete_id']) && !empty($_GET['delete_id'])) {
                 filterLabel.style.fontWeight = '500';
             }
         }
+
+        // Add console log for debugging
+        console.log('Room ID:', <?php echo $room_id; ?>);
+        console.log('Total Beds:', <?php echo count($allBeds); ?>);
+        console.log('Beds Data:', <?php echo json_encode($allBeds); ?>);
     </script>
 </body>
 </html>

@@ -501,7 +501,7 @@ if ($all_orders_result) {
             <th>Technician</th>
             <th>Date</th>
             <th>Tests</th>
-            <th>Status</th>
+            <th> Order Status</th>
             <th>Payment</th>
             <th class="text-center">Action</th>
         </tr>

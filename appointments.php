@@ -10,9 +10,18 @@ $conn->set_charset("utf8");
 
 $hid=$_SESSION["hospital_id"];
 
+$pat_id = '';
+
+if (isset($_GET['patient_id'])) {
+    $pat_id = $_GET['patient_id'];
+} elseif (isset($_POST['patient_id'])) {
+    $pat_id = $_POST['patient_id'];
+}
+
 // Initialize message variables
 $message = "";
 $messageType = "";
+
 
 // Function to safely get POST data
 function getPostData($key, $default = "") {
@@ -30,6 +39,8 @@ function fetchData($conn, $query) {
     }
     return $data;
 }
+
+
 
 // Fetch patients
 $patients = fetchData($conn, "SELECT patient_id, patient_name, mobile, email, address, date_of_birth, age, gender, blood_group FROM patients WHERE (delete_flag=0 OR delete_flag IS NULL) AND hospital_id='$hid' ORDER BY patient_name ASC");
@@ -77,11 +88,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $severity = mysqli_real_escape_string($conn, getPostData('severity'));
     $allergies = mysqli_real_escape_string($conn, getPostData('allergies'));
     $current_medicines = mysqli_real_escape_string($conn, getPostData('current_medicines'));
+    if (!empty($allergies) && !preg_match('/^[A-Za-z,\s]+$/', $allergies)) {
+    $message = "Known Allergies should contain only letters, spaces and commas only.";
+    $messageType = "error";
+    $error = true;
+}
     $note = mysqli_real_escape_string($conn, getPostData('note'));
     $opd_ipd_type = mysqli_real_escape_string($conn, getPostData('opd_ipd_type', 'OPD'));
     $status = mysqli_real_escape_string($conn, getPostData('status', 'Scheduled'));
     $previous_history = isset($_POST['previous_history']) ? implode(", ", $_POST['previous_history']) : "";
-    
+    if (empty($_POST['previous_history'])) {
+    $message = "Please select at least one Previous Condition.";
+    $messageType = "error";
+    $error = true;
+}
     // IPD specific fields
     $admission_date = mysqli_real_escape_string($conn, getPostData('admission_date', date('Y-m-d')));
     $diagnosis = mysqli_real_escape_string($conn, getPostData('diagnosis'));
@@ -296,7 +316,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 
                 if ($conn->query($sql_ipd)) {
                     // Allocate bed
-                    $conn->query("INSERT INTO bed_allocation (patient_id, bed_id, admit_date, status) VALUES ('$patient_id', '$bed_id', NOW(), 'Occupied')");
+                    $conn->query("INSERT INTO bed_allocation (patient_id, bed_id, admit_date, status,hospital_id) VALUES ('$patient_id', '$bed_id', NOW(), 'Occupied','$hid')");
                     
                     // Update bed status
                     $conn->query("UPDATE bed_master SET status='Occupied' WHERE bed_id='$bed_id'");
@@ -551,19 +571,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <div class="section-title">3. Patient Selection</div>
                         <div class="form-group mb-6">
                             <label for="patient_id">Select Patient <span class="required">*</span></label>
-                            <select id="patient_id" name="patient_id" required onchange="loadPatientDetails()" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <select id="patient_id" name="patient_id" required onchange="loadPatientDetails()">
                                 <option value="">Select a patient</option>
+
                                 <?php foreach ($patients as $patient): ?>
-                                    <option value="<?php echo $patient['patient_id']; ?>" 
-                                            data-name="<?php echo htmlspecialchars($patient['patient_name']); ?>"
-                                            data-age="<?php echo htmlspecialchars($patient['age']); ?>"
-                                            data-gender="<?php echo htmlspecialchars($patient['gender']); ?>"
-                                            data-blood="<?php echo htmlspecialchars($patient['blood_group']); ?>"
-                                            data-mobile="<?php echo htmlspecialchars($patient['mobile']); ?>"
-                                            data-email="<?php echo htmlspecialchars($patient['email']); ?>"
-                                            data-address="<?php echo htmlspecialchars($patient['address']); ?>"
-                                            data-dob="<?php echo htmlspecialchars($patient['date_of_birth']); ?>"
-                                            <?php echo (($form_data['patient_id'] ?? '') == $patient['patient_id']) ? 'selected' : ''; ?>>
+                                    <option
+                                        value="<?php echo $patient['patient_id']; ?>"
+                                        data-name="<?php echo htmlspecialchars($patient['patient_name']); ?>"
+                                        data-age="<?php echo htmlspecialchars($patient['age']); ?>"
+                                        data-gender="<?php echo htmlspecialchars($patient['gender']); ?>"
+                                        data-blood="<?php echo htmlspecialchars($patient['blood_group']); ?>"
+                                        data-mobile="<?php echo htmlspecialchars($patient['mobile']); ?>"
+                                        data-email="<?php echo htmlspecialchars($patient['email']); ?>"
+                                        data-address="<?php echo htmlspecialchars($patient['address']); ?>"
+                                        data-dob="<?php echo htmlspecialchars($patient['date_of_birth']); ?>"
+                                        <?php
+                                            if (!empty($pat_id)) {
+                                                echo ($pat_id == $patient['patient_id']) ? 'selected' : '';
+                                            } else {
+                                                echo (($form_data['patient_id'] ?? '') == $patient['patient_id']) ? 'selected' : '';
+                                            }
+                                        ?>>
                                         <?php echo htmlspecialchars($patient['patient_name']); ?>
                                     </option>
                                 <?php endforeach; ?>
@@ -643,9 +671,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                             <div class="form-group">
-                                <label for="allergies">Known Allergies</label>
-                                <input type="text" id="allergies" name="allergies" placeholder="e.g., Penicillin, Dust, Pollen" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" value="<?php echo htmlspecialchars($form_data['allergies'] ?? ''); ?>">
-                            </div>
+    <label for="allergies">Known Allergies</label>
+    <input type="text"
+           id="allergies"
+           name="allergies"
+           placeholder="e.g., Penicillin, Dust, Pollen"
+           class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+           value="<?php echo htmlspecialchars($form_data['allergies'] ?? ''); ?>"
+           pattern="[A-Za-z,\s]+"
+           title="Only letters, spaces and commas are allowed"
+           maxlength="100">
+</div>
                             <div class="form-group">
                                 <label for="current_medicines">Current Medications</label>
                                 <input type="text" id="current_medicines" name="current_medicines" placeholder="e.g., Aspirin, Insulin" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" value="<?php echo htmlspecialchars($form_data['current_medicines'] ?? ''); ?>">
@@ -985,10 +1021,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
                 const selectedBedId = '<?php echo $form_data['bed_id'] ?? ''; ?>';
                 data.forEach(bed => {
-                    const statusText = bed.status === 'Available' ? ' ✅ Available' : ' 🔴 Occupied';
-                    const selected = (selectedBedId == bed.bed_id) ? 'selected' : '';
-                    options += `<option value="${bed.bed_id}" ${selected}>${bed.bed_no} - ${bed.bed_type}${statusText}</option>`;
-                });
+    const selected = (selectedBedId == bed.bed_id) ? 'selected' : '';
+
+    options += `
+        <option value="${bed.bed_id}" ${selected}>
+            ${bed.bed_no} - ${bed.bed_type}
+        </option>
+    `;
+});
                 bedSelect.innerHTML = options;
             } catch (error) {
                 console.error('Error loading beds:', error);
@@ -1091,6 +1131,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 loadBeds(roomId);
             }
         });
+
+    document.getElementById("appointmentForm").addEventListener("submit", function(e) {
+
+    const checked = document.querySelectorAll('input[name="previous_history[]"]:checked');
+
+    if (checked.length === 0) {
+        alert("Please select at least one Previous Condition.");
+        e.preventDefault();
+    }
+
+});
     </script>
 </body>
 </html>

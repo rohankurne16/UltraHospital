@@ -124,20 +124,29 @@ if ($result_tests_list) {
 }
 
 // ========== UPDATE ORDER ==========
+// ========== UPDATE ORDER ==========
 if (isset($_POST['update_order'])) {
     $patient_id = intval($_POST['patient_id'] ?? 0);
     $doctor_id = intval($_POST['doctor_id'] ?? 0);
-    $technician_id = intval($_POST['technician_id'] ?? 0);
+    $technician_id = intval($_POST['technician_id'] ?? 0); // <-- THIS MUST BE SET
     $order_date = $_POST['order_date'] ?? date('Y-m-d');
     $remarks = trim($_POST['remarks'] ?? '');
     $order_status = $_POST['order_status'] ?? 'Pending';
     $test_ids = $_POST['test_ids'] ?? [];
     $updated_by = $_SESSION['id'] ?? 1;
     
+    // --- DEBUG: Log technician_id ---
+    error_log("Technician ID received: " . $technician_id);
+    
     $errors = [];
     if (empty($patient_id)) $errors[] = "Please select a patient";
     if (empty($doctor_id)) $errors[] = "Please select a doctor";
     if (empty($test_ids)) $errors[] = "Please select at least one test";
+    
+    // --- NEW: Require technician for "Assigned" status ---
+    if ($order_status == 'Assigned' && empty($technician_id)) {
+        $errors[] = "Please select a technician for Assigned status";
+    }
     
     if (empty($errors)) {
         // Calculate total
@@ -155,18 +164,34 @@ if (isset($_POST['update_order'])) {
         
         $conn->begin_transaction();
         try {
-            // Update order with status and technician
-            $sql = "UPDATE lab_orders SET 
-                    patient_id = $patient_id,
-                    doctor_id = $doctor_id,
-                    technician_id = " . ($technician_id > 0 ? $technician_id : "NULL") . ",
-                    order_date = '$order_date',
-                    total_amount = $total_amount,
-                    remarks = '$remarks',
-                    order_status = '$order_status',
-                    updated_by = $updated_by
-                    WHERE order_id = $order_id AND hospital_id = $hid";
+             if ($technician_id > 0) {
+        $order_status = 'Assigned';
+    } else {
+        $order_status = 'Pending';
+    }
+            // --- FIX: Properly handle technician_id ---
+            $tech_sql = ($technician_id > 0) ? $technician_id : "NULL";
             
+
+            if ($technician_id > 0 && $order_status == 'Pending') {
+
+
+    $order_status = 'Assigned';
+}
+            $sql = "UPDATE lab_orders SET
+    patient_id = $patient_id,
+    doctor_id = $doctor_id,
+    technician_id = $tech_sql,
+    order_date = '$order_date',
+    total_amount = $total_amount,
+    remarks = '$remarks',
+    order_status = '$order_status',
+    updated_by = $updated_by
+    WHERE order_id = $order_id
+    AND hospital_id = $hid";
+            
+            error_log("UPDATE SQL: " . $sql); // Debug
+           
             if ($conn->query($sql)) {
                 // Delete existing order details
                 $conn->query("DELETE FROM lab_order_details WHERE order_id = $order_id");
@@ -180,6 +205,10 @@ if (isset($_POST['update_order'])) {
                 
                 $conn->commit();
                 $_SESSION['success'] = "Order #{$order['order_no']} updated successfully!";
+                
+                // --- NEW: If technician assigned, update status to Assigned ---
+            
+                
                 header("Location: order_details.php?id=$order_id");
                 exit();
             } else {
@@ -188,6 +217,7 @@ if (isset($_POST['update_order'])) {
         } catch (Exception $e) {
             $conn->rollback();
             $_SESSION['error'] = $e->getMessage();
+            error_log("Update error: " . $e->getMessage());
         }
     } else {
         $_SESSION['error'] = implode(", ", $errors);

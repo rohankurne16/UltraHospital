@@ -14,6 +14,8 @@ if ($result->num_rows > 0) {
 
 $message = '';
 $message_type = '';
+$errors = [];
+$form_data = [];
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Sanitize inputs
@@ -27,35 +29,131 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $pincode = mysqli_real_escape_string($conn, trim($_POST['pincode']));
     $country = mysqli_real_escape_string($conn, trim($_POST['country']));
     $phone = mysqli_real_escape_string($conn, trim($_POST['phone']));
-  
     $website = mysqli_real_escape_string($conn, trim($_POST['website']));
     $gst_number = strtoupper(mysqli_real_escape_string($conn, trim($_POST['gst_number'])));
 
+    // Store form data for repopulation
+    $form_data = [
+        'hospital_name' => $hospital_name,
+        'hospital_code' => $hospital_code,
+        'hospital_type' => $hospital_type,
+        'registration_number' => $registration_number,
+        'address' => $address,
+        'city' => $city,
+        'state' => $state,
+        'pincode' => $pincode,
+        'country' => $country,
+        'phone' => $phone,
+        'website' => $website,
+        'gst_number' => $gst_number
+    ];
+
     // Validation
-    if (empty($hospital_name)) {
-        $message = "Hospital name is required.";
-        $message_type = "error";
-    } elseif (!preg_match('/^[6-9][0-9]{9}$/', $phone)) {
-        $message = "Please enter a valid 10-digit primary phone number.";
-        $message_type = "error";
-    } elseif (!preg_match('/^[1-9][0-9]{5}$/', $pincode)) {
-        $message = "Please enter a valid 6-digit PIN code.";
-        $message_type = "error";
-    } elseif (!empty($gst_number) && !preg_match('/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{3}$/', strtoupper($gst_number))) {
-        $message = "Invalid GST Number.";
-        $message_type = "error";
+    // Hospital Name validation 
+    if(empty($hospital_name)) {
+        $errors['hospital_name'] = "Hospital name is required.";
+    } elseif(strlen($hospital_name) < 3) {
+        $errors['hospital_name'] = "Hospital name must be at least 3 characters.";
+    } elseif(!preg_match("/^[a-zA-Z\s\.\-']+$/", $hospital_name)) {
+        $errors['hospital_name'] = "Hospital name can only contain letters, spaces, dots, and hyphens.";
     }
 
-    if (empty($message)) {
+    // Hospital Code validation
+    if(!empty($hospital_code) && !preg_match("/^[A-Z0-9\-_]+$/", $hospital_code)) {
+        $errors['hospital_code'] = "Hospital code can only contain uppercase letters, numbers, hyphens, and underscores.";
+    }
+
+    // Hospital Type validation
+    if(!empty($hospital_type) && !preg_match("/^[a-zA-Z\s\.\-']+$/", $hospital_type)) {
+        $errors['hospital_type'] = "Hospital type can only contain letters, spaces, dots, and hyphens.";
+    }
+
+  // Registration Number validation
+if(empty($registration_number)) {
+    $errors['registration_number'] = "Registration number is required.";
+} elseif(!preg_match("/^[A-Z0-9\/\-]+$/", $registration_number)) {
+    $errors['registration_number'] = "Registration number can only contain letters (A-Z), numbers (0-9), forward slash (/), and hyphen (-).";
+} elseif(strlen($registration_number) > 30) {
+    $errors['registration_number'] = "Registration number cannot exceed 30 characters.";
+}
+
+    // Phone validation
+    if(empty($phone)) {
+        $errors['phone'] = "Phone number is required.";
+    } elseif(!preg_match('/^[6-9][0-9]{9}$/', $phone)) {
+        $errors['phone'] = "Please enter a valid 10-digit mobile number starting with 6,7,8, or 9.";
+    }
+
+    // Pincode validation
+    if(empty($pincode)) {
+        $errors['pincode'] = "PIN code is required.";
+    } elseif(!preg_match('/^[1-9][0-9]{5}$/', $pincode)) {
+        $errors['pincode'] = "Please enter a valid 6-digit PIN code.";
+    }
+
+    // GST Number validation
+    if(!empty($gst_number) && !preg_match('/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{3}$/', $gst_number)) {
+        $errors['gst_number'] = "Invalid GST Number format. Example: 22AAAAA1234A1Z5";
+    }
+
+    // Website validation
+    if(!empty($website)) {
+        if(!filter_var($website, FILTER_VALIDATE_URL)) {
+            $errors['website'] = "Please enter a valid website URL (e.g., https://example.com).";
+        }
+    }
+
+    // Country validation
+    if(!empty($country) && !preg_match("/^[a-zA-Z\s\.\-']+$/", $country)) {
+        $errors['country'] = "Country name can only contain letters, spaces, dots, and hyphens.";
+    }
+
+    // State validation
+    if(!empty($state) && !preg_match("/^[a-zA-Z\s\.\-']+$/", $state)) {
+        $errors['state'] = "State name can only contain letters, spaces, dots, and hyphens.";
+    }
+
+    // City validation
+    if(!empty($city) && !preg_match("/^[a-zA-Z\s\.\-']+$/", $city)) {
+        $errors['city'] = "City name can only contain letters, spaces, dots, and hyphens.";
+    }
+
+    // Address validation
+    if(empty($address)) {
+        $errors['address'] = "Address is required.";
+    } elseif(strlen($address) < 3) {
+        $errors['address'] = "Address must be at least 3 characters.";
+    }
+
+    // File validation for logo
+    if(isset($_FILES['hospital_logo_file']) && $_FILES['hospital_logo_file']['error'] == 0) {
+        $file = $_FILES['hospital_logo_file'];
+        $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        $max_size = 2 * 1024 * 1024; // 2MB
+        
+        if(!in_array($file['type'], $allowed_types)) {
+            $errors['hospital_logo'] = "Only JPG, PNG, GIF, and WEBP images are allowed for logo.";
+        } elseif($file['size'] > $max_size) {
+            $errors['hospital_logo'] = "Logo image size must be less than 2MB.";
+        } elseif($file['error'] !== UPLOAD_ERR_OK) {
+            $errors['hospital_logo'] = "Failed to upload logo. Error code: " . $file['error'];
+        }
+    }
+
+    if (empty($errors)) {
         // Handle logo upload
         $hospital_logo = $hospital_data['hospital_logo'] ?? 'documents/hospital/logo.png';
-        if (!empty($_FILES['hospital_logo_file']['name'])) {
+        if (!empty($_FILES['hospital_logo_file']['name']) && $_FILES['hospital_logo_file']['error'] == 0) {
             $folder = "documents/hospital/";
             if (!file_exists($folder)) {
                 mkdir($folder, 0777, true);
             }
-            $logo_name = $_FILES['hospital_logo_file']['name'];
+            $logo_name = time() . '_' . basename($_FILES['hospital_logo_file']['name']);
             if (move_uploaded_file($_FILES['hospital_logo_file']['tmp_name'], $folder . $logo_name)) {
+                // Delete old logo if exists and not default
+                if(!empty($hospital_data['hospital_logo']) && $hospital_data['hospital_logo'] != 'documents/hospital/logo.png' && file_exists($hospital_data['hospital_logo'])) {
+                    unlink($hospital_data['hospital_logo']);
+                }
                 $hospital_logo = $folder . $logo_name;
             }
         }
@@ -75,7 +173,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 country = '$country',
                 pincode = '$pincode',
                 phone = '$phone',
-              
                 website = '$website',
                 modified_at = CURRENT_TIMESTAMP()
                 WHERE hospital_id = " . $hospital_data['hospital_id'];
@@ -83,6 +180,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             if ($conn->query($update_sql)) {
                 $message = "Hospital settings updated successfully!";
                 $message_type = "success";
+                // Clear form data on success
+                $form_data = [];
             } else {
                 $message = "Error updating settings: " . $conn->error;
                 $message_type = "error";
@@ -104,15 +203,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $message_type = "success";
                 // Get the new record
                 $hospital_data = $conn->query("SELECT * FROM hospital_master WHERE hospital_id = " . $conn->insert_id)->fetch_assoc();
+                // Clear form data on success
+                $form_data = [];
             } else {
                 $message = "Error saving settings: " . $conn->error;
                 $message_type = "error";
             }
         }
         
-        // Refresh data
-        $result = $conn->query("SELECT * FROM hospital_master WHERE hospital_id = $hid");
-        $hospital_data = $result->fetch_assoc();
+        // Refresh data if successful
+        if(empty($message_type) || $message_type == 'success') {
+            $result = $conn->query("SELECT * FROM hospital_master WHERE hospital_id = $hid");
+            $hospital_data = $result->fetch_assoc();
+        }
+    } else {
+        // Set message for validation errors
+        $message = "Please fix the errors below.";
+        $message_type = "error";
     }
 }
 ?>
@@ -201,6 +308,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         .field-group label i { color: #3b82f6; width: 18px; }
         .field-group input, .field-group textarea { padding: 12px 16px; border-radius: 12px; border: 1.5px solid #e2e8f0; background: #fcfdfe; font-size: 15px; outline: none; transition: 0.2s; width: 100%; }
         .field-group input:focus, .field-group textarea:focus { border-color: #3b82f6; box-shadow: 0 0 0 4px rgba(59,130,246,0.1); background: #fff; }
+        .field-group input.input-error, .field-group textarea.input-error { border-color: #dc2626 !important; background-color: #fef2f2 !important; }
+        .field-group .error-text { color: #dc2626; font-size: 0.75rem; font-weight: 500; margin-top: 0.25rem; display: block; }
         
         .logo-upload-container { display: flex; justify-content: center; margin-bottom: 32px; }
         .logo-preview-wrapper { position: relative; width: 120px; height: 120px; }
@@ -234,6 +343,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             border-radius: 8px;
             color: #374151;
             cursor: pointer;
+        }
+        
+        .logo-error-border {
+            border-color: #dc2626 !important;
+            border-style: solid !important;
         }
     </style>
 </head>
@@ -270,12 +384,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </div>
             <?php endif; ?>
 
+            <?php if(!empty($errors)): ?>
+                <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
+                    <p class="text-red-600 font-bold text-sm mb-2">Please fix the following errors:</p>
+                    <ul class="list-disc list-inside text-red-600 text-sm">
+                        <?php foreach($errors as $field => $error_msg): ?>
+                            <li><?php echo $error_msg; ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
+
             <div class="settings-card">
                 <form method="POST" action="" enctype="multipart/form-data">
-                    <div class="logo-upload-container">
+                    <div class="logo-upload-container <?php echo isset($errors['hospital_logo']) ? 'logo-error-border' : ''; ?>">
                         <div class="logo-preview-wrapper">
                             <div class="logo-preview-container">
-                                <?php if (!empty($hospital_data['hospital_logo'])): ?>
+                                <?php if (!empty($hospital_data['hospital_logo']) && file_exists($hospital_data['hospital_logo'])): ?>
                                     <img src="<?php echo htmlspecialchars($hospital_data['hospital_logo']); ?>" class="logo-preview" id="logoPreview">
                                 <?php else: ?>
                                     <div class="flex items-center justify-center h-full text-slate-400 text-4xl">
@@ -288,37 +413,54 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             </div>
                         </div>
                         <input type="file" id="logoInput" name="hospital_logo_file" class="hidden" accept="image/*" onchange="previewLogo(event)">
+                        <?php if(isset($errors['hospital_logo'])): ?>
+                            <span class="error-text" style="position:absolute; bottom:-25px;"><?php echo $errors['hospital_logo']; ?></span>
+                        <?php endif; ?>
                     </div>
 
                     <div class="form-grid">
                         <!-- Hospital Name -->
                         <div class="field-group">
-                            <label><i class="fas fa-hospital"></i> Hospital Name <span class="required">*</span></label>
-                            <input type="text" name="hospital_name" value="<?php echo htmlspecialchars($hospital_data['hospital_name'] ?? ''); ?>" required />
+                            <label><i class="fas fa-hospital"></i> Hospital Name</label>
+                            <input type="text" name="hospital_name" value="<?php echo htmlspecialchars(!empty($form_data['hospital_name']) ? $form_data['hospital_name'] : ($hospital_data['hospital_name'] ?? '')); ?>" class="<?php echo isset($errors['hospital_name']) ? 'input-error' : ''; ?>" />
+                            <?php if(isset($errors['hospital_name'])): ?>
+                                <span class="error-text"><?php echo $errors['hospital_name']; ?></span>
+                            <?php endif; ?>
                         </div>
 
                         <!-- Hospital Code -->
                         <div class="field-group">
                             <label><i class="fas fa-code"></i> Hospital Code</label>
-                            <input type="text" name="hospital_code" value="<?php echo htmlspecialchars($hospital_data['hospital_code'] ?? ''); ?>" />
+                            <input type="text" name="hospital_code" value="<?php echo htmlspecialchars(!empty($form_data['hospital_code']) ? $form_data['hospital_code'] : ($hospital_data['hospital_code'] ?? '')); ?>" class="<?php echo isset($errors['hospital_code']) ? 'input-error' : ''; ?>" />
+                            <?php if(isset($errors['hospital_code'])): ?>
+                                <span class="error-text"><?php echo $errors['hospital_code']; ?></span>
+                            <?php endif; ?>
                         </div>
 
                         <!-- Hospital Type -->
                         <div class="field-group">
                             <label><i class="fas fa-building"></i> Hospital Type</label>
-                            <input type="text" name="hospital_type" value="<?php echo htmlspecialchars($hospital_data['hospital_type'] ?? ''); ?>" />
+                            <input type="text" name="hospital_type" value="<?php echo htmlspecialchars(!empty($form_data['hospital_type']) ? $form_data['hospital_type'] : ($hospital_data['hospital_type'] ?? '')); ?>" class="<?php echo isset($errors['hospital_type']) ? 'input-error' : ''; ?>" />
+                            <?php if(isset($errors['hospital_type'])): ?>
+                                <span class="error-text"><?php echo $errors['hospital_type']; ?></span>
+                            <?php endif; ?>
                         </div>
 
-                        <!-- Registration Number -->
-                        <div class="field-group">
-                            <label><i class="fas fa-id-card"></i> Registration Number</label>
-                            <input type="text" name="registration_number" value="<?php echo htmlspecialchars($hospital_data['registration_number'] ?? ''); ?>" />
-                        </div>
-
+                    <!-- Registration Number -->
+<div class="field-group">
+    <label><i class="fas fa-id-card"></i> Registration Number </label>
+    <input type="text" name="registration_number" value="<?php echo htmlspecialchars(!empty($form_data['registration_number']) ? $form_data['registration_number'] : ($hospital_data['registration_number'] ?? '')); ?>" maxlength="30" placeholder="e.g., HOSP/2026/001234" class="<?php echo isset($errors['registration_number']) ? 'input-error' : ''; ?>" />
+    <?php if(isset($errors['registration_number'])): ?>
+        <span class="error-text"><?php echo $errors['registration_number']; ?></span>
+    <?php endif; ?>
+</div>
                         <!-- Website -->
                         <div class="field-group">
                             <label><i class="fas fa-globe"></i> Website</label>
-                            <input type="url" name="website" value="<?php echo htmlspecialchars($hospital_data['website'] ?? ''); ?>" />
+                            <input type="url" name="website" placeholder="e.g., https://example.com" value="<?php echo htmlspecialchars(!empty($form_data['website']) ? $form_data['website'] : ($hospital_data['website'] ?? '')); ?>" class="<?php echo isset($errors['website']) ? 'input-error' : ''; ?>" />
+                            <?php if(isset($errors['website'])): ?>
+                                <span class="error-text"><?php echo $errors['website']; ?></span>
+                            <?php endif; ?>
                         </div>
 
                         <!-- GST Number -->
@@ -326,58 +468,80 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <label><i class="fas fa-file-invoice"></i> GST Number</label>
                             <input
                                 type="text"
-                                name="gst_number"
-                                value="<?php echo htmlspecialchars($hospital_data['gst_number'] ?? ''); ?>"
+                                name="gst_number" placeholder="e.g., 00XXXXX1234X0X0"
+                                value="<?php echo htmlspecialchars(!empty($form_data['gst_number']) ? $form_data['gst_number'] : ($hospital_data['gst_number'] ?? '')); ?>"
                                 pattern="[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{3}"
                                 maxlength="15"
                                 style="text-transform:uppercase"
                                 title="Enter a valid GST Number"
+                                class="<?php echo isset($errors['gst_number']) ? 'input-error' : ''; ?>"
                             />
+                            <?php if(isset($errors['gst_number'])): ?>
+                                <span class="error-text"><?php echo $errors['gst_number']; ?></span>
+                            <?php endif; ?>
                         </div>
 
                         <!-- Primary Phone -->
                         <div class="field-group">
-                            <label><i class="fas fa-phone-alt" style="display:inline-block; transform:rotateY(180deg);"></i> Primary Phone <span class="required">*</span></label>
+                            <label><i class="fas fa-phone-alt" style="display:inline-block; transform:rotateY(180deg);"></i> Primary Phone </label>
                             <input
                                 type="tel"
                                 name="phone"
-                                value="<?php echo htmlspecialchars($hospital_data['phone'] ?? ''); ?>"
+                                value="<?php echo htmlspecialchars(!empty($form_data['phone']) ? $form_data['phone'] : ($hospital_data['phone'] ?? '')); ?>"
                                 pattern="[6-9][0-9]{9}"
                                 maxlength="10"
                                 minlength="10"
-                                required
                                 title="Enter a valid 10-digit mobile number"
+                                class="<?php echo isset($errors['phone']) ? 'input-error' : ''; ?>"
                             />
+                            <?php if(isset($errors['phone'])): ?>
+                                <span class="error-text"><?php echo $errors['phone']; ?></span>
+                            <?php endif; ?>
                         </div>
 
                         <!-- Country -->
                         <div class="field-group">
                             <label><i class="fas fa-map-marked-alt"></i> Country</label>
-                            <input type="text" name="country" value="<?php echo htmlspecialchars($hospital_data['country'] ?? 'India'); ?>" />
+                            <input type="text" name="country" value="<?php echo htmlspecialchars(!empty($form_data['country']) ? $form_data['country'] : ($hospital_data['country'] ?? 'India')); ?>" class="<?php echo isset($errors['country']) ? 'input-error' : ''; ?>" />
+                            <?php if(isset($errors['country'])): ?>
+                                <span class="error-text"><?php echo $errors['country']; ?></span>
+                            <?php endif; ?>
                         </div>
 
                         <!-- State -->
                         <div class="field-group">
                             <label><i class="fas fa-flag"></i> State</label>
-                            <input type="text" name="state" value="<?php echo htmlspecialchars($hospital_data['state'] ?? ''); ?>" />
+                            <input type="text" name="state" value="<?php echo htmlspecialchars(!empty($form_data['state']) ? $form_data['state'] : ($hospital_data['state'] ?? '')); ?>" class="<?php echo isset($errors['state']) ? 'input-error' : ''; ?>" />
+                            <?php if(isset($errors['state'])): ?>
+                                <span class="error-text"><?php echo $errors['state']; ?></span>
+                            <?php endif; ?>
                         </div>
 
                         <!-- City -->
                         <div class="field-group">
                             <label><i class="fas fa-city"></i> City</label>
-                            <input type="text" name="city" value="<?php echo htmlspecialchars($hospital_data['city'] ?? ''); ?>" />
+                            <input type="text" name="city" value="<?php echo htmlspecialchars(!empty($form_data['city']) ? $form_data['city'] : ($hospital_data['city'] ?? '')); ?>" class="<?php echo isset($errors['city']) ? 'input-error' : ''; ?>" />
+                            <?php if(isset($errors['city'])): ?>
+                                <span class="error-text"><?php echo $errors['city']; ?></span>
+                            <?php endif; ?>
                         </div>
 
                         <!-- Pincode -->
                         <div class="field-group">
-                            <label><i class="fas fa-mail-bulk"></i> Pincode</label>
-                            <input type="text" name="pincode" value="<?php echo htmlspecialchars($hospital_data['pincode'] ?? ''); ?>" maxlength="6" pattern="[1-9][0-9]{5}" title="Enter a valid 6-digit PIN code" />
+                            <label><i class="fas fa-mail-bulk"></i> Pincode </label>
+                            <input type="text" name="pincode" value="<?php echo htmlspecialchars(!empty($form_data['pincode']) ? $form_data['pincode'] : ($hospital_data['pincode'] ?? '')); ?>" maxlength="6" pattern="[1-9][0-9]{5}" title="Enter a valid 6-digit PIN code" class="<?php echo isset($errors['pincode']) ? 'input-error' : ''; ?>" />
+                            <?php if(isset($errors['pincode'])): ?>
+                                <span class="error-text"><?php echo $errors['pincode']; ?></span>
+                            <?php endif; ?>
                         </div>
 
                         <!-- Address -->
                         <div class="field-group full-width">
-                            <label><i class="fas fa-map-pin"></i> Full Address</label>
-                            <textarea rows="2" name="address" required><?php echo htmlspecialchars($hospital_data['address'] ?? ''); ?></textarea>
+                            <label><i class="fas fa-map-pin"></i> Full Address </label>
+                            <textarea rows="2" name="address" class="<?php echo isset($errors['address']) ? 'input-error' : ''; ?>"><?php echo htmlspecialchars(!empty($form_data['address']) ? $form_data['address'] : ($hospital_data['address'] ?? '')); ?></textarea>
+                            <?php if(isset($errors['address'])): ?>
+                                <span class="error-text"><?php echo $errors['address']; ?></span>
+                            <?php endif; ?>
                         </div>
                     </div>
 

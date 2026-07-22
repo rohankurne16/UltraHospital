@@ -139,11 +139,11 @@ $status_class = ($status == "Active") ? "status-active" : "status-inactive";
 <body class="bg-gray-50 text-gray-900">
     <div class="flex min-h-screen flex-col bg-gray-50">
         <!-- Header -->
-        <?php include'header.php'; ?>      
+        <?php include'../header.php'; ?>      
 
         <div class="flex flex-1 items-start">
             <!-- Sidebar Navigation -->
-            <?php include 'Sidebar.php'; ?> 
+            <?php include '../Sidebar.php'; ?> 
 
             <!-- Main Content Area -->
             <main class="flex-1 xl:ml-64 p-4 md:p-8">

@@ -519,7 +519,7 @@ if (empty($permission_names) && !$is_super_admin && isset($_SESSION['id'])) {
             break;
 
         case 'doctor':
-            $profile = 'doctors/update_profile.php';
+            $profile = 'doctors/doctor_profile.php';
             break;
 
         case 'nurse':
