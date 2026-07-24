@@ -7,6 +7,8 @@ if (!isset($_SESSION["id"]) && empty($_SESSION["id"])) {
     exit();
 }
 
+$hid = $_SESSION["hospital_id"];
+
 // Get ward_id from URL
 $selected_ward_id = isset($_GET['ward_id']) ? (int)$_GET['ward_id'] : 0;
 $error_message = "";
@@ -36,7 +38,7 @@ if(isset($_POST['save'])){
         if(mysqli_num_rows($check) > 0){
             $error_message = "Room Number already exists in this ward. Please use a different room number.";
         } else {
-            $sql = "INSERT INTO room_master (ward_id, room_no, capacity, status) VALUES ('$ward_id','$room_no','$capacity','$status')";
+            $sql = "INSERT INTO room_master (ward_id, room_no, capacity, status,hospital_id) VALUES ('$ward_id','$room_no','$capacity','$status','$hid')";
 
             if(mysqli_query($conn, $sql)){
                 $success_message = "Room Added Successfully!";

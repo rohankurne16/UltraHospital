@@ -97,7 +97,7 @@ if ($is_super_admin) {
     }
     
     while ($row = mysqli_fetch_assoc($res)) {
-        $permission_names[] = strtolower(str_replace(' ', '-', trim($row['permission_name'])));
+       $permission_names[] = trim($row['permission_name']);
     }
 } elseif ($role_id > 0) {
     // Normal user - get permissions from role_permissions

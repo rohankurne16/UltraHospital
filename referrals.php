@@ -8,7 +8,7 @@ if(isset($_SESSION["hospital_id"])){
     $hid=$_SESSION["hospital_id"];
 }
 else{
-    header("Location:index.php");
+    header("Location:../index.php");
 }
 
 $image_path = "";
@@ -98,7 +98,7 @@ if (isset($_POST['email'])) {
             $messageType = "error";
         } else {
 
-            $register = "INSERT INTO register(name, email, password, role, created_by, modified_by, hospital_id) VALUES('$patient_name','$email','$password','patient','Admin','Admin','$hid')";
+            $register = "INSERT INTO register(name, email, password, role, created_by, modified_by, hospital_id) VALUES('$patient_name','$email','$password','patient','Doctor','Doctor','$hid')";
 
             if($conn->query($register)){
                 $register_id = $conn->insert_id;
@@ -131,7 +131,7 @@ if (isset($_POST['email'])) {
                         $sql = "INSERT INTO patient_alerts
                         (patient_id, hospital_id, alert_type, description, status,created_by)
                         VALUES
-                        ('$patient_id','$hospital_id','Allergy','$allergy','Active','Admin')";
+                        ('$patient_id','$hospital_id','Allergy','$allergy','Active','Doctor')";
 
                         mysqli_query($conn, $sql);
                     }
@@ -141,7 +141,7 @@ if (isset($_POST['email'])) {
                         $sql = "INSERT INTO patient_alerts
                         (patient_id, hospital_id, alert_type, description, status,created_by)
                         VALUES
-                        ('$patient_id','$hospital_id','Medical History','$medical_history','Active','Admin')";
+                        ('$patient_id','$hospital_id','Medical History','$medical_history','Active','Doctor')";
 
                         mysqli_query($conn, $sql);
                     }
@@ -195,7 +195,7 @@ if (isset($_POST['email'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $hospital['hospital_name'] ?> - Add Referal Patient</title>
-    <link rel="icon" type="image/png" href="<?php echo $hospital['hospital_logo'] ?>">
+    <link rel="icon" type="image/png" href="../<?php echo $hospital['hospital_logo'] ?>">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -404,9 +404,9 @@ if (isset($_POST['email'])) {
                                     </div>
                                     
                                     <div class="space-y-2 field-group">
-                                        <label class="text-sm font-medium" for="doctor_id">Doctor</label>
+                                        <label class="text-sm font-medium" for="doctor_id">Doctor<span class="text-red-500">*</span></label>
                                         <select id="doctor_id" name="doctor_id"
-                                            class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                                            class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm" required>
                                             <option value="">Select Doctor (Optional)</option>
                                             <?php foreach($doctors as $doctor): ?>
                                                 <option value="<?php echo $doctor['doctor_id']; ?>">
@@ -954,6 +954,14 @@ if (isset($_POST['email'])) {
             // Form submission validation
             document.getElementById('patientForm').addEventListener('submit', function(e) {
                 let isValid = true;
+
+                const doctor = document.getElementById('doctor_id');
+
+                if (doctor.value === '') {
+                    alert('Please select a doctor');
+                    doctor.focus();
+                    isValid = false;
+                }
 
                 Object.keys(fields).forEach(fieldId => {
                     if (fieldId === 'mobile') {

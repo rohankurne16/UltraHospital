@@ -1,15 +1,33 @@
 <?php
 
 session_start(); 
-include "config/hospital.php";
-require_once "config/send_registration_email.php";
+include "../config/hospital.php";
+require_once "../config/send_registration_email.php";
+
+// Function to fetch data from the database
+if (!function_exists('fetchData')) {
+    function fetchData($conn, $query) {
+        $result = $conn->query($query);
+        $data = [];
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $data[] = $row;
+            }
+        }
+        return $data;
+    }
+}
+
+
+$doctor_name=$_SESSION["doctor_name"];
 
 if(isset($_SESSION["hospital_id"])){
     $hid=$_SESSION["hospital_id"];
 }
 else{
-    header("Location:index.php");
+    header("Location:../index.php");
 }
+
 
 $image_path = "";
 $message = "";
@@ -24,8 +42,8 @@ if ($doctorsResult && $doctorsResult->num_rows > 0) {
     }
 }
 
-if (isset($_POST['email'])) {
-    
+if (isset($_POST['email'])){
+
     $patient_name = $_POST['patient_name'];
     $dob = $_POST['dob'];
     $age = $_POST['age'];
@@ -37,10 +55,14 @@ if (isset($_POST['email'])) {
     $allergy = $_POST['allergy'];
     $email = $_POST['email'];
     $mobile = $_POST['mobile'];
-    $call_hospital = $_POST['caller_hospital'];
     $status = 'Active';
     $doctor_id = isset($_POST['doctor_id']) && $_POST['doctor_id'] != '' ? $_POST['doctor_id'] : NULL;
     $password = $_POST['password'];
+    $previous_hospital =  $_POST['previous_hospital'] ?? '';
+    $admission_reason = $_POST['admission_reason'] ?? '';
+    $ward_id =  $_POST['ward_id'] ?? '';
+    $room_id = $_POST['room_id'] ?? '';
+    $bed_id =  $_POST['bed_id'] ?? '';
 
     // Server-side Validation with Regex
     if (empty($patient_name) || empty($email) || empty($password)) {
@@ -93,7 +115,7 @@ if (isset($_POST['email'])) {
             $messageType = "error";
         } else {
 
-            $register = "INSERT INTO register(name, email, password, role, created_by, modified_by, hospital_id) VALUES('$patient_name','$email','$password','patient','Admin','Admin','$hid')";
+            $register = "INSERT INTO register(name, email, password, role, created_by, modified_by, hospital_id) VALUES('$patient_name','$email','$password','patient','Doctor','Doctor','$hid')";
 
             if($conn->query($register)){
                 $register_id = $conn->insert_id;
@@ -115,10 +137,12 @@ if (isset($_POST['email'])) {
                         }
                     }
                 }
+               
                 
-                $insert = "INSERT INTO patients(register_id, doctor_id, patient_name, date_of_birth, age, blood_group, gender, address, emergency_contact, medical_history, allergy, email, mobile, status, patient_image, delete_flag, hospital_id,call_source,patient_admission_type) VALUES('$register_id', " . ($doctor_id ? "'$doctor_id'" : "NULL") . ", '$patient_name','$dob','$age','$blood_group','$gender','$address','$emergency_contact','$medical_history','$allergy','$email','$mobile','$status','$image_path',0,'$hid','$call_hospital','Call')";
+                $insert = "INSERT INTO patients(register_id, doctor_id, patient_name, date_of_birth, age, blood_group, gender, address, emergency_contact, medical_history, allergy, email, mobile, status, patient_image, delete_flag, hospital_id, previous_hospital, admission_reason,patient_admission_type) VALUES('$register_id', " . ($doctor_id ? "'$doctor_id'" : "NULL") . ", '$patient_name','$dob','$age','$blood_group','$gender','$address','$emergency_contact','$medical_history','$allergy','$email','$mobile','$status','$image_path',0,'$hid', '$previous_hospital', '$admission_reason','IPD')";
 
-                if ($conn->query($insert) === true) {
+
+                if ($conn->query($insert)) {
                     $patient_id = $conn->insert_id;
 
                     if (!empty($allergy)) {
@@ -126,7 +150,7 @@ if (isset($_POST['email'])) {
                         $sql = "INSERT INTO patient_alerts
                         (patient_id, hospital_id, alert_type, description, status,created_by)
                         VALUES
-                        ('$patient_id','$hospital_id','Allergy','$allergy','Active','Admin')";
+                        ('$patient_id','$hospital_id','Allergy','$allergy','Active','Doctor')";
 
                         mysqli_query($conn, $sql);
                     }
@@ -136,9 +160,29 @@ if (isset($_POST['email'])) {
                         $sql = "INSERT INTO patient_alerts
                         (patient_id, hospital_id, alert_type, description, status,created_by)
                         VALUES
-                        ('$patient_id','$hospital_id','Medical History','$medical_history','Active','Admin')";
+                        ('$patient_id','$hospital_id','Medical History','$medical_history','Active','Doctor')";
 
                         mysqli_query($conn, $sql);
+                    }
+                 
+                    if (!empty($bed_id)) {
+                        $admit_date = date('Y-m-d H:i:s');
+                        // Get ward and room info for comprehensive allocation record
+                        $ward_info = fetchData($conn, "SELECT ward_name FROM ward_master WHERE ward_id = '$ward_id' AND hospital_id = '$hid'")[0] ?? [];
+                        $room_info = fetchData($conn, "SELECT room_no FROM room_master WHERE room_id = '$room_id' AND hospital_id = '$hid'")[0] ?? [];
+                        $bed_info = fetchData($conn, "SELECT bed_no FROM bed_master WHERE bed_id = '$bed_id' AND hospital_id = '$hid'")[0] ?? [];
+
+                        $ward_name = mysqli_real_escape_string($conn, $ward_info['ward_name'] ?? '');
+                        $room_no = mysqli_real_escape_string($conn, $room_info['room_no'] ?? '');
+                        $bed_no = mysqli_real_escape_string($conn, $bed_info['bed_no'] ?? '');
+
+                        $allocation_sql = "INSERT INTO bed_allocation(hospital_id, patient_id, bed_id, admit_date, status) VALUES ('$hid', '$patient_id','$bed_id', '$admit_date', 'Occupied')";
+                       if (!$conn->query($allocation_sql)) {
+                            die("Bed Allocation Error: " . $conn->error);
+                        } 
+
+                        // Update bed status to Occupied
+                        $conn->query("UPDATE bed_master SET status='Occupied' WHERE bed_id='$bed_id' AND hospital_id='$hid'");
                     }
 
                     $message = "
@@ -173,14 +217,17 @@ if (isset($_POST['email'])) {
                         exit();
                     }
                 } else {
-                    echo "<script>alert('Unable to add patient. Error: " . $conn->error . "')</script>";
-                }
+    die("Patient Insert Error: " . $conn->error . "<br><br>SQL:<br>" . $insert);
+}
             } else {
                 die("Register Error : " . $conn->error);
             }
         }
     }
 }
+
+$wards = fetchData($conn, "SELECT ward_id, ward_name, ward_type, floor_no, (SELECT COUNT(*) FROM room_master WHERE ward_id = ward_master.ward_id AND status != 'Occupied' AND delete_flag = 0) as available_rooms FROM ward_master WHERE status='Available' AND (delete_flag=0 OR delete_flag IS NULL) AND hospital_id='$hid' ORDER BY ward_name ASC");
+
 ?>
 
 <!DOCTYPE html>
@@ -189,8 +236,8 @@ if (isset($_POST['email'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $hospital['hospital_name'] ?> - Add Call Patient</title>
-    <link rel="icon" type="image/png" href="<?php echo $hospital['hospital_logo'] ?>">
+    <title><?php echo $hospital['hospital_name'] ?> - Add IPD Patient</title>
+    <link rel="icon" type="image/png" href="../<?php echo $hospital['hospital_logo'] ?>">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -332,15 +379,91 @@ if (isset($_POST['email'])) {
         .password-requirements .req-item .req-icon { font-size: 10px; }
         .password-requirements .req-item.met { color: #22c55e; }
         .password-requirements .req-item.unmet { color: #9ca3af; }
+
+        /* Consistent input styling */
+        .form-input {
+            width: 100%;
+            height: 40px;
+            padding: 0 12px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s ease;
+            background-color: #ffffff;
+            color: #111827;
+        }
+        .form-input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        .form-textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s ease;
+            background-color: #ffffff;
+            color: #111827;
+            resize: vertical;
+        }
+        .form-textarea:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        .form-select {
+            width: 100%;
+            height: 40px;
+            padding: 0 32px 0 12px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s ease;
+            background-color: #ffffff;
+            color: #111827;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+        }
+        .form-select:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        .form-file-input {
+            width: 100%;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #d1d5db;
+            font-size: 14px;
+            background-color: #ffffff;
+            color: #111827;
+            cursor: pointer;
+        }
+        .form-file-input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 4px;
+        }
     </style>
 </head>
 
 <body class="bg-gray-50 text-gray-900">
     <div class="flex min-h-screen flex-col bg-gray-50" >
-        <?php include 'header.php'; ?>
+        <?php include '../header.php'; ?>
 
         <div class="flex flex-1 items-start">
-            <?php include 'Sidebar.php'; ?>
+            <?php include '../Sidebar.php'; ?>
 
             <main class="flex-1 xl:ml-64 p-4 md:p-8">
                 <div class="max-w-5xl mx-auto w-full">
@@ -349,7 +472,7 @@ if (isset($_POST['email'])) {
                             <i data-lucide="arrow-left" class="w-5 h-5"></i>
                         </a>
                         <div>
-                            <h1 class="text-2xl font-bold text-gray-900">Add Call Patient</h1>
+                            <h1 class="text-2xl font-bold text-gray-900">Add IPD Patient</h1>
                             <p class="text-gray-500 text-sm">Complete the following forms to register a new patient in the system.</p>
                         </div>
                     </div>
@@ -370,7 +493,7 @@ if (isset($_POST['email'])) {
                         </button>
                     </div>
 
-                    <form action="add_call_patient.php" method="POST" enctype="multipart/form-data" id="patientForm" novalidate>
+                    <form action="add_ipd_patient.php" method="POST" enctype="multipart/form-data" id="patientForm" novalidate>
 
                         <div class="bg-white rounded-xl border shadow-sm p-6 md:p-8">
 
@@ -378,10 +501,10 @@ if (isset($_POST['email'])) {
                                 <h2 class="text-lg font-semibold mb-6">Personal Details</h2>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div class="space-y-2 field-group">
-                                        <label class="text-sm font-medium" for="patient_name">Full Name <span class="text-red-500">*</span></label>
+                                        <label class="form-label" for="patient_name">Full Name <span class="text-red-500">*</span></label>
                                         <div class="input-wrapper">
                                             <input id="patient_name" name="patient_name" placeholder="Enter full name"
-                                                class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                                class="form-input"
                                                 required pattern="^[A-Za-z\s\-\'\\]+$"
                                                 data-validation="name"
                                                 title="Only letters, spaces, hyphens, and apostrophes are allowed.">
@@ -398,30 +521,43 @@ if (isset($_POST['email'])) {
                                         <small class="validation-hint">Only letters, spaces, hyphens, and apostrophes</small>
                                     </div>
                                     
-                                    <div class="space-y-2 field-group">
-                                        <label class="text-sm font-medium" for="doctor_id">Doctor <span class="text-red-500">*</span></label>
-                                        <select id="doctor_id" name="doctor_id"
-                                            class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm" required>
-                                            <option value="">Select Doctor</option>
-                                            <?php foreach($doctors as $doctor): ?>
-                                                <option value="<?php echo $doctor['doctor_id']; ?>">
-                                                    <?php echo htmlspecialchars($doctor['doctor_name']); ?> - <?php echo htmlspecialchars($doctor['department']); ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <p class="text-xs text-gray-500">Select the primary doctor for this patient</p>
-                                    </div>
+                                  <div class="space-y-2 field-group">
+    <label class="text-sm font-medium" for="doctor_id">
+        Doctor<span class="text-red-500">*</span>
+    </label>
+
+    <select id="doctor_id" name="doctor_id"
+        class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+        required>
+
+        <option value="" <?php echo empty($doctor_name) ? 'selected' : ''; ?>>
+            Select Doctor
+        </option>
+
+        <?php foreach ($doctors as $doctor): ?>
+            <option value="<?php echo $doctor['doctor_id']; ?>"
+                <?php echo ($doctor_name == $doctor['doctor_name']) ? 'selected' : ''; ?>>
+                <?php echo htmlspecialchars($doctor['doctor_name']); ?>
+                - <?php echo htmlspecialchars($doctor['department']); ?>
+            </option>
+        <?php endforeach; ?>
+
+    </select>
+
+    <p class="text-xs text-gray-500">
+        Select the primary doctor for this patient
+    </p>
+</div>
 
                                     <div class="space-y-2 field-group">
-                                        <label class="text-sm font-medium" for="dob">Date of Birth</label>
-                                        <input id="dob" type="date" name="dob"
-                                            class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                                        <label class="form-label" for="dob">Date of Birth</label>
+                                        <input id="dob" type="date" name="dob" class="form-input">
                                     </div>
                                     <div class="space-y-2 field-group">
-                                        <label class="text-sm font-medium" for="age">Age</label>
+                                        <label class="form-label" for="age">Age</label>
                                         <div class="input-wrapper">
                                             <input id="age" type="number" name="age" placeholder="Enter age"
-                                                class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                                class="form-input"
                                                 min="0" max="120"
                                                 data-validation="age"
                                                 title="Age must be between 0 and 120">
@@ -437,9 +573,8 @@ if (isset($_POST['email'])) {
                                         </div>
                                     </div>
                                     <div class="space-y-2 field-group">
-                                        <label class="text-sm font-medium" for="blood_group">Blood Group</label>
-                                        <select id="blood_group" name="blood_group"
-                                            class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                                        <label class="form-label" for="blood_group">Blood Group</label>
+                                        <select id="blood_group" name="blood_group" class="form-select">
                                             <option value="">Select Blood Group</option>
                                             <option>A+</option>
                                             <option>A-</option>
@@ -452,9 +587,8 @@ if (isset($_POST['email'])) {
                                         </select>
                                     </div>
                                     <div class="space-y-2 field-group">
-                                        <label class="text-sm font-medium" for="gender">Gender</label>
-                                        <select id="gender" name="gender"
-                                            class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                                        <label class="form-label" for="gender">Gender</label>
+                                        <select id="gender" name="gender" class="form-select">
                                             <option value="">Select gender</option>
                                             <option>Male</option>
                                             <option>Female</option>
@@ -462,10 +596,10 @@ if (isset($_POST['email'])) {
                                         </select>
                                     </div>
                                     <div class="space-y-2 field-group">
-                                        <label class="text-sm font-medium" for="emergency_contact">Emergency Contact</label>
+                                        <label class="form-label" for="emergency_contact">Emergency Contact</label>
                                         <div class="input-wrapper">
                                             <input id="emergency_contact" name="emergency_contact" placeholder="Enter emergency contact number"
-                                                class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                                class="form-input"
                                                 pattern="[0-9]{10}" maxlength="10" minlength="10"
                                                 data-validation="emergency"
                                                 title="Please enter exactly 10 digits">
@@ -485,10 +619,10 @@ if (isset($_POST['email'])) {
 
                                 <div class="mt-6 space-y-4">
                                     <div class="space-y-2 field-group">
-                                        <label class="text-sm font-medium" for="address">Address</label>
+                                        <label class="form-label" for="address">Address</label>
                                         <div class="input-wrapper">
                                             <textarea id="address" name="address" placeholder="Enter address"
-                                                class="w-full min-h-[80px] p-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                                class="form-textarea"
                                                 pattern="^[A-Za-z0-9\s\-\.,#\/]*$"
                                                 data-validation="address"></textarea>
                                         </div>
@@ -503,10 +637,10 @@ if (isset($_POST['email'])) {
                                     </div>
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div class="space-y-2 field-group">
-                                            <label class="text-sm font-medium" for="email">Email <span class="text-red-500">*</span></label>
+                                            <label class="form-label" for="email">Email <span class="text-red-500">*</span></label>
                                             <div class="input-wrapper">
                                                 <input id="email" type="email" name="email" placeholder="Enter email address"
-                                                    class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                                    class="form-input"
                                                     required pattern="^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
                                                     data-validation="email"
                                                     title="Please enter a valid email address">
@@ -522,10 +656,10 @@ if (isset($_POST['email'])) {
                                             </div>
                                         </div>
                                         <div class="space-y-2 field-group">
-                                            <label class="text-sm font-medium">Password <span class="text-red-500">*</span></label>
+                                            <label class="form-label">Password <span class="text-red-500">*</span></label>
                                             <div class="input-wrapper">
                                                 <input type="password" name="password" id="password" placeholder="Enter Login Password"
-                                                    class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                                    class="form-input"
                                                     required pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$"
                                                     data-validation="password"
                                                     title="Password must be at least 8 characters with uppercase, lowercase, number, and special character">
@@ -562,10 +696,10 @@ if (isset($_POST['email'])) {
                                             </div>
                                         </div>
                                         <div class="space-y-2 field-group">
-                                            <label class="text-sm font-medium" for="mobile">Mobile Number</label>
+                                            <label class="form-label" for="mobile">Mobile Number</label>
                                             <div class="input-wrapper">
                                                 <input id="mobile" name="mobile" placeholder="Enter mobile number"
-                                                    class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                                    class="form-input"
                                                     pattern="[0-9]{10}" maxlength="10" minlength="10"
                                                     data-validation="mobile"
                                                     title="Please enter exactly 10 digits">
@@ -584,10 +718,10 @@ if (isset($_POST['email'])) {
                                     </div>
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div class="space-y-2 field-group">
-                                            <label class="text-sm font-medium" for="medical_history">Medical History</label>
+                                            <label class="form-label" for="medical_history">Medical History</label>
                                             <div class="input-wrapper">
                                                 <textarea id="medical_history" name="medical_history" placeholder="Previous medical conditions"
-                                                    class="w-full min-h-[80px] p-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                                    class="form-textarea"
                                                     pattern="^[A-Za-z0-9\s\-\.,#\/]*$"
                                                     data-validation="medical"></textarea>
                                             </div>
@@ -601,10 +735,10 @@ if (isset($_POST['email'])) {
                                             </div>
                                         </div>
                                         <div class="space-y-2 field-group">
-                                            <label class="text-sm font-medium" for="allergy">Allergies</label>
+                                            <label class="form-label" for="allergy">Allergies</label>
                                             <div class="input-wrapper">
                                                 <textarea id="allergy" name="allergy" placeholder="Known allergies"
-                                                    class="w-full min-h-[80px] p-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                                    class="form-textarea"
                                                     pattern="^[A-Za-z0-9\s\-\.,#\/]*$"
                                                     data-validation="allergy"></textarea>
                                             </div>
@@ -619,18 +753,51 @@ if (isset($_POST['email'])) {
                                         </div>
                                     </div>
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Patient Image</label>
+                                        <label class="form-label">Patient Image</label>
                                         <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition">
-                                            <input type="file" name="patient_image" accept="image/*">
+                                            <input type="file" name="patient_image" accept="image/*" class="form-file-input">
                                             <p id="image_file_name" class="mt-2 text-sm text-green-600"></p>
                                         </div>
                                     </div>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="form-label">Previous Hospital</label>
+                                    <input type="text"
+                                        name="previous_hospital"
+                                        class="form-input"
+                                        placeholder="Enter previous hospital name">
+                                </div>
+
+                                <div class="space-y-2">
+                                    <label class="form-label">Reason for Admission</label>
+                                    <textarea name="admission_reason"
+                                        class="form-textarea"
+                                        placeholder="Enter reason for admission"></textarea>
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                                     <div class="space-y-2">
-                                        <label class="text-sm font-medium">Hospital Name</label>
-                                        <input type="text"
-                                            name="caller_hospital"
-                                            placeholder="Enter hospital from where the call came"
-                                            class="w-full h-10 px-3 rounded-md border border-gray-300">
+                                        <label class="form-label">Ward <span class="text-red-500">*</span></label>
+                                        <select name="ward_id" id="ward_id" class="form-select" required onchange="loadRooms(this.value)">
+                                            <option value="">Select Ward</option>
+                                            <?php foreach($wards as $ward): ?>
+                                                <option value="<?php echo $ward['ward_id']; ?>">
+                                                    <?php echo htmlspecialchars($ward['ward_name']); ?> (<?php echo $ward['available_rooms']; ?> available)
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="form-label">Room <span class="text-red-500">*</span></label>
+                                        <select name="room_id" id="room_id" class="form-select" required onchange="loadBeds(this.value)">
+                                            <option value="">Select Room</option>
+                                        </select>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="form-label">Bed <span class="text-red-500">*</span></label>
+                                        <select name="bed_id" id="bed_id" class="form-select" required>
+                                            <option value="">Select Bed</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
@@ -963,6 +1130,59 @@ if (isset($_POST['email'])) {
                 }
             });
         });
+
+        function loadRooms(wardId) {
+            const roomSelect = document.getElementById('room_id');
+            const bedSelect = document.getElementById('bed_id');
+            roomSelect.innerHTML = '<option value="">Loading...</option>';
+            bedSelect.innerHTML = '<option value="">Select Bed</option>';
+
+            if (!wardId) {
+                roomSelect.innerHTML = '<option value="">Select Room</option>';
+                return;
+            }
+
+            // Using the hospital_id from PHP session
+            const hid = "<?php echo $hid; ?>";
+            
+            fetch(`get_rooms.php?ward_id=${wardId}&hospital_id=${hid}`)
+                .then(response => response.json())
+                .then(data => {
+                    roomSelect.innerHTML = '<option value="">Select Room</option>';
+                    data.forEach(room => {
+                        roomSelect.innerHTML += `<option value="${room.room_id}">${room.room_no} (${room.room_type})</option>`;
+                    });
+                })
+                .catch(err => {
+                    console.error('Error loading rooms:', err);
+                    roomSelect.innerHTML = '<option value="">Error loading rooms</option>';
+                });
+        }
+
+        function loadBeds(roomId) {
+            const bedSelect = document.getElementById('bed_id');
+            bedSelect.innerHTML = '<option value="">Loading...</option>';
+
+            if (!roomId) {
+                bedSelect.innerHTML = '<option value="">Select Bed</option>';
+                return;
+            }
+
+            const hid = "<?php echo $hid; ?>";
+
+            fetch(`get_beds.php?room_id=${roomId}&hospital_id=${hid}`)
+                .then(response => response.json())
+                .then(data => {
+                    bedSelect.innerHTML = '<option value="">Select Bed</option>';
+                    data.forEach(bed => {
+                        bedSelect.innerHTML += `<option value="${bed.bed_id}">${bed.bed_no}</option>`;
+                    });
+                })
+                .catch(err => {
+                    console.error('Error loading beds:', err);
+                    bedSelect.innerHTML = '<option value="">Error loading beds</option>';
+                });
+        }
     </script>
 </body>
 </html>

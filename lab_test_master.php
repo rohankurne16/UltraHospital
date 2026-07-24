@@ -20,9 +20,9 @@ $hospital_logo = $hospital_data["hospital_logo"] ?? "../documents/hospital/logo.
 
 // ========== HANDLE NEW CATEGORY WITH TEST FROM TEST FORM ==========
 if (isset($_POST['add_new_category'])) {
-    $category_name = trim($_POST['new_category_name'] ?? '');
-    $category_description = trim($_POST['new_category_description'] ?? '');
-    $category_status = $_POST['new_category_status'] ?? 'Active';
+    $category_name = trim($_POST['add_new_category'] ?? '');
+    $category_description = trim($_POST['add_new_category'] ?? '');
+    $category_status = $_POST['add_new_category'] ?? 'Active';
     $hospital_id = $_SESSION['hospital_id'] ?? 1;
     $created_by = $_SESSION['id'] ?? 1;
     
@@ -127,7 +127,9 @@ if (isset($_POST['add_category'])) {
             $sql = "INSERT INTO lab_test_categories (category_name, description, status, hospital_id, created_by) 
                     VALUES ('$category_name', '$description', '$status', $hospital_id, $created_by)";
             if ($conn->query($sql)) {
-                $_SESSION['success'] = "Category added successfully!";
+                  $_SESSION['success'] = "Category added successfully!";
+    $_SESSION['open_test_modal'] = true;
+    $_SESSION['selected_category'] = $conn->insert_id;
             } else {
                 $_SESSION['error'] = "Error adding category: " . $conn->error;
             }
@@ -530,9 +532,9 @@ unset($_SESSION['form_data']);
                         <button onclick="openAddTestModal()" class="btn-primary">
                             <i class="fas fa-plus"></i> Add Test
                         </button>
-                        <button onclick="openAddCategoryModal()" class="btn-success">
-                            <i class="fas fa-tag"></i> Add Category
-                        </button>
+                       <button onclick="openAddCategoryModal()" class="btn-success">
+    <i class="fas fa-tag"></i> Add Category
+</button>
                     </div>
                 </div>
 
@@ -835,9 +837,10 @@ unset($_SESSION['form_data']);
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <button type="button" class="btn-success btn-sm" onclick="toggleNewCategoryForm()" title="Add New Category with Test">
-                            <i class="fas fa-plus"></i> New
-                        </button>
+                       <button type="button" class="btn-success btn-sm"
+        onclick="openCategoryFromTest()">
+    <i class="fas fa-plus"></i> New
+</button>
                     </div>
                     
                     <!-- Inline Category Creation Form -->
@@ -1006,6 +1009,10 @@ unset($_SESSION['form_data']);
             window.history.pushState({}, '', url);
             document.getElementById('categoryModal').classList.add('show');
         }
+        function openCategoryFromTest() {
+    document.getElementById("testModal").classList.remove("show");
+    document.getElementById("categoryModal").classList.add("show");
+}
 
         function closeModal(id) {
             document.getElementById(id).classList.remove('show');
@@ -1056,6 +1063,19 @@ unset($_SESSION['form_data']);
                 document.querySelector('button[name="add_new_category"]').click();
             }
         });
+        <?php if(isset($_SESSION['open_test_modal'])): ?>
+
+window.onload = function () {
+    document.getElementById("testModal").classList.add("show");
+    document.getElementById("categorySelect").value =
+        "<?php echo $_SESSION['selected_category']; ?>";
+};
+
+<?php
+unset($_SESSION['open_test_modal']);
+unset($_SESSION['selected_category']);
+endif;
+?>
     </script>
 </body>
 </html>

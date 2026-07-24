@@ -83,6 +83,9 @@ $categories = [];
 $sql_categories = "SELECT category_id, category_name FROM lab_test_categories 
                    WHERE hospital_id = $hid AND (delete_flag = 0 OR delete_flag IS NULL)
                    ORDER BY category_name";
+                  
+
+
 $result_categories = $conn->query($sql_categories);
 if ($result_categories) {
     while ($row = $result_categories->fetch_assoc()) {
@@ -182,6 +185,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_order'])) {
         $conn->begin_transaction();
         try {
             $order_status = ($technician_id > 0) ? 'Assigned' : 'Pending';
+
+
+            // Get Doctor ID from logged-in Doctor
+$register_id = $_SESSION['id'];
+
+$sql_doctor = "SELECT doctor_id
+               FROM doctor
+               WHERE register_id = '$register_id'
+               LIMIT 1";
+
+$result_doctor = $conn->query($sql_doctor);
+
+if ($result_doctor && $result_doctor->num_rows > 0) {
+    $doctor = $result_doctor->fetch_assoc();
+    $doctor_id = $doctor['doctor_id'];
+} else {
+    die("Doctor not found!");
+}
             
             $sql_order = "INSERT INTO lab_orders (order_no, patient_id, doctor_id, technician_id, hospital_id, 
                         order_date, total_amount, clinical_notes, order_status, created_by) 
@@ -201,7 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_order'])) {
                 $conn->commit();
                 $success = true;
                 $_SESSION['success'] = "Lab Order #$order_no created successfully!";
-                header("Location: view_lab_order.php?id=$order_id");
+                header("Location: lab_order.php?id=$order_id");
                 exit();
             } else {
                 throw new Exception("Error creating order: " . $conn->error);
@@ -215,20 +236,26 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_order'])) {
 
 // Search patients (AJAX)
 if (isset($_GET['search_patient'])) {
+
     $search = mysqli_real_escape_string($conn, $_GET['search_patient']);
-    $sql = "SELECT patient_id, patient_name, mobile, gender, date_of_birth 
-            FROM patients 
-            WHERE hospital_id = $hid 
+
+    $sql = "SELECT patient_id, patient_name, mobile, gender, date_of_birth
+            FROM patients
+            WHERE hospital_id = $hid
             AND (delete_flag = 0 OR delete_flag IS NULL)
             AND (patient_name LIKE '%$search%' OR mobile LIKE '%$search%')
             LIMIT 10";
+
     $result = $conn->query($sql);
+
     $patients = [];
+
     if ($result) {
         while ($row = $result->fetch_assoc()) {
             $patients[] = $row;
         }
     }
+
     header('Content-Type: application/json');
     echo json_encode($patients);
     exit();
@@ -420,6 +447,7 @@ if (isset($_GET['search_patient'])) {
                                 <div class="search-results" id="searchResults"></div>
                                 <input type="hidden" name="patient_id" id="patient_id" required>
                             </div>
+                            
 
                             <!-- Selected Patient Display -->
                             <div id="selectedPatientDisplay" style="display: none;" class="selected-patient">
@@ -445,9 +473,9 @@ if (isset($_GET['search_patient'])) {
     <?php endif; ?>
 </div>
                                 <div class="form-group">
-                                    <label>Assign Technician</label>
+                                    <label>Assign Technician <span class="required">*</label>
                                     <select class="form-select" name="technician_id" id="technicianSelect">
-                                        <option value="">-- Select Technician (Optional) --</option>
+                                        <option value="">-- Select Technician  --</option>
                                         <?php foreach ($technicians as $tech): ?>
                                             <option value="<?php echo $tech['staff_id']; ?>">
                                                 <?php echo htmlspecialchars($tech['name']); ?>
@@ -466,11 +494,13 @@ if (isset($_GET['search_patient'])) {
                             <!-- Order Date -->
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Order Date</label>
-                                    <input type="date" class="form-input" 
-                                           value="<?php echo date('Y-m-d'); ?>" 
-                                           readonly disabled style="background: #f3f4f6; cursor: not-allowed;">
-                                </div>
+    <label>Order Date <span class="required">*</span></label>
+    <input type="date"
+           class="form-input"
+           name="order_date"
+           value="<?php echo date('Y-m-d'); ?>"
+           required>
+</div>
                                 <div class="form-group">
                                     <label>Clinical Notes</label>
                                     <textarea class="form-textarea" name="clinical_notes" 

@@ -393,9 +393,9 @@ if (isset($_POST['email'])) {
                                     </div>
                                     
                                     <div class="space-y-2 field-group">
-                                        <label class="text-sm font-medium" for="doctor_id">Doctor</label>
+                                        <label class="text-sm font-medium" for="doctor_id">Doctor<span class="text-red-500">*</span></label>
                                         <select id="doctor_id" name="doctor_id"
-                                            class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                                            class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm" required>
                                             <option value="">Select Doctor (Optional)</option>
                                             <?php foreach($doctors as $doctor): ?>
                                                 <option value="<?php echo $doctor['doctor_id']; ?>">
@@ -917,6 +917,13 @@ if (isset($_POST['email'])) {
             // Form submission validation
             document.getElementById('patientForm').addEventListener('submit', function(e) {
                 let isValid = true;
+                const doctor = document.getElementById('doctor_id');
+
+                if (doctor.value === '') {
+                    alert('Please select a doctor');
+                    doctor.focus();
+                    isValid = false;
+                }
 
                 Object.keys(fields).forEach(fieldId => {
                     if (fieldId === 'mobile') {

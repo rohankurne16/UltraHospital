@@ -2,10 +2,12 @@
 session_start();
 include "config/hospital.php";
 
-if (!isset($_SESSION["id"]) && empty($_SESSION["id"])) {
+if (!isset($_SESSION["id"]) || empty($_SESSION["id"])) {
     header("Location:../auth/logout.php");
     exit();
 }
+
+$hid = (int)$_SESSION["hospital_id"];
 
 // Get room_id and ward_id from URL
 $room_id = isset($_GET['room_id']) ? (int)$_GET['room_id'] : 0;
@@ -16,73 +18,143 @@ if ($room_id == 0) {
     exit();
 }
 
-// Fetch room details
-$roomQuery = "SELECT r.*, w.ward_name 
-              FROM room_master r
-              LEFT JOIN ward_master w ON r.ward_id = w.ward_id
-              WHERE r.room_id = $room_id AND (r.delete_flag = 0 OR r.delete_flag IS NULL)";
-$roomResult = $conn->query($roomQuery);
-if ($roomResult->num_rows == 0) {
+// Fetch Room Details
+$roomQuery = "
+    SELECT r.*, w.ward_name
+    FROM room_master r
+    LEFT JOIN ward_master w
+        ON r.ward_id = w.ward_id
+    WHERE r.room_id = '$room_id'
+    AND r.hospital_id = '$hid'
+    AND (r.delete_flag = 0 OR r.delete_flag IS NULL)
+";
+
+$roomResult = mysqli_query($conn, $roomQuery);
+
+if (!$roomResult) {
+    die("Room Query Error : " . mysqli_error($conn));
+}
+
+if (mysqli_num_rows($roomResult) == 0) {
     header("Location: room_master.php");
     exit();
 }
-$room = $roomResult->fetch_assoc();
 
-// If ward_id is not passed in URL, get it from room data
+$room = mysqli_fetch_assoc($roomResult);
+
+// If ward_id not passed
 if ($ward_id == 0) {
     $ward_id = $room['ward_id'];
 }
 
-// Get ward name for display
-$ward_name = '';
+// Get Ward Name
+$ward_name = "";
+
 if ($ward_id > 0) {
-    $ward_query = mysqli_query($conn, "SELECT ward_name FROM ward_master WHERE ward_id = $ward_id AND (delete_flag=0 OR delete_flag IS NULL)");
-    if ($ward_data = mysqli_fetch_assoc($ward_query)) {
-        $ward_name = $ward_data['ward_name'];
+
+    $wardQuery = "
+        SELECT ward_name
+        FROM ward_master
+        WHERE ward_id = '$ward_id'
+        AND hospital_id = '$hid'
+        AND (delete_flag = 0 OR delete_flag IS NULL)
+    ";
+
+    $wardResult = mysqli_query($conn, $wardQuery);
+
+    if ($wardResult && mysqli_num_rows($wardResult) > 0) {
+        $ward = mysqli_fetch_assoc($wardResult);
+        $ward_name = $ward['ward_name'];
     }
 }
 
 $error_message = "";
 $success_message = "";
 
-if(isset($_POST['save'])){
-    $room_id = mysqli_real_escape_string($conn, $_POST['room_id']);
-    $bed_no = mysqli_real_escape_string($conn, $_POST['bed_no']);
-    $bed_type = mysqli_real_escape_string($conn, $_POST['bed_type']);
-    $status = mysqli_real_escape_string($conn, $_POST['status']);
+if (isset($_POST['save'])) {
 
-    // Server-side Validation with Regex
+    $room_id  = mysqli_real_escape_string($conn, $_POST['room_id']);
+    $bed_no   = trim(mysqli_real_escape_string($conn, $_POST['bed_no']));
+    $bed_type = trim(mysqli_real_escape_string($conn, $_POST['bed_type']));
+    $status   = mysqli_real_escape_string($conn, $_POST['status']);
+
+    // Validation
     if (empty($bed_no)) {
-        $error_message = "Bed number is required.";
-    } elseif (!preg_match('/^[A-Za-z0-9\s\-\'&.]+$/', $bed_no)) {
-        $error_message = "Invalid Bed Number. Only letters, numbers, spaces, hyphens, apostrophes, ampersands, and periods are allowed.";
-    } elseif (!preg_match('/^[A-Za-z0-9\s\-\'&.]+$/', $bed_type)) {
-        $error_message = "Invalid Bed Type. Only letters, numbers, spaces, hyphens, apostrophes, ampersands, and periods are allowed.";
-    } elseif (!in_array($status, ['Available', 'Occupied', 'Maintenance'])) {
-        $error_message = "Invalid Status selected.";
+
+        $error_message = "Bed Number is required.";
+
+    } elseif (!preg_match("/^[A-Za-z0-9\s\-\'&.]+$/", $bed_no)) {
+
+        $error_message = "Invalid Bed Number.";
+
+    } elseif (!preg_match("/^[A-Za-z0-9\s\-\'&.]+$/", $bed_type)) {
+
+        $error_message = "Invalid Bed Type.";
+
+    } elseif (!in_array($status, ['Available','Occupied','Maintenance'])) {
+
+        $error_message = "Invalid Status.";
+
     } else {
-        // Check if bed number already exists in this room
-        $check = mysqli_query($conn, "SELECT * FROM bed_master WHERE bed_no='$bed_no' AND room_id='$room_id' AND (delete_flag=0 OR delete_flag IS NULL)");
 
-        if(mysqli_num_rows($check) > 0){
-            $error_message = "Bed Number already exists in this room. Please use a different bed number.";
+        // Check Duplicate Bed
+        $checkQuery = "
+            SELECT bed_id
+            FROM bed_master
+            WHERE bed_no = '$bed_no'
+            AND room_id = '$room_id'
+            AND hospital_id = '$hid'
+            AND (delete_flag = 0 OR delete_flag IS NULL)
+        ";
+
+        $checkResult = mysqli_query($conn, $checkQuery);
+
+        if (mysqli_num_rows($checkResult) > 0) {
+
+            $error_message = "Bed Number already exists in this room.";
+
         } else {
-            $sql = "INSERT INTO bed_master (room_id, bed_no, bed_type, status) VALUES ('$room_id','$bed_no','$bed_type','$status')";
 
-            if(mysqli_query($conn, $sql)){
+            $insertQuery = "
+                INSERT INTO bed_master
+                (
+                    room_id,
+                    bed_no,
+                    bed_type,
+                    status,
+                    hospital_id
+                )
+                VALUES
+                (
+                    '$room_id',
+                    '$bed_no',
+                    '$bed_type',
+                    '$status',
+                    '$hid'
+                )
+            ";
+
+            if (mysqli_query($conn, $insertQuery)) {
+
                 $success_message = "Bed Added Successfully!";
-                echo "<script>
-                    setTimeout(function() {
+
+                echo "
+                <script>
+                    setTimeout(function(){
                         window.location='view_bed.php?id=$room_id&ward_id=$ward_id';
-                    }, 1500);
+                    },1500);
                 </script>";
+
             } else {
-                $error_message = "Error: " . mysqli_error($conn);
+
+                $error_message = mysqli_error($conn);
+
             }
         }
     }
 }
 ?>
+
 
 <!DOCTYPE html>
 <html>
@@ -464,7 +536,20 @@ if(isset($_POST['save'])){
                                 <i class="fas fa-bed" style="color: #3b82f6; font-size: 18px;"></i>
                                 <div>
                                     <span class="info-label">Adding bed to room:</span>
-                                    <span class="room-name"><?php echo htmlspecialchars($room['room_no']); ?></span>
+                                    <span class="room-name">
+                                        <?php 
+                                        // Use the correct column name - adjust based on your table structure
+                                        if (isset($room['room_name'])) {
+                                            echo htmlspecialchars($room['room_name']);
+                                        } elseif (isset($room['room_number'])) {
+                                            echo htmlspecialchars($room['room_number']);
+                                        } elseif (isset($room['room_no'])) {
+                                            echo htmlspecialchars($room['room_no']);
+                                        } else {
+                                            echo "Room #" . $room_id;
+                                        }
+                                        ?>
+                                    </span>
                                     <span class="info-label" style="margin-left: 8px;">| Ward:</span>
                                     <span class="room-name"><?php echo htmlspecialchars($ward_name); ?></span>
                                 </div>

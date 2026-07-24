@@ -1,14 +1,14 @@
 <?php
 
 session_start(); 
-include "config/hospital.php";
-require_once "config/send_registration_email.php";
+include "../config/hospital.php";
+require_once "../config/send_registration_email.php";
 
 if(isset($_SESSION["hospital_id"])){
     $hid=$_SESSION["hospital_id"];
 }
 else{
-    header("Location:index.php");
+    header("Location:../index.php");
 }
 
 $image_path = "";
@@ -23,6 +23,8 @@ if ($doctorsResult && $doctorsResult->num_rows > 0) {
         $doctors[] = $row;
     }
 }
+
+$doctor_name=$_SESSION["doctor_name"];
 
 if (isset($_POST['email'])) {
     
@@ -93,7 +95,7 @@ if (isset($_POST['email'])) {
             $messageType = "error";
         } else {
 
-            $register = "INSERT INTO register(name, email, password, role, created_by, modified_by, hospital_id) VALUES('$patient_name','$email','$password','patient','Admin','Admin','$hid')";
+            $register = "INSERT INTO register(name, email, password, role, created_by, modified_by, hospital_id) VALUES('$patient_name','$email','$password','patient','Doctor','Doctor','$hid')";
 
             if($conn->query($register)){
                 $register_id = $conn->insert_id;
@@ -126,7 +128,7 @@ if (isset($_POST['email'])) {
                         $sql = "INSERT INTO patient_alerts
                         (patient_id, hospital_id, alert_type, description, status,created_by)
                         VALUES
-                        ('$patient_id','$hospital_id','Allergy','$allergy','Active','Admin')";
+                        ('$patient_id','$hospital_id','Allergy','$allergy','Active','Doctor')";
 
                         mysqli_query($conn, $sql);
                     }
@@ -136,7 +138,7 @@ if (isset($_POST['email'])) {
                         $sql = "INSERT INTO patient_alerts
                         (patient_id, hospital_id, alert_type, description, status,created_by)
                         VALUES
-                        ('$patient_id','$hospital_id','Medical History','$medical_history','Active','Admin')";
+                        ('$patient_id','$hospital_id','Medical History','$medical_history','Active','Doctor')";
 
                         mysqli_query($conn, $sql);
                     }
@@ -190,7 +192,7 @@ if (isset($_POST['email'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $hospital['hospital_name'] ?> - Add Call Patient</title>
-    <link rel="icon" type="image/png" href="<?php echo $hospital['hospital_logo'] ?>">
+    <link rel="icon" type="image/png" href="../<?php echo $hospital['hospital_logo'] ?>">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -337,10 +339,10 @@ if (isset($_POST['email'])) {
 
 <body class="bg-gray-50 text-gray-900">
     <div class="flex min-h-screen flex-col bg-gray-50" >
-        <?php include 'header.php'; ?>
+        <?php include '../header.php'; ?>
 
         <div class="flex flex-1 items-start">
-            <?php include 'Sidebar.php'; ?>
+            <?php include '../Sidebar.php'; ?>
 
             <main class="flex-1 xl:ml-64 p-4 md:p-8">
                 <div class="max-w-5xl mx-auto w-full">
@@ -398,19 +400,33 @@ if (isset($_POST['email'])) {
                                         <small class="validation-hint">Only letters, spaces, hyphens, and apostrophes</small>
                                     </div>
                                     
-                                    <div class="space-y-2 field-group">
-                                        <label class="text-sm font-medium" for="doctor_id">Doctor <span class="text-red-500">*</span></label>
-                                        <select id="doctor_id" name="doctor_id"
-                                            class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm" required>
-                                            <option value="">Select Doctor</option>
-                                            <?php foreach($doctors as $doctor): ?>
-                                                <option value="<?php echo $doctor['doctor_id']; ?>">
-                                                    <?php echo htmlspecialchars($doctor['doctor_name']); ?> - <?php echo htmlspecialchars($doctor['department']); ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                        <p class="text-xs text-gray-500">Select the primary doctor for this patient</p>
-                                    </div>
+                                  <div class="space-y-2 field-group">
+    <label class="text-sm font-medium" for="doctor_id">
+        Doctor<span class="text-red-500">*</span>
+    </label>
+
+    <select id="doctor_id" name="doctor_id"
+        class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+        required>
+
+        <option value="" <?php echo empty($doctor_name) ? 'selected' : ''; ?>>
+            Select Doctor
+        </option>
+
+        <?php foreach ($doctors as $doctor): ?>
+            <option value="<?php echo $doctor['doctor_id']; ?>"
+                <?php echo ($doctor_name == $doctor['doctor_name']) ? 'selected' : ''; ?>>
+                <?php echo htmlspecialchars($doctor['doctor_name']); ?>
+                - <?php echo htmlspecialchars($doctor['department']); ?>
+            </option>
+        <?php endforeach; ?>
+
+    </select>
+
+    <p class="text-xs text-gray-500">
+        Select the primary doctor for this patient
+    </p>
+</div>
 
                                     <div class="space-y-2 field-group">
                                         <label class="text-sm font-medium" for="dob">Date of Birth</label>

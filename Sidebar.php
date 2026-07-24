@@ -12,6 +12,8 @@ $current_page = basename($_SERVER['PHP_SELF']);
 
 // Get user info from session
 $user_role = $_SESSION['role'] ?? 'Guest';
+
+
 $user_name = $_SESSION['name'] ?? 'User';
 $profile_image = $_SESSION['profile_image'] ?? '';
 $hospital_name = isset($hospital['hospital_name']) ? $hospital['hospital_name'] : 'Ultra Hospital';
@@ -49,6 +51,7 @@ if (!function_exists('getDashboardUrl')) {
         return 'dashboard.php';
     }
 }
+
 ?>
 
 <style>
@@ -291,7 +294,12 @@ if (!function_exists('getDashboardUrl')) {
         <div class="sidebar-header">
             <a class="sidebar-brand" href="<?php echo getDashboardUrl($user_role); ?>">
                 <?php if ($hospital_logo): ?>
-                    <img alt="Hospital Logo" src="<?php echo $hospital_logo; ?>" class="brand-logo" />
+                  <?php if($role=='admin'){ ?>
+                     <img alt="Hospital Logo" src="<?php echo $hospital_logo; ?>" class="brand-logo" />
+                <?php   }
+                   else{ ?>
+                     <img alt="Hospital Logo" src="../<?php echo $hospital_logo; ?>" class="brand-logo" />
+                 <?php  } ?>
                 <?php else: ?>
                     <span class="brand-icon">H</span>
                 <?php endif; ?>
@@ -310,7 +318,7 @@ if (!function_exists('getDashboardUrl')) {
             
             <?php if (hasPerm('Dashboard View')): ?>
             <div class="sidebar-section-label">Main</div>
-            <a href="<?php echo getDashboardUrl($user_role); ?>" class="sidebar-link <?php echo $current_page == basename(getDashboardUrl($user_role)) ? 'active' : ''; ?>">
+            <a href="dashboard.php" class="sidebar-link ? 'active' : ''; ?>">
                 <i class="fas fa-chart-pie"></i> Dashboard
             </a>
             <?php endif; ?>
@@ -561,9 +569,15 @@ if (!function_exists('getDashboardUrl')) {
             </a>
 
             <div class="logout-section">
-                <a href="auth/logout.php" class="sidebar-link logout">
+                <?php if($role=='admin'){ ?>
+                    <a href="auth/logout.php" class="sidebar-link logout">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </a>
+             <?php   } else{ ?>
+                      <a href="../auth/logout.php" class="sidebar-link logout">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+           <?php  }?>
             </div>
 
         </nav>

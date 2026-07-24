@@ -1,8 +1,8 @@
 <?php
 session_start();
-include("config/hospital.php");
+include("../config/hospital.php");
 
- include 'config/permission.php';
+ include '../config/permission.php';
     checkPermission('appointment-view'); 
 
 // Ensure database connection is using UTF-8
@@ -457,10 +457,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 <body class='bg-gray-50 text-gray-900'>
     <div class='flex min-h-screen flex-col bg-gray-50'>
-        <?php include 'header.php'; ?> 
+        <?php include '../header.php'; ?> 
         
         <div class='flex flex-1 items-start'>
-            <?php include 'Sidebar.php'; ?>
+            <?php include '../Sidebar.php'; ?>
 
             <main class='flex-1 overflow-auto duration-300 p-4 xl:p-6 xl:ml-64'>
                 <?php if (!empty($message)): ?>
@@ -482,7 +482,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                
 
                 <div class="form-card">
-                    <form action="appointments.php" method="POST" id="appointmentForm" enctype="multipart/form-data">
+                    <form action="add_appointment.php" method="POST" id="appointmentForm" enctype="multipart/form-data">
                         <div class="section-title">1. Basic Appointment Details</div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                             <div class="form-group">

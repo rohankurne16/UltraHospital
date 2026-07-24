@@ -8,6 +8,7 @@ if (!$conn) {
     die("Connection Failed : " . mysqli_connect_error());
 }
 
+$hid = $_SESSION["hospital_id"];
 $view = isset($_GET['view']) ? $_GET['view'] : 'month';
 $currentDate = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
 $timestamp = strtotime($currentDate);
@@ -60,15 +61,15 @@ if (isset($_GET['delete_id']) && !empty($_GET['delete_id'])) {
     }
 }
 
-$totalQuery = "SELECT COUNT(*) AS total FROM prescriptions WHERE (delete_flag=0 OR delete_flag IS NULL)";
+$totalQuery = "SELECT COUNT(*) AS total FROM prescriptions WHERE (delete_flag=0 OR delete_flag IS NULL)and hospital_id='$hid'";
 $totalResult = $conn->query($totalQuery);
 $totalCount = $totalResult->fetch_assoc();
 
-$follow_up = "SELECT COUNT(*) AS total_follow FROM prescriptions WHERE followup_date = CURDATE() + INTERVAL 1 DAY AND (delete_flag = 0 OR delete_flag IS NULL)";
+$follow_up = "SELECT COUNT(*) AS total_follow FROM prescriptions WHERE followup_date = CURDATE() + INTERVAL 1 DAY AND (delete_flag = 0 OR delete_flag IS NULL)and hospital_id='$hid'";
 $follow = $conn->query($follow_up);
 $followCount = $follow->fetch_assoc();
 
-$todayQuery = "SELECT COUNT(*) AS total FROM prescriptions WHERE (delete_flag=0 OR delete_flag IS NULL) AND DATE(created_at) = CURDATE()";
+$todayQuery = "SELECT COUNT(*) AS total FROM prescriptions WHERE (delete_flag=0 OR delete_flag IS NULL)and hospital_id='$hid' AND DATE(created_at) = CURDATE()";
 $todayResult = $conn->query($todayQuery);
 $todayCount = $todayResult->fetch_assoc();
 
@@ -80,6 +81,7 @@ if($filter=="today"){
         LEFT JOIN patients pat ON p.patient_id = pat.patient_id
         WHERE DATE(p.created_at)=CURDATE()
         AND $dateCondition
+        and p.hospital_id='$hid'
         AND (p.delete_flag=0 OR p.delete_flag IS NULL)
         ORDER BY p.created_at DESC";
 }
@@ -90,6 +92,7 @@ elseif($filter=="tomorrow"){
         LEFT JOIN patients pat ON p.patient_id = pat.patient_id
         WHERE followup_date = DATE_ADD(CURDATE(),INTERVAL 1 DAY)
         AND $dateCondition
+        and p.hospital_id='$hid'
         AND (p.delete_flag=0 OR p.delete_flag IS NULL)
         ORDER BY p.created_at DESC";
 }
@@ -99,6 +102,7 @@ else{
         FROM prescriptions p
         LEFT JOIN patients pat ON p.patient_id = pat.patient_id
         WHERE $dateCondition
+        and p.hospital_id='$hid'
         AND (p.delete_flag=0 OR p.delete_flag IS NULL)
         ORDER BY p.created_at DESC";
 }

@@ -844,9 +844,267 @@ $appointment_info = $conn->query($patient_appointment);
                     </div>
 
                 </div>
-                <!-- Tabs -->
+                <?php
+
+                    $active_tab = $_GET['doc_tab'] ?? 'Pre-Operation';
+
+                    $doc_query = "
+                    SELECT pd.*, r.name as uploaded_by_name
+                    FROM patient_documents pd
+                    LEFT JOIN register r ON pd.uploaded_by = r.id
+                    WHERE pd.patient_id='$patient_id'
+                    AND pd.document_category='$active_tab'
+                    AND (pd.delete_flag=0 OR pd.delete_flag IS NULL)
+                    ORDER BY pd.document_date DESC
+                    ";
+
+                    $doc_result = mysqli_query($conn,$doc_query);
+
+                    $pre_count = mysqli_num_rows(mysqli_query($conn,"
+                    SELECT document_id
+                    FROM patient_documents
+                    WHERE patient_id='$patient_id'
+                    AND document_category='Pre-Operation'
+                    AND (delete_flag=0 OR delete_flag IS NULL)
+                    "));
+
+                    $ot_count = mysqli_num_rows(mysqli_query($conn,"
+                    SELECT document_id
+                    FROM patient_documents
+                    WHERE patient_id='$patient_id'
+                    AND document_category='OT'
+                    AND (delete_flag=0 OR delete_flag IS NULL)
+                    "));
+
+                    $post_count = mysqli_num_rows(mysqli_query($conn,"
+                    SELECT document_id
+                    FROM patient_documents
+                    WHERE patient_id='$patient_id'
+                    AND document_category='Post-Operation'
+                    AND (delete_flag=0 OR delete_flag IS NULL)
+                    "));
+                    ?>
+                                   
+                    <div class="bg-white rounded-xl border border-gray-200 p-5 mt-6">
+
+                    <div class="flex justify-between items-center mb-5">
+                        <div>
+                            <h2 class="text-lg font-semibold text-gray-800">
+                                Documents
+                            </h2>
+
+                            <p class="text-sm text-gray-500">
+                                View and manage patient documents
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-6 border-b border-gray-200 mb-5 overflow-x-auto">
+
+                        <a href="?id=<?php echo $patient_id; ?>&doc_tab=Pre-Operation"
+                        class="flex items-center gap-2 px-4 py-3 text-sm border-b-2
+                        <?php echo ($active_tab=='Pre-Operation')
+                                ? 'font-semibold text-blue-600 border-blue-600'
+                                : 'text-gray-500 border-transparent'; ?>">
+
+                            <i data-lucide="file-text" class="w-4 h-4"></i>
+
+                            PRE-OT
+
+                            <span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">
+                                <?php echo $pre_count; ?>
+                            </span>
+                        </a>
+
+                        <a href="?id=<?php echo $patient_id; ?>&doc_tab=OT"
+                        class="flex items-center gap-2 px-4 py-3 text-sm border-b-2
+                        <?php echo ($active_tab=='OT')
+                                ? 'font-semibold text-blue-600 border-blue-600'
+                                : 'text-gray-500 border-transparent'; ?>">
+
+                            <i data-lucide="folder" class="w-4 h-4"></i>
+
+                            OT
+
+                            <span class="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs">
+                                <?php echo $ot_count; ?>
+                            </span>
+                        </a>
+
+                        <a href="?id=<?php echo $patient_id; ?>&doc_tab=Post-Operation"
+                        class="flex items-center gap-2 px-4 py-3 text-sm border-b-2
+                        <?php echo ($active_tab=='Post-Operation')
+                                ? 'font-semibold text-blue-600 border-blue-600'
+                                : 'text-gray-500 border-transparent'; ?>">
+
+                            <i data-lucide="image" class="w-4 h-4"></i>
+
+                            POST-OT
+
+                            <span class="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs">
+                                <?php echo $post_count; ?>
+                            </span>
+                        </a>
+
+                    </div>
+
+                 
+                                        <!-- Table -->
+                        <div class="overflow-x-auto">
+
+                            <table class="w-full text-sm">
+
+                                <thead>
+                                    <tr class="border-b text-gray-600">
+                                        <th class="text-left py-3">Document Date</th>
+                                        <th class="text-left py-3">Document Title</th>
+                                        <th class="text-left py-3">Document Type</th>
+                                        <th class="text-left py-3">Uploaded By</th>
+                                        <th class="text-left py-3">Action</th>
+                                    </tr>
+                                </thead>
 
 
+                                <tbody>
+
+                                    <?php if(mysqli_num_rows($doc_result)>0){ ?>
+
+                                    <?php while($doc=mysqli_fetch_assoc($doc_result)){ ?>
+
+                                    <tr class="border-b border-gray-100 hover:bg-gray-50">
+
+                                        <td class="py-3">
+                                            <?php echo date("d M Y",strtotime($doc['document_date'])); ?>
+                                        </td>
+
+                                        <td class="py-3">
+
+                                            <div class="flex items-center gap-3">
+
+                                                <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+                                                    <i data-lucide="file-text" class="w-5 h-5 text-blue-600"></i>
+                                                </div>
+
+                                                <div>
+
+                                                    <p class="font-medium text-gray-800">
+                                                        <?php echo htmlspecialchars($doc['document_name']); ?>
+                                                    </p>
+
+                                                    <p class="text-xs text-gray-500">
+                                                        <?php echo basename($doc['upload_file']); ?>
+                                                    </p>
+
+                                                </div>
+
+                                            </div>
+
+                                        </td>
+
+                                        <td class="py-3">
+
+                                            <span class="px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs">
+
+                                                <?php echo htmlspecialchars($doc['document_type']); ?>
+
+                                            </span>
+
+                                        </td>
+
+                                        <td class="py-3">
+
+                                            <?php echo htmlspecialchars($doc['uploaded_by_name']); ?>
+
+                                        </td>
+
+                                        <td class="py-3">
+
+                                            <div class="flex items-center gap-2">
+
+                                                <!-- View -->
+
+                                                <button
+                                                    onclick="viewDocument('<?php echo $doc['upload_file']; ?>')"
+                                                    class="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs">
+
+                                                    View
+
+                                                </button>
+
+                                                <!-- Download -->
+
+                                                <button
+                                                    onclick="downloadDocument('<?php echo $doc['upload_file']; ?>','<?php echo htmlspecialchars($doc['document_name']); ?>')"
+                                                    class="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs">
+
+                                                    Download
+
+                                                </button>
+
+                                                <!-- Delete -->
+
+                                                <a href="delete_patient_document.php?id=<?php echo $doc['document_id']; ?>&patient_id=<?php echo $patient_id; ?>"
+                                                onclick="return confirm('Delete this document?')"
+                                                class="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 text-xs">
+
+                                                    Delete
+
+                                                </a>
+
+                                            </div>
+
+                                        </td>
+
+                                    </tr>
+
+                                    <?php } ?>
+
+                                    <?php } else { ?>
+
+                                    <tr>
+
+                                        <td colspan="5" class="py-10 text-center text-gray-500">
+
+                                            <div class="flex flex-col items-center">
+
+                                                <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+
+                                                    <i data-lucide="folder-open" class="w-8 h-8 text-gray-400"></i>
+
+                                                </div>
+
+                                                <h3 class="text-base font-semibold">
+
+                                                    No Documents Found
+
+                                                </h3>
+
+                                                <p class="text-sm text-gray-500 mt-1">
+
+                                                    No documents available under
+                                                    <strong><?php echo $active_tab; ?></strong>
+
+                                                </p>
+
+                                            </div>
+
+                                        </td>
+
+                                    </tr>
+
+                                    <?php } ?>
+
+                                    </tbody>
+
+                                    </table>
+
+                                    </div>
+
+                                    </div>
+
+
+
+                            
 
             </main>
         </div>

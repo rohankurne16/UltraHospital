@@ -171,120 +171,193 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Get Role Info
         $role_id = $row['role_id'] ?? 0;
         $role_name_from_db = $row['role_name'] ?? $row['role'];
+        $register_id = $row['id'];
+        $hospital_id_val = $row['hospital_id'] ?? 0;
 
-        // Set session
-        $_SESSION['id'] = $row['id'];
-
-        if (strtolower(trim($role_name_from_db)) == 'lab technician') {
-
-   $staffQuery = mysqli_query($conn,
-    "SELECT staff_id, register_id
-     FROM staff
-     WHERE email = '{$row['email']}'
-     AND delete_flag = 0
-     LIMIT 1");
-
-    if ($staffQuery && mysqli_num_rows($staffQuery) > 0) {
-        $staff = mysqli_fetch_assoc($staffQuery);
-
-        $_SESSION['id'] = $staff['staff_id'];          // 11
-        $_SESSION['register_id'] = $staff['register_id']; // 1040
-
-    }
-}
+        // Set basic session
+        $_SESSION['id'] = $register_id;
         $_SESSION['name'] = $row['name'];
         $_SESSION['email'] = $row['email'];
         $_SESSION['role'] = $role_name_from_db;
         $_SESSION['role_id'] = $role_id;
-        $_SESSION['hospital_id'] = $row['hospital_id'];
+        $_SESSION['hospital_id'] = $hospital_id_val;
         $_SESSION['login_time'] = time();
 
-        // SET PERMISSIONS
-        if (strtolower(trim($role_name_from_db)) == 'super admin' || strtolower(trim($role_name_from_db)) == 'superadmin') {
-            $_SESSION['permissions'] = getSuperAdminPermissionsList();
-        } else {
-            $_SESSION['permissions'] = getRolePermissionNames($role_id);
-            // Admin fallback
-            if ($role_id == 5 || $role_id == 2 || strtolower($role_name_from_db) == 'admin') {
-                $_SESSION['permissions'] = getSuperAdminPermissionsList();
+        // ============================================================
+        // FIX: LAB TECHNICIAN SPECIFIC HANDLING
+        // ============================================================
+        $role_check = strtolower(trim($role_name_from_db));
+        
+        if ($role_check == 'lab technician' || $role_check == 'labtechnician') {
+            // Check if lab_technicians table exists
+            $tableCheck = "SHOW TABLES LIKE 'lab_technicians'";
+            $tableResult = mysqli_query($conn, $tableCheck);
+            
+            if ($tableResult && mysqli_num_rows($tableResult) > 0) {
+                // Check if technician exists
+                $techQuery = "SELECT id FROM lab_technicians 
+                              WHERE register_id = '$register_id' 
+                              AND hospital_id = '$hospital_id_val' 
+                              AND status = 'active'";
+                $techResult = mysqli_query($conn, $techQuery);
+                
+                if ($techResult && mysqli_num_rows($techResult) > 0) {
+                    $techData = mysqli_fetch_assoc($techResult);
+                    $_SESSION['lab_tech_id'] = $techData['id'];
+                } else {
+                    // Auto insert if not exists
+                    $insertTech = "INSERT INTO lab_technicians 
+                                   (register_id, hospital_id, name, email, status) 
+                                   VALUES (
+                                       '$register_id', 
+                                       '$hospital_id_val', 
+                                       '" . mysqli_real_escape_string($conn, $row['name']) . "', 
+                                       '" . mysqli_real_escape_string($conn, $row['email']) . "', 
+                                       'active'
+                                   )";
+                    if (mysqli_query($conn, $insertTech)) {
+                        $_SESSION['lab_tech_id'] = mysqli_insert_id($conn);
+                    }
+                }
+            } else {
+                // Create lab_technicians table if not exists
+                $createTable = "CREATE TABLE IF NOT EXISTS lab_technicians (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    register_id INT,
+                    hospital_id INT,
+                    name VARCHAR(255),
+                    email VARCHAR(255),
+                    phone VARCHAR(20),
+                    specialization VARCHAR(255),
+                    status ENUM('active', 'inactive') DEFAULT 'active',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )";
+                mysqli_query($conn, $createTable);
+                
+                // Insert technician
+                $insertTech = "INSERT INTO lab_technicians 
+                               (register_id, hospital_id, name, email, status) 
+                               VALUES (
+                                   '$register_id', 
+                                   '$hospital_id_val', 
+                                   '" . mysqli_real_escape_string($conn, $row['name']) . "', 
+                                   '" . mysqli_real_escape_string($conn, $row['email']) . "', 
+                                   'active'
+                               )";
+                if (mysqli_query($conn, $insertTech)) {
+                    $_SESSION['lab_tech_id'] = mysqli_insert_id($conn);
+                }
             }
         }
 
+        // ============================================================
+        // STAFF HANDLING (For other staff roles)
+        // ============================================================
+        if (in_array($role_check, ['nurse', 'ward boy', 'pharmacist', 'billing staff', 'accountant', 'receptionist', 'staff'])) {
+            $staffQuery = mysqli_query($conn,
+                "SELECT staff_id, register_id
+                 FROM staff
+                 WHERE email = '{$row['email']}'
+                 AND delete_flag = 0
+                 LIMIT 1");
+
+            if ($staffQuery && mysqli_num_rows($staffQuery) > 0) {
+                $staff = mysqli_fetch_assoc($staffQuery);
+                $_SESSION['staff_id'] = $staff['staff_id'];
+                $_SESSION['register_id'] = $staff['register_id'];
+            }
+        }
+
+        // ============================================================
+        // SET PERMISSIONS
+        // ============================================================
+        if (in_array($role_check, ['super admin', 'superadmin', 'admin'])) {
+            $_SESSION['permissions'] = getSuperAdminPermissionsList();
+        } else {
+            $_SESSION['permissions'] = getRolePermissionNames($role_id);
+        }
+
         // Insert login log
-        $register_id = $row['id'];
-        $hospital_id_val = $row['hospital_id'] ?? 'NULL';
         $ip_address = $_SERVER['REMOTE_ADDR'];
         $browser = $_SERVER['HTTP_USER_AGENT'];
         $device = (strpos($browser, 'Mobile') !== false) ? 'Mobile' : 'Desktop';
         
         $login_sql = "INSERT INTO login_logs (register_id, hospital_id, ip_address, browser, device) 
-                      VALUES ('$register_id', ".($hospital_id_val == 'NULL' ? 'NULL' : "'$hospital_id_val'").", '$ip_address', '$browser', '$device')";
+                      VALUES ('$register_id', ".($hospital_id_val ? "'$hospital_id_val'" : "NULL").", '$ip_address', '$browser', '$device')";
         mysqli_query($conn, $login_sql);
 
+        // ============================================================
         // ROLE-BASED REDIRECTION
-        $role_check = strtolower(trim($role_name_from_db));
+        // ============================================================
+        switch ($role_check) {
+            case 'super admin':
+            case 'superadmin':
+                header("Location: superadmin/dashboard.php");
+                exit();
 
-        if ($role_check == 'super admin' || $role_check == 'super admin') {
-            header("Location: superadmin/dashboard.php");
-            exit();
+            case 'admin':
+                header("Location: dashboard.php");
+                exit();
+
+            case 'doctor':
+                header("Location: doctors/dashboard.php");
+                exit();
+
+            case 'nurse':
+                header("Location: staff/nurse_dashboard.php");
+                exit();
+
+            case 'ward boy':
+                header("Location: staff/wardboy_dashboard.php");
+                exit();
+
+            case 'lab technician':
+            case 'labtechnician':
+                // Check if lab_tech_id is set
+                if (isset($_SESSION['lab_tech_id']) && !empty($_SESSION['lab_tech_id'])) {
+                    header("Location: labtechnician/dashboard.php");
+                } else {
+                    // Fallback - try to get lab_tech_id
+                    $techCheck = "SELECT id FROM lab_technicians WHERE register_id = '$register_id' AND hospital_id = '$hospital_id_val'";
+                    $techResult = mysqli_query($conn, $techCheck);
+                    if ($techResult && mysqli_num_rows($techResult) > 0) {
+                        $tech = mysqli_fetch_assoc($techResult);
+                        $_SESSION['lab_tech_id'] = $tech['id'];
+                        header("Location: labtechnician/dashboard.php");
+                    } else {
+                        header("Location: dashboard.php");
+                    }
+                }
+                exit();
+
+            case 'patient':
+                header("Location: patients/dashboard.php");
+                exit();
+
+            case 'billing staff':
+                header("Location: staff/billing_dashboard.php");
+                exit();
+
+            case 'accountant':
+                header("Location: staff/accountant_dashboard.php");
+                exit();
+
+            case 'pharmacist':
+                header("Location: staff/pharmacist_dashboard.php");
+                exit();
+
+            case 'staff':
+                header("Location: staff/dashboard.php");
+                exit();
+
+            case 'receptionist':
+                header("Location: staff/reception_dashboard.php");
+                exit();
+
+            default:
+                header("Location: dashboard.php");
+                exit();
         }
-
-        // Other roles redirection
-        switch (strtolower($role_check)) {
-
-    case 'super admin':
-        header("Location: superadmin/dashboard.php");
-        exit();
-
-    case 'admin':
-        header("Location: dashboard.php");
-        exit();
-
-    case 'doctor':
-        header("Location: doctors/dashboard.php");
-        exit();
-
-    case 'nurse':
-        header("Location: staff/nurse_dashboard.php");
-        exit();
-
-    case 'ward boy':
-        header("Location: staff/wardboy_dashboard.php");
-        exit();
-
-    case 'lab technician':
-        
-        header("Location: labtechnician/dashboard.php");
-        exit();
-
-    case 'patient':
-        header("Location: patients/dashboard.php");
-        exit();
-
-    case 'billing staff':
-        header("Location: staff/billing_dashboard.php");
-        exit();
-
-    case 'accountant':
-        header("Location: staff/accountant_dashboard.php");
-        exit();
-
-    case 'pharmacist':
-        header("Location: staff/pharmacist_dashboard.php");
-        exit();
-
-    case 'staff':
-        header("Location: staff/dashboard.php");
-        exit();
-
-    case 'receptionist':
-        header("Location: staff/reception_dashboard.php");
-        exit();
-
-    default:
-        header("Location: dashboard.php");
-        exit();
-}
         
     } else {
         $_SESSION['status'] = "Invalid password.";

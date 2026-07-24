@@ -4,6 +4,8 @@ include 'config/hospital.php';
 include 'config/permission.php';
 checkPermission('ipd-view'); 
 
+$hid=$_SESSION['hospital_id'];
+
 $conn->set_charset("utf8");
 
 $opd_ipd_type_filter = 'IPD';
@@ -27,7 +29,7 @@ $sql = "SELECT
         JOIN
             doctor d ON a.doctor_id = d.doctor_id
         WHERE
-            a.opd_ipd_type = ? AND (a.delete_flag = 0 OR a.delete_flag IS NULL)
+            a.opd_ipd_type = ? and a.hospital_id='$hid' AND (a.delete_flag = 0 OR a.delete_flag IS NULL)
         ORDER BY
             a.appointment_date DESC, a.appointment_time DESC";
 
@@ -64,46 +66,7 @@ if ($stmt) {
             background: #f8fafc;
         }
         
-        /* Sidebar and Layout */
-        #sidebar-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100vh;
-            z-index: 50;
-            transition: transform 0.3s ease;
-            background: white;
-        }
-
-        @media (max-width: 1279px) {
-            #sidebar-container {
-                transform: translateX(-100%);
-                box-shadow: 4px 0 10px rgba(0,0,0,0.1);
-            }
-            #sidebar-container.active {
-                transform: translateX(0);
-            }
-            .sidebar-overlay {
-                display: none;
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0,0,0,0.5);
-                z-index: 40;
-            }
-            .sidebar-overlay.active {
-                display: block;
-            }
-        }
-
-        @media (min-width: 1280px) {
-            #sidebar-container {
-                transform: translateX(0);
-                width: 260px;
-            }
-        }
+      
 
         #mobile-toggle {
             display: flex;
@@ -553,58 +516,6 @@ if ($stmt) {
         </div>
     </div>
 
-    <script>
-        // Initialize Lucide icons
-        lucide.createIcons();
-
-        // Sidebar Toggle Logic
-        document.addEventListener('DOMContentLoaded', function() {
-            const mobileToggle = document.getElementById('mobile-toggle');
-            const sidebarContainer = document.getElementById('sidebar-container');
-            const sidebarOverlay = document.getElementById('sidebar-overlay');
-            
-            function openSidebar() {
-                sidebarContainer.classList.add('active');
-                sidebarOverlay.classList.add('active');
-                document.body.style.overflow = 'hidden';
-            }
-
-            function closeSidebar() {
-                sidebarContainer.classList.remove('active');
-                sidebarOverlay.classList.remove('active');
-                document.body.style.overflow = '';
-            }
-
-            if (mobileToggle) {
-                mobileToggle.addEventListener('click', openSidebar);
-            }
-            
-            if (sidebarOverlay) {
-                sidebarOverlay.addEventListener('click', closeSidebar);
-            }
-
-            // Handle close button inside Sidebar.php
-            document.addEventListener('click', function(e) {
-                const closeBtn = e.target.closest('.lucide-x') || e.target.closest('.fa-xmark') || e.target.closest('#sidebar-close');
-                if (closeBtn && window.innerWidth < 1280) {
-                    closeSidebar();
-                }
-            });
-
-            // Close sidebar on escape key
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape' && window.innerWidth < 1280) {
-                    closeSidebar();
-                }
-            });
-
-            // Auto-close sidebar on window resize to desktop
-            window.addEventListener('resize', function() {
-                if (window.innerWidth >= 1280) {
-                    closeSidebar();
-                }
-            });
-        });
-    </script>
+   
 </body>
 </html>

@@ -36,24 +36,24 @@ if(isset($_GET['appointment_id'])) {
         if(mysqli_query($conn, $updateSql)) {
             
             $_SESSION['success_message'] = "Appointment confirmed successfully!";
-            header("Location: show_myappointment.php");
+            header("Location: appointments.php");
             exit();
         } else {
             
             $_SESSION['error_message'] = "Error confirming appointment: " . mysqli_error($conn);
-          header("Location: show_myappointment.php");
+          header("Location: appointments.php");
             exit();
         }
     } else {
         
         $_SESSION['error_message'] = "Appointment not found or you don't have permission to confirm it.";
-       header("Location: show_myappointment.php");
+       header("Location: appointments.php");
         exit();
     }
 } else {
    
     $_SESSION['error_message'] = "No appointment selected.";
-    header("Location: show_myappointment.php");
+    header("Location: appointments.php");
     exit();
 }
 

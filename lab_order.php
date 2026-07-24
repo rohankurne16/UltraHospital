@@ -503,13 +503,14 @@ if ($all_orders_result) {
             <th>Tests</th>
             <th> Order Status</th>
             <th>Payment</th>
-            <th class="text-center">Action</th>
+            
         </tr>
     </thead>
     <tbody>
         <?php $counter = $offset + 1; ?>
         <?php while ($row = $orderresult->fetch_assoc()): ?>
-            <tr>
+           <tr onclick="window.location='order_details.php?id=<?php echo $row['order_id']; ?>'"
+    style="cursor:pointer;">
                 <td><?php echo $counter++; ?></td>
                 <td><span class="test-code-badge"><?php echo htmlspecialchars($row['order_no']); ?></span></td>
                 <td>
@@ -548,31 +549,7 @@ if ($all_orders_result) {
                         <br><span class="text-xs text-blue-600">Bill: <?php echo $bill_status[$row['order_id']]['bill_no']; ?></span>
                     <?php endif; ?>
                 </td>
-                <td class="actions-cell">
-                    <div class="flex items-center gap-1 flex-wrap">
-                        <!-- View Button -->
-                        <a href="order_details.php?id=<?php echo $row['order_id']; ?>" 
-                           class="btn-info btn-sm" 
-                           title="View Details">
-                            <i class="fas fa-eye"></i>
-                        </a>
-                        
-                        <!-- Edit Button -->
-                        <a href="edit_order.php?id=<?php echo $row['order_id']; ?>" 
-                           class="btn-warning btn-sm" 
-                           title="Edit Order">
-                            <i class="fas fa-edit"></i>
-                        </a>
-                        
-                        <!-- Delete Button -->
-                        <a href="?delete_order=<?php echo $row['order_id']; ?>" 
-                           class="btn-danger btn-sm" 
-                           title="Delete Order"
-                           onclick="return confirm('Are you sure you want to delete this order?');">
-                            <i class="fas fa-trash"></i>
-                        </a>
-                    </div>
-                </td>
+                
             </tr>
         <?php endwhile; ?>
     </tbody>

@@ -10,10 +10,7 @@ if (!isset($_SESSION["id"]) && empty($_SESSION["id"])) {
 $room_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $ward_id = isset($_GET['ward_id']) ? (int)$_GET['ward_id'] : 0;
 
-if ($room_id == 0) {
-    header("Location: room_master.php");
-    exit();
-}
+
 
 // Fetch room details
 $roomQuery = "SELECT r.*, w.ward_name, w.ward_id 

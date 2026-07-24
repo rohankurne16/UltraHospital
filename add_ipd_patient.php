@@ -513,8 +513,8 @@ $wards = fetchData($conn, "SELECT ward_id, ward_name, ward_type, floor_no, (SELE
                                     </div>
                                     
                                     <div class="space-y-2 field-group">
-                                        <label class="form-label" for="doctor_id">Doctor</label>
-                                        <select id="doctor_id" name="doctor_id" class="form-select">
+                                        <label class="form-label" for="doctor_id">Doctor<span class="text-red-500">*</span></label>
+                                        <select id="doctor_id" name="doctor_id" class="form-select" required>
                                             <option value="">Select Doctor (Optional)</option>
                                             <?php foreach($doctors as $doctor): ?>
                                                 <option value="<?php echo $doctor['doctor_id']; ?>">
@@ -1073,6 +1073,14 @@ $wards = fetchData($conn, "SELECT ward_id, ward_name, ward_type, floor_no, (SELE
             // Form submission validation
             document.getElementById('patientForm').addEventListener('submit', function(e) {
                 let isValid = true;
+
+                const doctor = document.getElementById('doctor_id');
+
+                if (doctor.value === '') {
+                    alert('Please select a doctor');
+                    doctor.focus();
+                    isValid = false;
+                }
 
                 Object.keys(fields).forEach(fieldId => {
                     if (fieldId === 'mobile') {

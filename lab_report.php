@@ -343,11 +343,7 @@ if (isset($_GET['delete_report'])) {
                         <h1 class="text-2xl lg:text-3xl font-bold tracking-tight text-gray-900">Lab Reports</h1>
                         <p class="text-gray-500 mt-1">Manage all lab test reports</p>
                     </div>
-                    <div class="flex gap-2 flex-wrap">
-                        <button onclick="openCreateReportModal()" class="btn-primary">
-                            <i class="fas fa-plus"></i> Create Report
-                        </button>
-                    </div>
+                    
                 </div>
 
                 <!-- Alerts -->
@@ -429,24 +425,13 @@ if (isset($_GET['delete_report'])) {
                                                             </a>
                                                         <?php endif; ?>
                                                         
-                                                        <!-- Upload Corrected Report -->
-                                                        <button onclick="openCorrectedModal(<?php echo $report['report_id']; ?>)" 
-                                                                class="btn-warning btn-sm" title="Upload Corrected Report">
-                                                            <i class="fas fa-upload"></i>
-                                                        </button>
+                                                      
                                                         
                                                         <!-- Patient History -->
-                                                        <a href="?patient_history=<?php echo $report['patient_id']; ?>" 
-                                                           class="btn-info btn-sm" title="Patient History">
-                                                            <i class="fas fa-history"></i>
-                                                        </a>
+                                                      
                                                         
                                                         <!-- Delete Report -->
-                                                        <a href="?delete_report=<?php echo $report['report_id']; ?>" 
-                                                           class="btn-danger btn-sm" title="Delete Report" 
-                                                           onclick="return confirm('Are you sure you want to delete this report?');">
-                                                            <i class="fas fa-trash"></i>
-                                                        </a>
+                                                        
                                                     </div>
                                                 </td>
                                             </tr>
@@ -454,15 +439,7 @@ if (isset($_GET['delete_report'])) {
                                     </tbody>
                                 </table>
                             </div>
-                        <?php else: ?>
-                            <div class="empty-state">
-                                <i class="fas fa-file-alt"></i>
-                                <p class="text-lg font-medium text-gray-700">No reports found</p>
-                                <p class="text-sm text-gray-400 mt-1">Click "Create Report" to generate your first report</p>
-                                <button onclick="openCreateReportModal()" class="btn-primary mt-3">
-                                    <i class="fas fa-plus"></i> Create Report
-                                </button>
-                            </div>
+                     
                         <?php endif; ?>
                     </div>
                 </div>
@@ -661,102 +638,10 @@ if (isset($_GET['delete_report'])) {
                 <?php endif; ?>
 
                 <!-- ========== CREATE REPORT MODAL ========== -->
-                <div class="modal" id="createReportModal">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h2><i class="fas fa-plus-circle mr-2 text-green-500"></i> Create New Report</h2>
-                            <button class="modal-close" onclick="closeModal('createReportModal')">&times;</button>
-                        </div>
-                        <form method="POST" action="lab_reports.php" enctype="multipart/form-data">
-                            <div class="form-group">
-                                <label>Select Completed Order <span class="required">*</span></label>
-                                <select class="form-select" name="order_id" required onchange="loadOrderDetails(this.value)">
-                                    <option value="">Select Order</option>
-                                    <?php foreach ($orders as $order): ?>
-                                        <option value="<?php echo $order['order_id']; ?>" 
-                                                data-patient-id="<?php echo $order['patient_id']; ?>"
-                                                data-patient-name="<?php echo htmlspecialchars($order['patient_name']); ?>"
-                                                data-doctor-id="<?php echo $order['doctor_id']; ?>"
-                                                data-doctor-name="<?php echo htmlspecialchars($order['doctor_name']); ?>">
-                                            <?php echo htmlspecialchars($order['order_no'] . ' - ' . $order['patient_name']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label>Patient <span class="required">*</span></label>
-                                    <input type="text" class="form-input" id="patient_name" readonly style="background: #f3f4f6;">
-                                    <input type="hidden" name="patient_id" id="patient_id" value="">
-                                </div>
-                                <div class="form-group">
-                                    <label>Doctor <span class="required">*</span></label>
-                                    <input type="text" class="form-input" id="doctor_name" readonly style="background: #f3f4f6;">
-                                    <input type="hidden" name="doctor_id" id="doctor_id" value="">
-                                </div>
-                            </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label>Technician</label>
-                                    <select class="form-select" name="technician_id">
-                                        <option value="">Select Technician (Optional)</option>
-                                        <?php foreach ($technicians as $t): ?>
-                                            <option value="<?php echo $t['staff_id']; ?>"><?php echo htmlspecialchars($t['name']); ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label>Report Date</label>
-                                    <input type="date" class="form-input" name="report_date" value="<?php echo date('Y-m-d'); ?>">
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label>Upload Report File</label>
-                                <input type="file" class="form-input" name="report_file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-                                <small class="text-gray-500">Supported formats: PDF, DOC, DOCX, JPG, PNG (Max 10MB)</small>
-                            </div>
-
-                            <div class="form-group">
-                                <label>Remarks</label>
-                                <textarea class="form-input" name="remarks" rows="3" placeholder="Additional notes..."></textarea>
-                            </div>
-
-                            <div class="modal-footer">
-                                <button type="button" class="btn-outline" onclick="closeModal('createReportModal')">Cancel</button>
-                                <button type="submit" name="create_report" class="btn-primary">
-                                    <i class="fas fa-save"></i> Create Report
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+                
 
                 <!-- ========== UPLOAD CORRECTED REPORT MODAL ========== -->
-                <div class="modal" id="correctedModal">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h2><i class="fas fa-upload mr-2 text-yellow-500"></i> Upload Corrected Report</h2>
-                            <button class="modal-close" onclick="closeModal('correctedModal')">&times;</button>
-                        </div>
-                        <form method="POST" action="lab_reports.php" enctype="multipart/form-data">
-                            <input type="hidden" name="report_id" id="corrected_report_id">
-                            <div class="form-group">
-                                <label>Select Corrected Report File <span class="required">*</span></label>
-                                <input type="file" class="form-input" name="corrected_file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" required>
-                                <small class="text-gray-500">Supported formats: PDF, DOC, DOCX, JPG, PNG (Max 10MB)</small>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn-outline" onclick="closeModal('correctedModal')">Cancel</button>
-                                <button type="submit" name="upload_corrected" class="btn-warning">
-                                    <i class="fas fa-upload"></i> Upload Corrected Report
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+                
             </main>
         </div>
     </div>
@@ -775,9 +660,7 @@ if (isset($_GET['delete_report'])) {
         }
 
         // ========== MODAL FUNCTIONS ==========
-        function openCreateReportModal() {
-            document.getElementById('createReportModal').classList.add('show');
-        }
+     
 
         function openCorrectedModal(reportId) {
             document.getElementById('corrected_report_id').value = reportId;

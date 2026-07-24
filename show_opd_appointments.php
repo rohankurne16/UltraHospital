@@ -9,6 +9,8 @@ $conn->set_charset("utf8");
 $opd_ipd_type_filter = 'OPD';
 $appointments = [];
 
+$hid=$_SESSION['hospital_id'];
+
 $sql = "SELECT
             a.appointment_id,
             a.appointment_no,
@@ -27,7 +29,7 @@ $sql = "SELECT
         JOIN
             doctor d ON a.doctor_id = d.doctor_id
         WHERE
-            a.opd_ipd_type = ? AND (a.delete_flag = 0 OR a.delete_flag IS NULL)
+            a.opd_ipd_type = ? AND a.hospital_id='$hid' and (a.delete_flag = 0 OR a.delete_flag IS NULL)
         ORDER BY
             a.appointment_date DESC, a.appointment_time DESC";
 

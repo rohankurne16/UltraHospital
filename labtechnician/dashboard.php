@@ -1,45 +1,54 @@
 <?php
 session_start();
-
 include "../config/hospital.php";
-include "../config/permission.php";
 
-// ========== FIRST: Get user ID and hospital ID ==========
-if (!isset($_SESSION['id'])) {
-    die("Session ID missing");
+
+// Check if user is logged in
+if (!isset($_SESSION["id"]) || empty($_SESSION["id"])) {
+    header("Location: ../index.php");
+    exit();
 }
 
-$user_id = (int)$_SESSION['id'];
-$hid = $_SESSION['hospital_id'];
+$hid = $_SESSION["hospital_id"];
+$register_id = $_SESSION["id"];
 
-// ========== DEBUG: Check technician ID and query ==========
-error_log("Technician User ID: " . $user_id);
-error_log("Hospital ID: " . $hid);
+// ========== GET STAFF ID FROM REGISTER ID ==========
+$sql_staff = "SELECT staff_id, name, profile_image FROM staff WHERE register_id = $register_id AND role = 'Lab Technician' AND hospital_id = $hid AND delete_flag = 0";
+$result_staff = $conn->query($sql_staff);
 
-$sql = "SELECT order_id, order_no, technician_id, hospital_id, order_status
-        FROM lab_orders
-        WHERE technician_id = $user_id";
-
-error_log("Dashboard SQL: " . $sql);
-
-$result = mysqli_query($conn, $sql);
-
-if ($result) {
-    error_log("Number of orders found: " . mysqli_num_rows($result));
-} else {
-    error_log("Query error: " . mysqli_error($conn));
-}
-
-// ========== FIX: SET SESSION VARIABLES FOR HEADER ==========
-$technician = null;
-$sql_tech = "SELECT * FROM staff WHERE staff_id = $user_id AND role = 'Lab Technician' AND hospital_id = $hid";
-$result_tech = $conn->query($sql_tech);
-if ($result_tech && $result_tech->num_rows > 0) {
-    $technician = $result_tech->fetch_assoc();
+if ($result_staff && $result_staff->num_rows > 0) {
+    $technician = $result_staff->fetch_assoc();
+    $user_id = $technician['staff_id'];
     $_SESSION["name"] = $technician['name'] ?? 'Technician';
     $_SESSION["role"] = "Lab Technician";
     $_SESSION["profile_image"] = $technician['profile_image'] ?? '';
+    $_SESSION['staff_id'] = $user_id;
+} else {
+    // Fallback - try to get from lab_technicians table
+    $sql_tech = "SELECT id, name, email, phone FROM lab_technicians WHERE register_id = $register_id AND hospital_id = $hid AND status = 'active'";
+    $result_tech = $conn->query($sql_tech);
+    if ($result_tech && $result_tech->num_rows > 0) {
+        $tech = $result_tech->fetch_assoc();
+        $user_id = $tech['id'];
+        $_SESSION["name"] = $tech['name'];
+        $_SESSION["role"] = "Lab Technician";
+        $_SESSION['lab_tech_id'] = $user_id;
+    } else {
+        echo "<script>alert('Lab Technician not found!'); window.location='../index.php';</script>";
+        exit();
+    }
 }
+
+// If we still don't have user_id, redirect
+if (!isset($user_id) || empty($user_id)) {
+    echo "<script>alert('Technician ID not found!'); window.location='../index.php';</script>";
+    exit();
+}
+
+// ============================================================
+// FIX: UPDATE ALL ORDERS WITH NULL/0 TECHNICIAN_ID
+// ============================================================
+$conn->query("UPDATE lab_orders SET technician_id = $user_id WHERE (technician_id IS NULL OR technician_id = 0) AND delete_flag = 0");
 
 // Check if user is a Lab Technician
 $user_role = $_SESSION["role"] ?? "";
@@ -63,10 +72,7 @@ $sql_total = "SELECT COUNT(*) as total FROM lab_orders WHERE technician_id = $us
 $result_total = $conn->query($sql_total);
 $total_orders = $result_total ? $result_total->fetch_assoc()['total'] : 0;
 
-$sql_pending = "SELECT COUNT(*) as total
-FROM lab_orders
-WHERE technician_id = $user_id
-AND order_status IN ('Assigned','Accepted')";
+$sql_pending = "SELECT COUNT(*) as total FROM lab_orders WHERE technician_id = $user_id AND order_status IN ('Pending','Assigned') AND delete_flag = 0";
 $result_pending = $conn->query($sql_pending);
 $pending_orders = $result_pending ? $result_pending->fetch_assoc()['total'] : 0;
 
@@ -86,19 +92,74 @@ $sql_rejected = "SELECT COUNT(*) as total FROM lab_orders WHERE technician_id = 
 $result_rejected = $conn->query($sql_rejected);
 $rejected_orders = $result_rejected ? $result_rejected->fetch_assoc()['total'] : 0;
 
-// ========== GET ORDERS ==========
+// ============================================================
+// FIX: GET ORDERS - DIRECT QUERY
+// ============================================================
+// ============================================================
+// FIX: GET ORDERS - DIRECT QUERY
+// ============================================================
 $orders = [];
-$sql_orders = "SELECT o.*, p.patient_name, p.mobile as patient_mobile, p.gender, d.doctor_name,
-               (SELECT COUNT(*) FROM lab_order_details WHERE order_id = o.order_id) as test_count
+
+// Direct query - doctor name with department
+$sql_orders = "SELECT o.*, p.patient_name, p.mobile as patient_mobile, p.gender, 
+               d.doctor_name, d.department
                FROM lab_orders o
                LEFT JOIN patients p ON o.patient_id = p.patient_id
                LEFT JOIN doctor d ON o.doctor_id = d.doctor_id
                WHERE o.technician_id = $user_id AND o.delete_flag = 0
                ORDER BY o.order_id DESC";
+
 $result_orders = $conn->query($sql_orders);
-if ($result_orders) {
+
+if ($result_orders && $result_orders->num_rows > 0) {
     while ($row = $result_orders->fetch_assoc()) {
+        // Get test count separately
+        $test_count_sql = "SELECT COUNT(*) as count FROM lab_order_details WHERE order_id = " . $row['order_id'] . " AND delete_flag = 0";
+        $test_count_result = $conn->query($test_count_sql);
+        $row['test_count'] = $test_count_result ? $test_count_result->fetch_assoc()['count'] : 0;
+        
+        // Format doctor name with department
+        if (!empty($row['doctor_name'])) {
+            if (!empty($row['department'])) {
+                $row['doctor_name'] = $row['doctor_name'] . ' (' . $row['department'] . ')';
+            }
+        } else {
+            $row['doctor_name'] = 'Not Assigned';
+        }
+        
         $orders[] = $row;
+    }
+}
+
+// ============================================================
+// FALLBACK: If no orders found, try with all orders
+// ============================================================
+if (empty($orders)) {
+    $fallback_sql = "SELECT o.*, p.patient_name, p.mobile as patient_mobile, p.gender,
+                     d.doctor_name, d.department
+                     FROM lab_orders o
+                     LEFT JOIN patients p ON o.patient_id = p.patient_id
+                     LEFT JOIN doctor d ON o.doctor_id = d.doctor_id
+                     WHERE o.delete_flag = 0
+                     ORDER BY o.order_id DESC";
+    $fallback_result = $conn->query($fallback_sql);
+    if ($fallback_result && $fallback_result->num_rows > 0) {
+        while ($row = $fallback_result->fetch_assoc()) {
+            $test_count_sql = "SELECT COUNT(*) as count FROM lab_order_details WHERE order_id = " . $row['order_id'] . " AND delete_flag = 0";
+            $test_count_result = $conn->query($test_count_sql);
+            $row['test_count'] = $test_count_result ? $test_count_result->fetch_assoc()['count'] : 0;
+            
+            // Format doctor name with department
+            if (!empty($row['doctor_name'])) {
+                if (!empty($row['department'])) {
+                    $row['doctor_name'] = $row['doctor_name'] . ' (' . $row['department'] . ')';
+                }
+            } else {
+                $row['doctor_name'] = 'Not Assigned';
+            }
+            
+            $orders[] = $row;
+        }
     }
 }
 
@@ -112,9 +173,9 @@ $sql_pending_tests = "SELECT od.*, t.test_name, t.test_code, t.normal_range, t.u
                       LEFT JOIN patients p ON o.patient_id = p.patient_id
                       LEFT JOIN lab_test_results r ON od.detail_id = r.order_detail_id
                       WHERE o.technician_id = $user_id 
-                      AND o.order_status IN ('Accepted','Sample Collected','In Process')
+                      AND o.order_status IN ('Sample Collected', 'In Process', 'Assigned', 'Pending')
                       AND o.delete_flag = 0
-                      AND r.result_id IS NULL
+                      AND (r.result_id IS NULL OR r.result_id = 0)
                       ORDER BY o.order_id DESC";
 $result_pending_tests = $conn->query($sql_pending_tests);
 if ($result_pending_tests) {
@@ -127,14 +188,7 @@ if ($result_pending_tests) {
 if (isset($_POST['update_order_status'])) {
     $order_id = intval($_POST['order_id'] ?? 0);
     $status = $_POST['status'] ?? '';
-    $valid_statuses = [
-        'Assigned',
-        'Accepted',
-        'Sample Collected',
-        'In Process',
-        'Completed',
-        'Rejected'
-    ];
+    $valid_statuses = ['Pending','Assigned','Sample Collected','In Process','Completed','Cancelled'];
     
     if ($order_id > 0 && in_array($status, $valid_statuses)) {
         $conn->query("UPDATE lab_orders SET order_status = '$status' WHERE order_id = $order_id AND technician_id = $user_id");
@@ -167,18 +221,19 @@ if (isset($_POST['save_result'])) {
                     unit = '$unit',
                     remarks = '$remarks',
                     entered_by = $user_id,
-                    report_status = 'Completed'
+                    report_status = 'Completed',
+                    updated_at = NOW()
                     WHERE order_detail_id = $detail_id";
         } else {
-            $sql = "INSERT INTO lab_test_results (order_detail_id, result_value, normal_range, unit, remarks, entered_by, report_status) 
-                    VALUES ($detail_id, '$result_value', '$normal_range', '$unit', '$remarks', $user_id, 'Completed')";
+            $sql = "INSERT INTO lab_test_results (order_detail_id, result_value, normal_range, unit, remarks, entered_by, report_status, created_at) 
+                    VALUES ($detail_id, '$result_value', '$normal_range', '$unit', '$remarks', $user_id, 'Completed', NOW())";
         }
         
         if ($conn->query($sql)) {
             if ($order_id > 0) {
                 $check_all = $conn->query("SELECT COUNT(*) as total FROM lab_order_details od 
                                           LEFT JOIN lab_test_results r ON od.detail_id = r.order_detail_id
-                                          WHERE od.order_id = $order_id AND r.result_id IS NULL");
+                                          WHERE od.order_id = $order_id AND (r.result_id IS NULL OR r.result_id = 0)");
                 if ($check_all && $check_all->fetch_assoc()['total'] == 0) {
                     $conn->query("UPDATE lab_orders SET order_status = 'Completed' WHERE order_id = $order_id");
                     $_SESSION['success'] = "All tests completed! Order status updated to Completed.";
@@ -195,89 +250,131 @@ if (isset($_POST['save_result'])) {
 }
 
 // ========== GENERATE REPORT ==========
+// ========== GENERATE REPORT ==========
 if (isset($_POST['generate_report'])) {
     $order_id = intval($_POST['order_id'] ?? 0);
     $report_date = $_POST['report_date'] ?? date('Y-m-d');
     $report_remarks = trim($_POST['report_remarks'] ?? '');
     
     if ($order_id > 0) {
+        // Order डिटेल्स मिळवा
         $order_data = $conn->query("SELECT patient_id, doctor_id FROM lab_orders WHERE order_id = $order_id");
         if ($order_data && $order_data->num_rows > 0) {
             $order = $order_data->fetch_assoc();
             $patient_id = $order['patient_id'];
             $doctor_id = $order['doctor_id'];
             
-            $prefix = "RPT";
-            $date = date("Ymd");
-            $sql = "SELECT MAX(report_no) as max_no FROM lab_reports WHERE report_no LIKE '$prefix$date%'";
-            $result = $conn->query($sql);
-            if ($result && $row = $result->fetch_assoc() && $row['max_no']) {
-                $num = intval(substr($row['max_no'], -4)) + 1;
-                $report_no = $prefix . $date . str_pad($num, 4, '0', STR_PAD_LEFT);
-            } else {
-                $report_no = $prefix . $date . '0001';
-            }
+            // ========== GET ALL TESTS FOR THIS ORDER ==========
+            $tests_sql = "SELECT od.detail_id, od.test_id, t.test_name, t.test_code 
+                          FROM lab_order_details od
+                          LEFT JOIN lab_tests t ON od.test_id = t.test_id
+                          WHERE od.order_id = $order_id AND od.delete_flag = 0";
+            $tests_result = $conn->query($tests_sql);
             
-            $report_file = '';
-            if (isset($_FILES['report_file']) && $_FILES['report_file']['error'] == 0) {
-                $target_dir = "../documents/reports/";
-                if (!file_exists($target_dir)) {
-                    mkdir($target_dir, 0777, true);
+            $uploaded_files = [];
+            $all_success = true;
+            $error_messages = [];
+            
+            if ($tests_result && $tests_result->num_rows > 0) {
+                $test_count = 0;
+                while ($test_row = $tests_result->fetch_assoc()) {
+                    $test_count++;
+                    $detail_id = $test_row['detail_id'];
+                    $test_name = $test_row['test_name'] ?? 'Test ' . $test_count;
+                    $test_code = $test_row['test_code'] ?? 'T' . str_pad($test_count, 3, '0', STR_PAD_LEFT);
+                    
+                    // ========== GENERATE UNIQUE REPORT NUMBER FOR EACH TEST ==========
+                    $prefix = "RPT";
+                    $date = date("Ymd");
+                    
+                    // Add detail_id to make it unique
+                    $report_no = $prefix . $date . str_pad($detail_id, 4, '0', STR_PAD_LEFT);
+                    
+                    // Check if this report_no already exists
+                    $check_sql = "SELECT report_no FROM lab_reports WHERE report_no = '$report_no'";
+                    $check_result = $conn->query($check_sql);
+                    $counter = 1;
+                    while ($check_result && $check_result->num_rows > 0) {
+                        $report_no = $prefix . $date . str_pad($detail_id, 4, '0', STR_PAD_LEFT) . '_' . $counter;
+                        $check_sql = "SELECT report_no FROM lab_reports WHERE report_no = '$report_no'";
+                        $check_result = $conn->query($check_sql);
+                        $counter++;
+                    }
+                    
+                    // ========== HANDLE FILE UPLOAD FOR EACH TEST ==========
+                    $report_file = '';
+                    $file_key = 'report_file_' . $detail_id;
+                    
+                    if (isset($_FILES[$file_key]) && $_FILES[$file_key]['error'] == 0) {
+                        $target_dir = "../documents/reports/";
+                        if (!file_exists($target_dir)) {
+                            mkdir($target_dir, 0777, true);
+                        }
+                        
+                        $file_ext = strtolower(pathinfo($_FILES[$file_key]['name'], PATHINFO_EXTENSION));
+                        $allowed_ext = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'xls', 'xlsx'];
+                        
+                        if (in_array($file_ext, $allowed_ext)) {
+                            $file_name = $report_no . '_' . time() . '.' . $file_ext;
+                            if (move_uploaded_file($_FILES[$file_key]['tmp_name'], $target_dir . $file_name)) {
+                                $report_file = $file_name;
+                            } else {
+                                $all_success = false;
+                                $error_messages[] = "Failed to upload file for test: $test_name";
+                            }
+                        } else {
+                            $all_success = false;
+                            $error_messages[] = "Invalid file format for test: $test_name. Allowed: PDF, DOC, DOCX, JPG, PNG";
+                        }
+                    }
+                    
+                    // ========== SAVE TO DATABASE ==========
+                    $remarks = $report_remarks ? $report_remarks . " (Test: $test_name)" : "Test: $test_name";
+                    
+                    $sql_insert = "INSERT INTO lab_reports 
+                                   (order_id, detail_id, patient_id, doctor_id, technician_id, 
+                                    report_no, report_date, report_file, report_status, remarks, hospital_id) 
+                                   VALUES 
+                                   ($order_id, $detail_id, $patient_id, $doctor_id, $user_id, 
+                                    '$report_no', '$report_date', '$report_file', 'Completed', 
+                                    '$remarks', $hid)";
+                    
+                    if (!$conn->query($sql_insert)) {
+                        $all_success = false;
+                        $error_messages[] = "Database error for test: $test_name - " . $conn->error;
+                    } else {
+                        $uploaded_files[] = $report_file;
+                    }
                 }
-                $file_name = time() . '_' . basename($_FILES['report_file']['name']);
-                if (move_uploaded_file($_FILES['report_file']['tmp_name'], $target_dir . $file_name)) {
-                    $report_file = $file_name;
+                
+                // ========== FINAL MESSAGE ==========
+                if ($all_success) {
+                    $uploaded_count = count(array_filter($uploaded_files));
+                    $total_tests = $tests_result->num_rows;
+                    
+                    if ($uploaded_count == $total_tests) {
+                        $_SESSION['success'] = "Reports generated successfully! All $total_tests test documents uploaded.";
+                    } elseif ($uploaded_count > 0) {
+                        $_SESSION['success'] = "Reports generated! $uploaded_count out of $total_tests documents uploaded.";
+                    } else {
+                        $_SESSION['success'] = "Reports generated! No documents uploaded.";
+                    }
+                } else {
+                    $_SESSION['error'] = "Some errors occurred: " . implode("; ", $error_messages);
+                    if (!empty($uploaded_files)) {
+                        $_SESSION['error'] .= " (Some files uploaded successfully)";
+                    }
                 }
-            }
-            
-            $sql_insert = "INSERT INTO lab_reports (order_id, patient_id, doctor_id, technician_id, report_no, report_date, report_file, report_status, remarks, hospital_id) 
-                           VALUES ($order_id, $patient_id, $doctor_id, $user_id, '$report_no', '$report_date', '$report_file', 'Completed', '$report_remarks', $hid)";
-            
-            if ($conn->query($sql_insert)) {
-                $_SESSION['success'] = "Report #$report_no generated successfully!";
+                
             } else {
-                $_SESSION['error'] = "Error generating report: " . $conn->error;
+                $_SESSION['error'] = "No tests found for this order!";
             }
+        } else {
+            $_SESSION['error'] = "Order not found!";
         }
     }
     header("Location: dashboard.php");
     exit();
-}
-
-// ========== DELETE REPORT ==========
-if (isset($_GET['delete_report']) && isset($_GET['report_id'])) {
-    $report_id = intval($_GET['report_id']);
-    $order_id = intval($_GET['order_id'] ?? 0);
-    
-    // Get report file path
-    $file_query = $conn->query("SELECT report_file FROM lab_reports WHERE report_id = $report_id");
-    if ($file_query && $file_query->num_rows > 0) {
-        $file_data = $file_query->fetch_assoc();
-        if (!empty($file_data['report_file'])) {
-            $file_path = "../documents/reports/" . $file_data['report_file'];
-            if (file_exists($file_path)) {
-                unlink($file_path);
-            }
-        }
-    }
-    
-    $conn->query("DELETE FROM lab_reports WHERE report_id = $report_id");
-    $_SESSION['success'] = "Report deleted successfully!";
-    header("Location: dashboard.php");
-    exit();
-}
-
-// ========== GET EXISTING REPORTS FOR THE ORDER ==========
-$existing_reports = [];
-if (isset($_GET['view_reports']) && isset($_GET['order_id'])) {
-    $view_order_id = intval($_GET['order_id']);
-    $sql_reports = "SELECT * FROM lab_reports WHERE order_id = $view_order_id ORDER BY report_id DESC";
-    $result_reports = $conn->query($sql_reports);
-    if ($result_reports) {
-        while ($row = $result_reports->fetch_assoc()) {
-            $existing_reports[] = $row;
-        }
-    }
 }
 ?>
 <!DOCTYPE html>
@@ -291,129 +388,238 @@ if (isset($_GET['view_reports']) && isset($_GET['order_id'])) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        * { font-family: 'Inter', sans-serif; }
-        body { background: #f8fafc; }
-        .main-content { width: 100%; margin-left: 260px; padding: 20px 28px; min-height: 100vh; }
-        @media (max-width: 1024px) { .main-content { margin-left: 0; padding: 16px; } }
-        
-        .card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1); }
-        .card-header { padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; gap: 10px; }
-        .card-header h3 { font-size: 16px; font-weight: 600; color: #0f172a; }
-        .card-body { padding: 20px 24px; }
-        
-        .stat-card { background: white; border-radius: 12px; padding: 20px; border: 1px solid #e5e7eb; text-align: center; transition: all 0.3s ease; }
-        .stat-card:hover { transform: translateY(-4px); box-shadow: 0 10px 40px rgba(0,0,0,0.08); }
-        .stat-card .stat-number { font-size: 32px; font-weight: 700; }
-        .stat-card .stat-label { color: #6b7280; font-size: 14px; margin-top: 4px; }
-        .stat-card .stat-icon { font-size: 24px; margin-bottom: 8px; }
-        
-        .stat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 24px; }
-        @media (max-width: 1024px) { .stat-grid { grid-template-columns: repeat(3, 1fr); } }
-        @media (max-width: 768px) { .stat-grid { grid-template-columns: 1fr 1fr; } }
-        @media (max-width: 480px) { .stat-grid { grid-template-columns: 1fr; } }
-        
-        .form-input, .form-select { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; transition: all 0.2s; background: white; }
-        .form-input:focus, .form-select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
-        
-        .btn-primary { background: #3b82f6; color: white; padding: 8px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; border: none; transition: all 0.2s; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-        .btn-primary:hover { background: #2563eb; }
-        .btn-success { background: #22c55e; color: white; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; transition: all 0.2s; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-        .btn-success:hover { background: #16a34a; }
-        .btn-danger { background: #ef4444; color: white; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; transition: all 0.2s; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-        .btn-danger:hover { background: #dc2626; }
-        .btn-warning { background: #f59e0b; color: white; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; transition: all 0.2s; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-        .btn-warning:hover { background: #d97706; }
-        .btn-info { background: #0ea5e9; color: white; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; transition: all 0.2s; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-        .btn-info:hover { background: #0284c7; }
-        .btn-outline { background: transparent; color: #6b7280; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: 1px solid #d1d5db; transition: all 0.2s; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-        .btn-outline:hover { background: #f3f4f6; }
-        .btn-sm { padding: 4px 10px; font-size: 11px; }
-        .btn-xs { padding: 2px 8px; font-size: 10px; }
-        
-        .table-container { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        thead { background: #f9fafb; }
-        th { padding: 10px 16px; text-align: left; font-weight: 600; color: #4b5563; border-bottom: 1px solid #e5e7eb; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
-        td { padding: 10px 16px; border-bottom: 1px solid #f3f4f6; color: #1f2937; vertical-align: middle; }
-        tr:hover td { background: #f9fafb; }
-        
-        .alert-success { background: #dcfce7; color: #166534; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #22c55e; }
-        .alert-error { background: #fecaca; color: #991b1b; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #ef4444; }
-        .alert-info { background: #dbeafe; color: #1e40af; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #3b82f6; }
-        
-        .status-badge { padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; display: inline-block; }
-        .status-badge.pending { background: #fef3c7; color: #92400e; }
-        .status-badge.assigned { background: #dbeafe; color: #1e40af; }
-        .status-badge.sample_collected { background: #e0e7ff; color: #3730a3; }
-        .status-badge.in_process { background: #e0f2fe; color: #0369a1; }
-        .status-badge.completed { background: #dcfce7; color: #166534; }
-        .status-badge.cancelled { background: #fecaca; color: #991b1b; }
-        
-        .test-code-badge { font-family: monospace; background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
-        .price-badge { font-weight: 600; color: #059669; }
-        .badge-count { background: #e5e7eb; color: #4b5563; padding: 1px 8px; border-radius: 12px; font-size: 11px; }
-        .empty-state { text-align: center; padding: 40px 20px; color: #6b7280; }
-        .empty-state i { font-size: 48px; color: #d1d5db; margin-bottom: 12px; }
-        
-        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; justify-content: center; align-items: center; }
-        .modal.show { display: flex; }
-        .modal-content { background: white; border-radius: 12px; max-width: 700px; width: 95%; max-height: 90vh; overflow-y: auto; padding: 24px; position: relative; animation: slideDown 0.3s ease; }
-        @keyframes slideDown { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb; }
-        .modal-header h2 { font-size: 20px; font-weight: 600; color: #0f172a; }
-        .modal-close { background: none; border: none; font-size: 24px; color: #6b7280; cursor: pointer; padding: 4px 8px; }
-        .modal-close:hover { color: #1f2937; }
-        .form-group { margin-bottom: 16px; }
-        .form-group label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 4px; }
-        .form-group .required { color: #ef4444; }
-        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-        @media (max-width: 640px) { .form-row { grid-template-columns: 1fr; } }
-        .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e7eb; }
-        
-        .welcome-section { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; padding: 24px; border-radius: 12px; margin-bottom: 24px; }
-        .welcome-section h1 { font-size: 24px; font-weight: 700; }
-        .welcome-section p { opacity: 0.9; margin-top: 4px; }
-        
-        .info-text { font-size: 12px; color: #6b7280; margin-top: 4px; }
-        .readonly-field { background: #f3f4f6; cursor: not-allowed; }
-        
-        .tab-container { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; flex-wrap: wrap; }
-        .tab-btn { padding: 10px 20px; background: none; border: none; font-size: 14px; font-weight: 500; color: #6b7280; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s; }
-        .tab-btn:hover { color: #374151; }
-        .tab-btn.active { color: #3b82f6; border-bottom-color: #3b82f6; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        
-        .quick-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
-        .quick-action-btn { padding: 12px 20px; border-radius: 10px; border: 1px solid #e5e7eb; background: white; cursor: pointer; transition: all 0.2s; text-align: center; flex: 1; min-width: 120px; }
-        .quick-action-btn:hover { background: #f1f5f9; border-color: #3b82f6; transform: translateY(-2px); }
-        .quick-action-btn i { font-size: 24px; display: block; margin-bottom: 6px; }
-        .quick-action-btn .label { font-size: 12px; color: #6b7280; }
-        
-        .actions-cell { white-space: nowrap; }
-        
-        .print-btn { background: #8b5cf6; color: white; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; transition: all 0.2s; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-        .print-btn:hover { background: #7c3aed; }
-        
-        .btn-reject { background: #ef4444; color: white; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500; border: none; transition: all 0.2s; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-        .btn-reject:hover { background: #dc2626; }
-        
-        .btn-accept { background: #22c55e; color: white; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500; border: none; transition: all 0.2s; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
-        .btn-accept:hover { background: #16a34a; }
-        
-        .report-item { background: #f9fafb; border-radius: 8px; padding: 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e5e7eb; }
-        .report-item:hover { background: #f3f4f6; }
-        .report-item .report-info { display: flex; flex-direction: column; gap: 2px; }
-        .report-item .report-info .report-no { font-weight: 600; color: #1f2937; }
-        .report-item .report-info .report-date { font-size: 12px; color: #6b7280; }
-    </style>
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #f8fafc; }
+    .main-content { width: 100%; margin-left: 260px; padding: 20px 28px; min-height: 100vh; }
+    @media (max-width: 1024px) { .main-content { margin-left: 0; padding: 16px; } }
+    
+    /* ============================================================
+       ALL ICONS BLUE
+       ============================================================ */
+    i, .fas, .far, .fal, .fab, .fa, .icon, [class*="fa-"] {
+        color: #3b82f6 !important;
+    }
+    
+    /* Stat card icons */
+    .stat-card .stat-icon i,
+    .stat-card .stat-icon .fas,
+    .stat-card .stat-icon .fa {
+        color: #3b82f6 !important;
+    }
+    
+    /* Quick action icons */
+    .quick-action-btn i,
+    .quick-action-btn .fas,
+    .quick-action-btn .fa {
+        color: #3b82f6 !important;
+    }
+    
+    /* Tab icons */
+    .tab-btn i,
+    .tab-btn .fas,
+    .tab-btn .fa {
+        color: #3b82f6 !important;
+    }
+    
+    /* Card header icons */
+    .card-header i,
+    .card-header .fas,
+    .card-header .fa {
+        color: #3b82f6 !important;
+    }
+    
+    /* Button icons - keep white for buttons */
+    .btn-primary i,
+    .btn-primary .fas,
+    .btn-primary .fa,
+    .btn-success i,
+    .btn-success .fas,
+    .btn-success .fa,
+    .btn-danger i,
+    .btn-danger .fas,
+    .btn-danger .fa,
+    .btn-warning i,
+    .btn-warning .fas,
+    .btn-warning .fa,
+    .btn-info i,
+    .btn-info .fas,
+    .btn-info .fa,
+    .print-btn i,
+    .print-btn .fas,
+    .print-btn .fa {
+        color: white !important;
+    }
+    
+    /* Welcome section icons - keep white */
+    .welcome-section i,
+    .welcome-section .fas,
+    .welcome-section .fa {
+        color: white !important;
+    }
+    
+    /* Status badge icons - keep original color */
+    .status-badge i,
+    .status-badge .fas,
+    .status-badge .fa {
+        color: inherit !important;
+    }
+    
+    .card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1); }
+    .card-header { padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; gap: 10px; }
+    .card-header h3 { font-size: 16px; font-weight: 600; color: #0f172a; }
+    .card-body { padding: 20px 24px; }
+    
+    .stat-card { background: white; border-radius: 12px; padding: 20px; border: 1px solid #e5e7eb; text-align: center; }
+    .stat-card .stat-number { font-size: 32px; font-weight: 700; }
+    .stat-card .stat-label { color: #6b7280; font-size: 14px; margin-top: 4px; }
+    .stat-card .stat-icon { font-size: 24px; margin-bottom: 8px; }
+    
+    .stat-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 1024px) { .stat-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 768px) { .stat-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 480px) { .stat-grid { grid-template-columns: 1fr; } }
+    
+    .form-input, .form-select { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; transition: all 0.2s; background: white; }
+    .form-input:focus, .form-select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+    
+    .btn-primary { background: #3b82f6; color: white; padding: 8px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; border: none; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-success { background: #22c55e; color: white; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    .btn-success:hover { background: #16a34a; }
+    .btn-danger { background: #ef4444; color: white; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-warning { background: #f59e0b; color: white; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    .btn-warning:hover { background: #d97706; }
+    .btn-info { background: #0ea5e9; color: white; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    .btn-info:hover { background: #0284c7; }
+    .btn-outline { background: transparent; color: #6b7280; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: 1px solid #d1d5db; transition: all 0.2s; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    .btn-outline:hover { background: #f3f4f6; }
+    .btn-sm { padding: 4px 10px; font-size: 11px; }
+    
+    .table-container { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead { background: #f9fafb; }
+    th { padding: 10px 16px; text-align: left; font-weight: 600; color: #4b5563; border-bottom: 1px solid #e5e7eb; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+    td { padding: 10px 16px; border-bottom: 1px solid #f3f4f6; color: #1f2937; vertical-align: middle; }
+    
+    .alert-success { background: #dcfce7; color: #166534; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #22c55e; }
+    .alert-error { background: #fecaca; color: #991b1b; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #ef4444; }
+    
+    .status-badge { padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; display: inline-block; }
+    .status-badge.pending { background: #fef3c7; color: #92400e; }
+    .status-badge.assigned { background: #dbeafe; color: #1e40af; }
+    .status-badge.sample_collected { background: #e0e7ff; color: #3730a3; }
+    .status-badge.in_process { background: #e0f2fe; color: #0369a1; }
+    .status-badge.completed { background: #dcfce7; color: #166534; }
+    .status-badge.cancelled { background: #fecaca; color: #991b1b; }
+    
+    .test-code-badge { font-family: monospace; background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+    .price-badge { font-weight: 600; color: #059669; }
+    .badge-count { background: #e5e7eb; color: #4b5563; padding: 1px 8px; border-radius: 12px; font-size: 11px; }
+    .empty-state { text-align: center; padding: 40px 20px; color: #6b7280; }
+    .empty-state i { font-size: 48px; color: #d1d5db; margin-bottom: 12px; }
+    
+    .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; justify-content: center; align-items: center; }
+    .modal.show { display: flex; }
+    .modal-content { background: white; border-radius: 12px; max-width: 900px; width: 95%; max-height: 90vh; overflow-y: auto; padding: 24px; position: relative; animation: slideDown 0.3s ease; }
+    @keyframes slideDown { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb; }
+    .modal-header h2 { font-size: 20px; font-weight: 600; color: #0f172a; }
+    .modal-close { background: none; border: none; font-size: 24px; color: #6b7280; cursor: pointer; padding: 4px 8px; }
+    .modal-close:hover { color: #1f2937; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 4px; }
+    .form-group .required { color: #ef4444; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 640px) { .form-row { grid-template-columns: 1fr; } }
+    .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e7eb; }
+    
+    .welcome-section { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; padding: 24px; border-radius: 12px; margin-bottom: 24px; }
+    .welcome-section h1 { font-size: 24px; font-weight: 700; }
+    .welcome-section p { opacity: 0.9; margin-top: 4px; }
+    
+    .info-text { font-size: 12px; color: #6b7280; margin-top: 4px; }
+    .readonly-field { background: #f3f4f6; cursor: not-allowed; }
+    
+    .tab-container { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; flex-wrap: wrap; }
+    .tab-btn { padding: 10px 20px; background: none; border: none; font-size: 14px; font-weight: 500; color: #6b7280; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.2s; }
+    .tab-btn:hover { color: #374151; }
+    .tab-btn.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    
+    .quick-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+    .quick-action-btn { padding: 12px 20px; border-radius: 10px; border: 1px solid #e5e7eb; background: white; cursor: pointer; text-align: center; flex: 1; min-width: 120px; }
+    .quick-action-btn i { font-size: 24px; display: block; margin-bottom: 6px; }
+    .quick-action-btn .label { font-size: 12px; color: #6b7280; }
+    
+    .actions-cell { white-space: nowrap; }
+    
+    .print-btn { background: #8b5cf6; color: white; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    .print-btn:hover { background: #7c3aed; }
+    
+    .btn-reject { background: #ef4444; color: white; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500; border: none; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    .btn-reject:hover { background: #dc2626; }
+    
+    .btn-accept { background: #22c55e; color: white; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500; border: none; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    .btn-accept:hover { background: #16a34a; }
+    
+    /* ============================================================
+       TEXT COLORS - BLUE
+       ============================================================ */
+    .text-blue-500, .text-blue-600, .text-blue-700 {
+        color: #3b82f6 !important;
+    }
+    .text-blue-500 i,
+    .text-blue-600 i,
+    .text-blue-700 i {
+        color: #3b82f6 !important;
+    }
+
+    /* Test upload styles */
+    .test-upload-item {
+        transition: all 0.2s ease;
+    }
+    .test-upload-item:hover {
+        background: #f8fafc;
+        border-color: #3b82f6;
+    }
+    .test-number {
+        min-width: 32px;
+        height: 32px;
+    }
+    .file-input-wrapper {
+        position: relative;
+    }
+    .file-input-wrapper input[type="file"] {
+        padding: 6px 10px;
+        font-size: 13px;
+    }
+    .file-input-wrapper input[type="file"]::file-selector-button {
+        padding: 4px 12px;
+        border-radius: 6px;
+        border: none;
+        background: #3b82f6;
+        color: white;
+        font-size: 12px;
+        cursor: pointer;
+        margin-right: 10px;
+        transition: background 0.2s;
+    }
+    .file-input-wrapper input[type="file"]::file-selector-button:hover {
+        background: #2563eb;
+    }
+</style>
 </head>
 <body>
+
+    <?php include '../Sidebar.php'; ?>
     <div class="flex min-h-screen flex-col bg-gray-50">
-        <?php include '../header.php'; ?>
+             <?php include '../header.php'; ?>
+        
         <div class="flex flex-1 items-start">
-            <?php include '../Sidebar.php'; ?>
             <main class="main-content">
+               
                 <!-- Welcome Section -->
                 <div class="welcome-section">
                     <h1><i class="fas fa-flask mr-2"></i> Welcome, <?php echo htmlspecialchars($technician['name'] ?? 'Technician'); ?>!</h1>
@@ -442,7 +648,7 @@ if (isset($_GET['view_reports']) && isset($_GET['order_id'])) {
                         <i class="fas fa-check-circle text-green-500"></i>
                         <div class="label">Completed</div>
                     </div>
-                    <div class="quick-action-btn" onclick="switchTab('reports')">
+                    <div class="quick-action-btn" onclick="window.location.href='../lab_reports.php'">
                         <i class="fas fa-file-alt text-purple-500"></i>
                         <div class="label">My Reports</div>
                     </div>
@@ -487,7 +693,6 @@ if (isset($_GET['view_reports']) && isset($_GET['order_id'])) {
                     <button class="tab-btn active" onclick="switchTab('orders')"><i class="fas fa-list"></i> My Orders</button>
                     <button class="tab-btn" onclick="switchTab('pending')"><i class="fas fa-edit"></i> Pending Results</button>
                     <button class="tab-btn" onclick="switchTab('completed')"><i class="fas fa-check-circle"></i> Completed</button>
-                    <button class="tab-btn" onclick="switchTab('reports')"><i class="fas fa-file-alt"></i> Reports</button>
                 </div>
 
                 <!-- ========== MY ORDERS TAB ========== -->
@@ -515,89 +720,73 @@ if (isset($_GET['view_reports']) && isset($_GET['order_id'])) {
                                         <tbody>
                                             <?php $counter = 1; ?>
                                             <?php foreach ($orders as $order): ?>
-                                                <tr>
-                                                    <td><?php echo $counter++; ?></td>
-                                                    <td><span class="test-code-badge"><?php echo htmlspecialchars($order['order_no']); ?></span></td>
-                                                    <td>
-                                                        <?php echo htmlspecialchars($order['patient_name'] ?? 'N/A'); ?>
-                                                        <div class="text-xs text-gray-500"><?php echo htmlspecialchars($order['patient_mobile'] ?? ''); ?></div>
-                                                    </td>
-                                                    <td><?php echo htmlspecialchars($order['doctor_name'] ?? 'N/A'); ?></td>
-                                                    <td><span class="badge-count"><?php echo $order['test_count']; ?> tests</span></td>
-                                                    <td>
-                                                        <?php 
-                                                        $status_class = strtolower(str_replace(' ', '_', $order['order_status']));
-                                                        ?>
-                                                        <span class="status-badge <?php echo $status_class; ?>"><?php echo htmlspecialchars($order['order_status']); ?></span>
-                                                    </td>
-                                                    <td class="actions-cell">
-                                                        <div class="flex items-center gap-1 flex-wrap">
-                                                            <?php if ($order['order_status'] == 'Assigned'): ?>
-                                                                <form method="POST" style="display: inline;">
-                                                                    <input type="hidden" name="order_id" value="<?php echo $order['order_id']; ?>">
-                                                                    <input type="hidden" name="status" value="Accepted">
-                                                                    <button type="submit" name="update_order_status" class="btn-accept btn-sm" onclick="return confirm('Accept this order?')">
-                                                                        <i class="fas fa-check"></i> Accept
-                                                                    </button>
-                                                                </form>
-                                                                <form method="POST" style="display: inline;">
-                                                                    <input type="hidden" name="order_id" value="<?php echo $order['order_id']; ?>">
-                                                                    <input type="hidden" name="status" value="Cancelled">
-                                                                    <button type="submit" name="update_order_status" class="btn-reject btn-sm" onclick="return confirm('Reject this order?')">
-                                                                        <i class="fas fa-times"></i> Reject
-                                                                    </button>
-                                                                </form>
-                                                            <?php elseif ($order['order_status'] == 'Accepted'): ?>
-                                                                <form method="POST" style="display: inline;">
-                                                                    <input type="hidden" name="order_id" value="<?php echo $order['order_id']; ?>">
-                                                                    <input type="hidden" name="status" value="Sample Collected">
-                                                                    <button type="submit" name="update_order_status" class="btn-primary btn-sm">
-                                                                        <i class="fas fa-flask"></i> Collect Sample
-                                                                    </button>
-                                                                </form>
-                                                            <?php elseif ($order['order_status'] == 'Sample Collected'): ?>
-                                                                <form method="POST" style="display: inline;">
-                                                                    <input type="hidden" name="order_id" value="<?php echo $order['order_id']; ?>">
-                                                                    <input type="hidden" name="status" value="In Process">
-                                                                    <button type="submit" name="update_order_status" class="btn-warning btn-sm">
-                                                                        <i class="fas fa-play"></i> Start Test
-                                                                    </button>
-                                                                </form>
-                                                            <?php elseif ($order['order_status'] == 'In Process'): ?>
-                                                                <button onclick="openResultModalForOrder(<?php echo $order['order_id']; ?>)" 
-                                                                        class="btn-info btn-sm">
-                                                                    <i class="fas fa-edit"></i> Enter Result
-                                                                </button>
-                                                            <?php elseif ($order['order_status'] == 'Completed'): ?>
-                                                                <button onclick="openReportModal(<?php echo $order['order_id']; ?>)" 
-                                                                        class="btn-success btn-sm">
-                                                                    <i class="fas fa-file-alt"></i> Report
-                                                                </button>
-                                                                <button onclick="window.location.href='../print_report.php?order_id=<?php echo $order['order_id']; ?>'" 
-                                                                        class="print-btn btn-sm">
-                                                                    <i class="fas fa-print"></i>
-                                                                </button>
-                                                                <a href="?view_reports=1&order_id=<?php echo $order['order_id']; ?>" class="btn-info btn-sm">
-                                                                    <i class="fas fa-eye"></i> View Reports
-                                                                </a>
-                                                            <?php endif; ?>
-                                                            
-                                                            <?php if ($order['order_status'] != 'Completed' && $order['order_status'] != 'Cancelled' && $order['order_status'] != 'Pending'): ?>
-                                                                <form method="POST" style="display: inline;" onchange="this.submit()">
-                                                                    <input type="hidden" name="order_id" value="<?php echo $order['order_id']; ?>">
-                                                                    <select name="status" class="form-select text-xs" style="width: auto; padding: 2px 6px; font-size: 11px; border-radius: 6px;">
-                                                                        <option value="">Quick Status</option>
-                                                                        <option value="Sample Collected" <?php echo $order['order_status'] == 'Sample Collected' ? 'selected' : ''; ?>>Sample Collected</option>
-                                                                        <option value="In Process" <?php echo $order['order_status'] == 'In Process' ? 'selected' : ''; ?>>In Process</option>
-                                                                        <option value="Completed">Completed</option>
-                                                                        <option value="Cancelled">Cancel</option>
-                                                                    </select>
-                                                                    <input type="hidden" name="update_order_status" value="1">
-                                                                </form>
-                                                            <?php endif; ?>
-                                                        </div>
-                                                    </td>
-                                                </tr>
+                                               <tr class="cursor-pointer hover:bg-gray-50 transition-colors" onclick="viewOrder(<?php echo $order['order_id']; ?>)">
+    <td><?php echo $counter++; ?></td>
+    <td><span class="test-code-badge"><?php echo htmlspecialchars($order['order_no']); ?></span></td>
+    <td>
+        <?php echo htmlspecialchars($order['patient_name'] ?? 'N/A'); ?>
+        <div class="text-xs text-gray-500"><?php echo htmlspecialchars($order['patient_mobile'] ?? ''); ?></div>
+    </td>
+    <td><?php echo htmlspecialchars($order['doctor_name'] ?? 'N/A'); ?></td>
+    <td><span class="badge-count"><?php echo $order['test_count']; ?> tests</span></td>
+    <td>
+        <?php 
+        $status_class = strtolower(str_replace(' ', '_', $order['order_status']));
+        ?>
+        <span class="status-badge <?php echo $status_class; ?>"><?php echo htmlspecialchars($order['order_status']); ?></span>
+    </td>
+    <td class="actions-cell" onclick="event.stopPropagation();">
+        <div class="flex items-center gap-1 flex-wrap">
+            <!-- Accept Order Button -->
+            <?php if ($order['order_status'] == 'Pending'): ?>
+                <form method="POST" style="display: inline;">
+                    <input type="hidden" name="order_id" value="<?php echo $order['order_id']; ?>">
+                    <input type="hidden" name="status" value="Assigned">
+                    <button type="submit" name="update_order_status" class="btn-accept btn-sm" onclick="return confirm('Accept this order?')">
+                        <i class="fas fa-check"></i> Accept
+                    </button>
+                </form>
+            <?php endif; ?>
+            
+            <!-- Status Update Dropdown -->
+            <?php if ($order['order_status'] != 'Completed' && $order['order_status'] != 'Cancelled' && $order['order_status'] != 'Pending'): ?>
+                <form method="POST" style="display: inline;" onchange="this.submit()">
+                    <input type="hidden" name="order_id" value="<?php echo $order['order_id']; ?>">
+                    <select name="status" class="form-select text-xs" style="width: auto; padding: 2px 6px; font-size: 11px; border-radius: 6px;">
+                        <option value="">Update Status</option>
+                        <option value="Sample Collected" <?php echo $order['order_status'] == 'Sample Collected' ? 'selected' : ''; ?>>Sample Collected</option>
+                        <option value="In Process" <?php echo $order['order_status'] == 'In Process' ? 'selected' : ''; ?>>In Process</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+                    <input type="hidden" name="update_order_status" value="1">
+                </form>
+            <?php endif; ?>
+            
+            <!-- Sample Rejected Button -->
+            <?php if ($order['order_status'] != 'Completed' && $order['order_status'] != 'Cancelled'): ?>
+                <form method="POST" style="display: inline;">
+                    <input type="hidden" name="order_id" value="<?php echo $order['order_id']; ?>">
+                    <input type="hidden" name="status" value="Cancelled">
+                    <button type="submit" name="update_order_status" class="btn-reject btn-sm" onclick="return confirm('Reject this sample?')">
+                        <i class="fas fa-times"></i> Reject
+                    </button>
+                </form>
+            <?php endif; ?>
+            
+            <!-- Generate Report -->
+            <?php if ($order['order_status'] == 'Completed'): ?>
+                <button onclick="event.stopPropagation(); openReportModal(<?php echo $order['order_id']; ?>)" 
+                        class="btn-success btn-sm" title="Generate Report">
+                    <i class="fas fa-file-alt"></i>
+                </button>
+                <button onclick="event.stopPropagation(); window.location.href='../print_report.php?order_id=<?php echo $order['order_id']; ?>'" 
+                        class="print-btn btn-sm" title="Print Report">
+                    <i class="fas fa-print"></i>
+                </button>
+            <?php endif; ?>
+        </div>
+    </td>
+</tr>
                                             <?php endforeach; ?>
                                         </tbody>
                                     </table>
@@ -714,9 +903,6 @@ if (isset($_GET['view_reports']) && isset($_GET['order_id'])) {
                                                                     class="print-btn btn-sm">
                                                                 <i class="fas fa-print"></i> Print
                                                             </button>
-                                                            <a href="?view_reports=1&order_id=<?php echo $order['order_id']; ?>" class="btn-info btn-sm">
-                                                                <i class="fas fa-eye"></i> View Reports
-                                                            </a>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -733,155 +919,6 @@ if (isset($_GET['view_reports']) && isset($_GET['order_id'])) {
                         </div>
                     </div>
                 </div>
-
-                <!-- ========== REPORTS TAB ========== -->
-                <div id="tab-reports" class="tab-content">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3><i class="fas fa-file-alt mr-2 text-purple-500"></i> My Reports</h3>
-                            <span class="badge-count">Reports</span>
-                        </div>
-                        <div class="card-body">
-                            <?php
-                            // Get all reports generated by this technician
-                            $sql_all_reports = "SELECT r.*, o.order_no, p.patient_name 
-                                               FROM lab_reports r
-                                               LEFT JOIN lab_orders o ON r.order_id = o.order_id
-                                               LEFT JOIN patients p ON r.patient_id = p.patient_id
-                                               WHERE r.technician_id = $user_id
-                                               ORDER BY r.report_id DESC";
-                            $result_all_reports = $conn->query($sql_all_reports);
-                            $all_reports = [];
-                            if ($result_all_reports) {
-                                while ($row = $result_all_reports->fetch_assoc()) {
-                                    $all_reports[] = $row;
-                                }
-                            }
-                            ?>
-                            
-                            <?php if (!empty($all_reports)): ?>
-                                <div class="table-container">
-                                    <table>
-                                        <thead>
-                                            <tr>
-                                                <th>#</th>
-                                                <th>Report No</th>
-                                                <th>Order No</th>
-                                                <th>Patient</th>
-                                                <th>Date</th>
-                                                <th>File</th>
-                                                <th class="text-center">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php $counter = 1; ?>
-                                            <?php foreach ($all_reports as $report): ?>
-                                                <tr>
-                                                    <td><?php echo $counter++; ?></td>
-                                                    <td><span class="test-code-badge"><?php echo htmlspecialchars($report['report_no']); ?></span></td>
-                                                    <td><?php echo htmlspecialchars($report['order_no'] ?? 'N/A'); ?></td>
-                                                    <td><?php echo htmlspecialchars($report['patient_name'] ?? 'N/A'); ?></td>
-                                                    <td><?php echo date('d-m-Y', strtotime($report['report_date'])); ?></td>
-                                                    <td>
-                                                        <?php if (!empty($report['report_file'])): ?>
-                                                            <a href="../documents/reports/<?php echo htmlspecialchars($report['report_file']); ?>" target="_blank" class="btn-info btn-xs">
-                                                                <i class="fas fa-file-pdf"></i> View
-                                                            </a>
-                                                        <?php else: ?>
-                                                            <span class="text-gray-400 text-xs">No file</span>
-                                                        <?php endif; ?>
-                                                    </td>
-                                                    <td class="actions-cell">
-                                                        <div class="flex items-center gap-1 flex-wrap">
-                                                            <?php if (!empty($report['report_file'])): ?>
-                                                                <a href="../documents/reports/<?php echo htmlspecialchars($report['report_file']); ?>" target="_blank" class="print-btn btn-xs">
-                                                                    <i class="fas fa-download"></i>
-                                                                </a>
-                                                            <?php endif; ?>
-                                                            <a href="?delete_report=1&report_id=<?php echo $report['report_id']; ?>&order_id=<?php echo $report['order_id']; ?>" 
-                                                               class="btn-danger btn-xs" 
-                                                               onclick="return confirm('Are you sure you want to delete this report?')">
-                                                                <i class="fas fa-trash"></i>
-                                                            </a>
-                                                            <a href="../print_report.php?order_id=<?php echo $report['order_id']; ?>" target="_blank" class="btn-success btn-xs">
-                                                                <i class="fas fa-print"></i>
-                                                            </a>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            <?php else: ?>
-                                <div class="empty-state">
-                                    <i class="fas fa-file-alt text-gray-300"></i>
-                                    <p class="text-lg font-medium text-gray-700">No reports generated yet</p>
-                                    <p class="text-sm text-gray-400 mt-1">Reports will appear here after you generate them</p>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ========== VIEW REPORTS FOR ORDER SECTION ========== -->
-                <?php if (isset($_GET['view_reports']) && isset($_GET['order_id'])): 
-                    $view_order_id = intval($_GET['order_id']);
-                    $sql_view_reports = "SELECT r.*, o.order_no, p.patient_name 
-                                        FROM lab_reports r
-                                        LEFT JOIN lab_orders o ON r.order_id = o.order_id
-                                        LEFT JOIN patients p ON r.patient_id = p.patient_id
-                                        WHERE r.order_id = $view_order_id
-                                        ORDER BY r.report_id DESC";
-                    $result_view_reports = $conn->query($sql_view_reports);
-                ?>
-                    <div class="card mt-6">
-                        <div class="card-header">
-                            <h3><i class="fas fa-file-alt mr-2 text-purple-500"></i> Reports for Order</h3>
-                            <a href="dashboard.php" class="btn-secondary btn-sm">Close</a>
-                        </div>
-                        <div class="card-body">
-                            <?php if ($result_view_reports && $result_view_reports->num_rows > 0): ?>
-                                <div class="space-y-2">
-                                    <?php while ($report = $result_view_reports->fetch_assoc()): ?>
-                                        <div class="report-item">
-                                            <div class="report-info">
-                                                <span class="report-no"><?php echo htmlspecialchars($report['report_no']); ?></span>
-                                                <span class="report-date">Patient: <?php echo htmlspecialchars($report['patient_name'] ?? 'N/A'); ?> | Date: <?php echo date('d-m-Y', strtotime($report['report_date'])); ?></span>
-                                                <?php if (!empty($report['remarks'])): ?>
-                                                    <span class="text-xs text-gray-500"><?php echo htmlspecialchars($report['remarks']); ?></span>
-                                                <?php endif; ?>
-                                            </div>
-                                            <div class="flex gap-2">
-                                                <?php if (!empty($report['report_file'])): ?>
-                                                    <a href="../documents/reports/<?php echo htmlspecialchars($report['report_file']); ?>" target="_blank" class="btn-info btn-xs">
-                                                        <i class="fas fa-file-pdf"></i> View
-                                                    </a>
-                                                    <a href="../documents/reports/<?php echo htmlspecialchars($report['report_file']); ?>" download class="print-btn btn-xs">
-                                                        <i class="fas fa-download"></i> Download
-                                                    </a>
-                                                <?php endif; ?>
-                                                <a href="../print_report.php?order_id=<?php echo $report['order_id']; ?>" target="_blank" class="btn-success btn-xs">
-                                                    <i class="fas fa-print"></i> Print
-                                                </a>
-                                                <a href="?delete_report=1&report_id=<?php echo $report['report_id']; ?>&order_id=<?php echo $report['order_id']; ?>" 
-                                                   class="btn-danger btn-xs" 
-                                                   onclick="return confirm('Are you sure you want to delete this report?')">
-                                                    <i class="fas fa-trash"></i>
-                                                </a>
-                                            </div>
-                                        </div>
-                                    <?php endwhile; ?>
-                                </div>
-                            <?php else: ?>
-                                <div class="empty-state">
-                                    <i class="fas fa-file-alt text-gray-300"></i>
-                                    <p class="text-lg font-medium text-gray-700">No reports for this order</p>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
             </main>
         </div>
     </div>
@@ -930,17 +967,20 @@ if (isset($_GET['view_reports']) && isset($_GET['order_id'])) {
 
     <!-- ========== GENERATE REPORT MODAL ========== -->
     <div class="modal" id="reportModal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 900px;">
             <div class="modal-header">
-                <h2><i class="fas fa-file-alt mr-2 text-green-500"></i> Generate Report</h2>
+                <h2><i class="fas fa-file-alt mr-2 text-green-500"></i> Generate Report with Test Documents</h2>
                 <button class="modal-close" onclick="closeModal('reportModal')">&times;</button>
             </div>
             <form method="POST" action="dashboard.php" enctype="multipart/form-data">
                 <input type="hidden" name="order_id" id="report_order_id">
                 
-                <div class="alert-info">
-                    <i class="fas fa-info-circle mr-2"></i>
-                    Generating report for order #<span id="report_order_no">-</span>
+                <!-- Test Count Info -->
+                <div class="bg-blue-50 p-3 rounded-lg mb-4">
+                    <p class="text-sm text-blue-700">
+                        <i class="fas fa-info-circle mr-1"></i> 
+                        Upload separate document for each test. <strong id="testCountDisplay">0</strong> test(s) found.
+                    </p>
                 </div>
                 
                 <div class="form-group">
@@ -948,15 +988,20 @@ if (isset($_GET['view_reports']) && isset($_GET['order_id'])) {
                     <input type="date" class="form-input" name="report_date" value="<?php echo date('Y-m-d'); ?>">
                 </div>
 
-                <div class="form-group">
-                    <label>Upload PDF Report <span class="required">*</span></label>
-                    <input type="file" class="form-input" name="report_file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" required>
-                    <div class="info-text">Supported: PDF, DOC, DOCX, JPG, PNG (Max 10MB)</div>
+                <!-- Dynamic Test File Uploads -->
+                <div id="testUploadContainer" class="mb-4">
+                    <h4 class="font-semibold text-gray-700 mb-2">Upload Documents for Each Test</h4>
+                    <div id="testUploadList" class="space-y-3">
+                        <!-- Will be populated by JavaScript -->
+                        <div class="text-gray-500 text-center py-4">
+                            <i class="fas fa-spinner fa-spin mr-2"></i> Loading tests...
+                        </div>
+                    </div>
                 </div>
 
                 <div class="form-group">
-                    <label>Remarks</label>
-                    <textarea class="form-input" name="report_remarks" rows="3" placeholder="Additional notes..."></textarea>
+                    <label>General Remarks (Optional)</label>
+                    <textarea class="form-input" name="report_remarks" rows="2" placeholder="Additional notes for all tests..."></textarea>
                 </div>
 
                 <div class="modal-footer">
@@ -976,11 +1021,6 @@ if (isset($_GET['view_reports']) && isset($_GET['order_id'])) {
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
             document.getElementById('tab-' + tab).classList.add('active');
             document.querySelector('.tab-btn[onclick="switchTab(\'' + tab + '\')"]').classList.add('active');
-            
-            // If switching to reports tab, reload to get fresh data
-            if (tab === 'reports') {
-                window.location.href = 'dashboard.php#tab-reports';
-            }
         }
 
         // ========== OPEN RESULT MODAL ==========
@@ -992,17 +1032,71 @@ if (isset($_GET['view_reports']) && isset($_GET['order_id'])) {
             document.getElementById('resultModal').classList.add('show');
         }
 
-        // ========== OPEN RESULT MODAL FOR ORDER ==========
-        function openResultModalForOrder(orderId) {
-            // Fetch pending tests for this order
-            window.location.href = 'dashboard.php?order_id=' + orderId + '#tab-pending';
-        }
-
-        // ========== OPEN REPORT MODAL ==========
+        // ========== OPEN REPORT MODAL WITH TESTS ==========
         function openReportModal(orderId) {
             document.getElementById('report_order_id').value = orderId;
-            document.getElementById('report_order_no').textContent = orderId;
             document.getElementById('reportModal').classList.add('show');
+            
+            // Load tests for this order
+            loadTestsForReport(orderId);
+        }
+
+        // ========== LOAD TESTS FOR REPORT ==========
+        function loadTestsForReport(orderId) {
+            var container = document.getElementById('testUploadList');
+            container.innerHTML = '<div class="text-gray-500 text-center py-4"><i class="fas fa-spinner fa-spin mr-2"></i> Loading tests...</div>';
+            
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', 'get_order_tests.php?order_id=' + orderId, true);
+            xhr.onload = function() {
+                if (this.status == 200) {
+                    try {
+                        var data = JSON.parse(this.responseText);
+                        if (data.tests && data.tests.length > 0) {
+                            var html = '';
+                            data.tests.forEach(function(test, index) {
+                                html += `
+                                    <div class="test-upload-item flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
+                                        <div class="test-number flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold text-sm">
+                                            ${index + 1}
+                                        </div>
+                                        <div class="flex-1 min-w-[150px]">
+                                            <div class="font-medium text-gray-800">${test.test_name || 'Test ' + (index + 1)}</div>
+                                            <div class="text-xs text-gray-500">Code: ${test.test_code || 'N/A'}</div>
+                                        </div>
+                                        <div class="flex-1 file-input-wrapper">
+                                            <input type="file" 
+                                                   name="report_file_${test.detail_id}" 
+                                                   id="file_${test.detail_id}"
+                                                   class="form-input text-sm" 
+                                                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx"
+                                                   ${index === 0 ? 'required' : ''}>
+                                            <div class="text-xs text-gray-400 mt-1">PDF, DOC, JPG, PNG allowed</div>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            container.innerHTML = html;
+                            document.getElementById('testCountDisplay').textContent = data.tests.length;
+                        } else {
+                            container.innerHTML = '<div class="text-yellow-600 text-center py-4"><i class="fas fa-exclamation-triangle mr-2"></i> No tests found for this order</div>';
+                            document.getElementById('testCountDisplay').textContent = '0';
+                        }
+                    } catch(e) {
+                        console.error('Error parsing JSON:', e);
+                        container.innerHTML = '<div class="text-red-500 text-center py-4"><i class="fas fa-exclamation-circle mr-2"></i> Error loading tests</div>';
+                        document.getElementById('testCountDisplay').textContent = '?';
+                    }
+                } else {
+                    container.innerHTML = '<div class="text-red-500 text-center py-4"><i class="fas fa-exclamation-circle mr-2"></i> Failed to load tests</div>';
+                    document.getElementById('testCountDisplay').textContent = '?';
+                }
+            };
+            xhr.onerror = function() {
+                container.innerHTML = '<div class="text-red-500 text-center py-4"><i class="fas fa-exclamation-circle mr-2"></i> Network error loading tests</div>';
+                document.getElementById('testCountDisplay').textContent = '?';
+            };
+            xhr.send();
         }
 
         // ========== CLOSE MODAL ==========
@@ -1032,14 +1126,12 @@ if (isset($_GET['view_reports']) && isset($_GET['order_id'])) {
                 e.target.classList.remove('show');
             }
         });
-
-        // ========== CHECK URL HASH FOR TAB ==========
-        window.addEventListener('load', function() {
-            const hash = window.location.hash;
-            if (hash === '#tab-reports') {
-                switchTab('reports');
-            }
-        });
+        // ========== VIEW ORDER ==========
+function viewOrder(orderId) {
+    if (orderId) {
+        window.location.href = 'view_order.php?order_id=' + orderId;
+    }
+}
     </script>
 </body>
-</html>
+</html> 
