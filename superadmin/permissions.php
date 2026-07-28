@@ -102,7 +102,9 @@ if ($roles_res && mysqli_num_rows($roles_res) > 0) {
     }
 }
 
-// Handle Form Submission: Save Permissions
+// ============================================================
+// HANDLE SAVE PERMISSIONS (UPDATED FOR ALL HOSPITALS)
+// ============================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_permissions'])) {
     $selected_hospital = intval($_POST['hospital_id']);
     $selected_role_id = intval($_POST['role_id']);
@@ -111,38 +113,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_permissions'])) 
     // Begin transaction
     mysqli_begin_transaction($conn);
     try {
-        // Remove existing permissions for this role
-        $delete_query = "DELETE FROM role_permissions WHERE hospital_id = ? AND role_id = ?";
-        $stmt = $conn->prepare($delete_query);
-        $stmt->bind_param("ii", $selected_hospital, $selected_role_id);
-        $stmt->execute();
+        if ($selected_hospital == 0) {
+            // "All Hospitals" – apply permissions to this role for every active hospital
+            $hospitals_query = "SELECT hospital_id FROM hospital_master WHERE (delete_flag = 0 OR delete_flag IS NULL) AND status = 'Active'";
+            $hospitals_res = mysqli_query($conn, $hospitals_query);
+            $hospital_ids = [];
+            while ($row = mysqli_fetch_assoc($hospitals_res)) {
+                $hospital_ids[] = $row['hospital_id'];
+            }
 
-        // Insert new permissions
-        if (!empty($assigned_permissions)) {
-            $insert_query = "INSERT INTO role_permissions (hospital_id, role_id, permission_id) VALUES (?, ?, ?)";
+            // If no hospitals exist, nothing to do (but we keep transaction)
+            if (empty($hospital_ids)) {
+                // No active hospitals – skip
+            } else {
+                foreach ($hospital_ids as $hid) {
+                    // Delete existing permissions for this role and hospital
+                    $delete_query = "DELETE FROM role_permissions WHERE hospital_id = ? AND role_id = ?";
+                    $stmt = $conn->prepare($delete_query);
+                    $stmt->bind_param("ii", $hid, $selected_role_id);
+                    $stmt->execute();
 
-            $stmt = $conn->prepare($insert_query);
+                    // Insert new permissions
+                    if (!empty($assigned_permissions)) {
+                        $insert_query = "INSERT INTO role_permissions (hospital_id, role_id, permission_id) VALUES (?, ?, ?)";
+                        $stmt = $conn->prepare($insert_query);
+                        foreach ($assigned_permissions as $p_id) {
+                            $p_id = intval($p_id);
+                            $stmt->bind_param("iii", $hid, $selected_role_id, $p_id);
+                            $stmt->execute();
+                        }
+                    }
+                }
+            }
+        } else {
+            // Single hospital – original logic
+            $delete_query = "DELETE FROM role_permissions WHERE hospital_id = ? AND role_id = ?";
+            $stmt = $conn->prepare($delete_query);
+            $stmt->bind_param("ii", $selected_hospital, $selected_role_id);
+            $stmt->execute();
 
+            if (!empty($assigned_permissions)) {
+                $insert_query = "INSERT INTO role_permissions (hospital_id, role_id, permission_id) VALUES (?, ?, ?)";
+                $stmt = $conn->prepare($insert_query);
                 foreach ($assigned_permissions as $p_id) {
                     $p_id = intval($p_id);
                     $stmt->bind_param("iii", $selected_hospital, $selected_role_id, $p_id);
                     $stmt->execute();
                 }
+            }
         }
+
         mysqli_commit($conn);
         $success_msg = "Permissions updated successfully!";
         
-        // Refresh role permissions
+        // Refresh role permissions for display (after commit)
         $role_permissions = [];
-        $rp_query = "SELECT permission_id FROM role_permissions WHERE hospital_id = ? AND role_id = ?";
-        $stmt = $conn->prepare($rp_query);
-        $stmt->bind_param("ii", $selected_hospital, $selected_role_id);
-        $stmt->execute();
-        $rp_res = $stmt->get_result();
-        while ($row = $rp_res->fetch_assoc()) {
-            $role_permissions[] = $row['permission_id'];
+        if ($selected_hospital > 0) {
+            $rp_query = "SELECT permission_id FROM role_permissions WHERE hospital_id = ? AND role_id = ?";
+            $stmt = $conn->prepare($rp_query);
+            $stmt->bind_param("ii", $selected_hospital, $selected_role_id);
+            $stmt->execute();
+            $rp_res = $stmt->get_result();
+            while ($row = $rp_res->fetch_assoc()) {
+                $role_permissions[] = $row['permission_id'];
+            }
+            $stmt->close();
+        } else {
+            // For "All Hospitals", we do not display permissions because it's ambiguous.
+            // The page will show empty permission list for hospital_id=0, which is fine.
+            // The user will see the updated permissions when they select a specific hospital.
         }
-        $stmt->close();
     } catch (Exception $e) {
         mysqli_rollback($conn);
         $error_msg = "Error updating permissions: " . $e->getMessage();
@@ -159,7 +199,7 @@ while ($row = mysqli_fetch_assoc($perm_res)) {
 // Get permissions for selected role
 $selected_role = isset($_GET['role_id']) ? intval($_GET['role_id']) : 0;
 $role_permissions = [];
-if ($selected_role > 0) {
+if ($selected_role > 0 && $selected_hospital > 0) {
     $rp_query = "SELECT permission_id FROM role_permissions WHERE hospital_id = ? AND role_id = ?";
     $stmt = $conn->prepare($rp_query);
     $stmt->bind_param("ii", $selected_hospital, $selected_role_id);
@@ -169,6 +209,10 @@ if ($selected_role > 0) {
         $role_permissions[] = $row['permission_id'];
     }
     $stmt->close();
+} elseif ($selected_role > 0 && $selected_hospital == 0) {
+    // If "All Hospitals" selected, we don't show permissions (empty list)
+    // This preserves existing behaviour: no permissions shown because hospital_id=0
+    // The user can still select a specific hospital to see the assignments.
 }
 
 // Get role name for display
@@ -645,6 +689,13 @@ body.dark .checkbox-toggle {
 .btn-success i,
 .btn-secondary i {
     font-size: 0.9rem;
+}
+
+/* Small button variant for group actions */
+.btn-sm {
+    padding: 0.25rem 0.7rem;
+    font-size: 0.75rem;
+    border-radius: 6px;
 }
 
 /* Form Actions */
@@ -1265,12 +1316,26 @@ body.dark .helper-icon:hover {
             <input type="hidden" name="role_id" value="<?php echo $selected_role; ?>">
             <input type="hidden" name="save_permissions" value="1">
             
-            <?php foreach ($all_permissions as $group => $perms): ?>
-                <div class="card perm-group">
+            <?php 
+            $group_index = 0;
+            foreach ($all_permissions as $group => $perms): 
+                $group_id = 'group-' . $group_index;
+                $group_index++;
+            ?>
+                <div class="card perm-group" id="<?php echo $group_id; ?>">
                     <div class="perm-group-title">
                         <i class="fas fa-folder-open"></i>
                         <?php echo htmlspecialchars($group); ?>
                         <span class="count"><?php echo count($perms); ?> permissions</span>
+                    </div>
+                    <!-- Per‑group Select / Deselect buttons -->
+                    <div style="margin-bottom:0.75rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="selectGroup('<?php echo $group_id; ?>')">
+                            <i class="fas fa-check-double"></i> Select All
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="deselectGroup('<?php echo $group_id; ?>')">
+                            <i class="fas fa-times"></i> Deselect All
+                        </button>
                     </div>
                     <div class="perm-grid">
                         <?php foreach ($perms as $p): ?>
@@ -1363,13 +1428,30 @@ function validatePermissionForm() {
     return true;
 }
 
-// Select/Deselect All
+// Global Select/Deselect All
 function selectAll() {
     document.querySelectorAll('.perm-item input[type="checkbox"]').forEach(cb => cb.checked = true);
 }
 
 function deselectAll() {
     document.querySelectorAll('.perm-item input[type="checkbox"]').forEach(cb => cb.checked = false);
+}
+
+// Per‑group Select/Deselect All
+function selectGroup(groupId) {
+    const container = document.getElementById(groupId);
+    if (container) {
+        const checkboxes = container.querySelectorAll('.perm-item input[type="checkbox"]');
+        checkboxes.forEach(cb => cb.checked = true);
+    }
+}
+
+function deselectGroup(groupId) {
+    const container = document.getElementById(groupId);
+    if (container) {
+        const checkboxes = container.querySelectorAll('.perm-item input[type="checkbox"]');
+        checkboxes.forEach(cb => cb.checked = false);
+    }
 }
 
 // Auto-submit on hospital/role change

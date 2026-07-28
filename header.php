@@ -182,7 +182,7 @@ if (!isset($_SESSION['profile_image']) || empty($_SESSION['profile_image'])) {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    min-height: 70px;
+   min-height: 67px;
     position: sticky;
     top: 0;
     z-index: 100;

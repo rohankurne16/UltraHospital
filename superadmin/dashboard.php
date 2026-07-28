@@ -210,7 +210,7 @@ FROM audit_logs a
 LEFT JOIN register r ON a.register_id = r.id
 LEFT JOIN hospital_master h ON a.hospital_id = h.hospital_id
 ORDER BY a.created_at DESC
-LIMIT 25";
+LIMIT 10";
 
 $audit_logs_result = mysqli_query($conn, $audit_logs_query);
 
@@ -477,36 +477,63 @@ MAIN CONTENT
     </div>
 
     <!-- Quick Actions -->
-    <div class="content-card">
-        <div class="card-title"><i class="fas fa-bolt"></i>Quick Actions</div>
-        <div class="quick-actions-grid">
-            <a href="add_hospital.php" class="quick-action">
-                <i class="fas fa-plus-circle"></i>
-                <div class="action-label">Add Hospital</div>
-                <div class="action-desc">Create new</div>
-            </a>
-            <a href="hospitals.php" class="quick-action">
-                <i class="fas fa-list"></i>
-                <div class="action-label">Hospital List</div>
-                <div class="action-desc">View all</div>
-            </a>
-            <a href="role_list.php" class="quick-action">
-                <i class="fas fa-user-tag"></i>
-                <div class="action-label">Manage Roles</div>
-                <div class="action-desc">Roles & access</div>
-            </a>
-            <a href="permissions.php" class="quick-action">
-                <i class="fas fa-lock"></i>
-                <div class="action-label">Manage Permissions</div>
-                <div class="action-desc">Permissions</div>
-            </a>
-            <a href="audit_logs.php" class="quick-action">
-                <i class="fas fa-history"></i>
-                <div class="action-label">Audit Logs</div>
-                <div class="action-desc">View activities</div>
-            </a>
-        </div>
+    <!-- Quick Actions -->
+<div class="content-card">
+    <div class="card-title"><i class="fas fa-bolt"></i>Quick Actions</div>
+    <div class="quick-actions-grid">
+        <!-- EXISTING BUTTONS (unchanged) -->
+        <a href="add_hospital.php" class="quick-action">
+            <i class="fas fa-plus-circle"></i>
+            <div class="action-label">Add Hospital</div>
+            <div class="action-desc">Create new</div>
+        </a>
+         
+        <a href="add_doctor.php" class="quick-action">
+            <i class="fas fa-user-md"></i>
+            <div class="action-label">Add Doctors</div>
+            <div class="action-desc">Manage all</div>
+        </a>
+        <a href="add_staff.php" class="quick-action">
+            <i class="fas fa-users"></i>
+            <div class="action-label">Add Staff</div>
+            <div class="action-desc">Manage all</div>
+        </a>
+        <a href="hospitals.php" class="quick-action">
+            <i class="fas fa-list"></i>
+            <div class="action-label">Hospital List</div>
+            <div class="action-desc">View all</div>
+        </a>
+        <a href="role_list.php" class="quick-action">
+            <i class="fas fa-user-tag"></i>
+            <div class="action-label">Manage Roles</div>
+            <div class="action-desc">Roles & access</div>
+        </a>
+        <a href="users.php" class="quick-action">
+            <i class="fas fa-users-cog"></i>
+            <div class="action-label">All Users</div>
+            <div class="action-desc">Manage access</div>
+        </a>
+        <a href="permissions.php" class="quick-action">
+            <i class="fas fa-lock"></i>
+            <div class="action-label">Manage Permissions</div>
+            <div class="action-desc">Permissions</div>
+        </a>
+        <a href="audit_logs.php" class="quick-action">
+            <i class="fas fa-history"></i>
+            <div class="action-label">Audit Logs</div>
+            <div class="action-desc">View activities</div>
+        </a>
+
+        <!-- NEW BUTTONS (added below) -->
+      
+        <a href="#" class="quick-action">
+            <i class="fas fa-credit-card"></i>
+            <div class="action-label">Subscriptions</div>
+            <div class="action-desc">Manage plans</div>
+        </a>
+        
     </div>
+</div>
 
     <!-- Hospital Overview Table -->
     <div class="content-card">
@@ -577,32 +604,65 @@ MAIN CONTENT
     </div>
 
     <!-- Recent Hospitals & Subscription Summary -->
-    <div class="grid grid-cols-2">
-        <div class="content-card">
-            <div class="card-title"><i class="fas fa-clock"></i>Recent Hospitals</div>
-            <div style="display:flex;flex-direction:column;gap:0.6rem;">
-                <?php if ($recent_hospitals_result && mysqli_num_rows($recent_hospitals_result) > 0): ?>
-                    <?php while($hospital = mysqli_fetch_assoc($recent_hospitals_result)): ?>
-                        <div style="padding:0.6rem 0.8rem;border:1px solid #e2e8f0;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
-                            <div>
-                                <div class="font-semibold text-sm"><?php echo htmlspecialchars($hospital['hospital_name']); ?></div>
-                                <div class="text-xs text-secondary mt-2">
-                                    <i class="fas fa-user"></i> <?php echo htmlspecialchars($hospital['admin_name'] ?? 'N/A'); ?>
+    <div class="grid grid-cols-2 gap-6">
+    <!-- ============================================================ -->
+    <!-- RECENT HOSPITALS – ENHANCED DESIGN -->
+    <!-- ============================================================ -->
+    <div class="content-card" style="transition: all 0.3s ease;">
+        <!-- Card Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem; border-bottom: 1px solid <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>; padding-bottom: 0.75rem;">
+            <div class="card-title" style="display: flex; align-items: center; gap: 0.6rem; font-size: 1rem; font-weight: 700; color: <?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>;">
+                <i class="fas fa-clock" style="color: #3b82f6;"></i>
+                Recent Hospitals
+                <span style="font-size: 0.7rem; background: <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>; padding: 0.15rem 0.6rem; border-radius: 12px; font-weight: 400; color: <?php echo $theme == 'dark' ? '#94a3b8' : '#64748b'; ?>;">
+                    <?php echo mysqli_num_rows($recent_hospitals_result); ?>
+                </span>
+            </div>
+            <a href="hospitals.php" style="font-size: 0.75rem; color: #3b82f6; text-decoration: none; font-weight: 500; display: flex; align-items: center; gap: 0.3rem; transition: all 0.2s;">
+                View All <i class="fas fa-arrow-right" style="font-size: 0.6rem;"></i>
+            </a>
+        </div>
+
+        <!-- Hospital List -->
+        <div style="display: flex; flex-direction: column; gap: 0.8rem;">
+            <?php if ($recent_hospitals_result && mysqli_num_rows($recent_hospitals_result) > 0): ?>
+                <?php while($hospital = mysqli_fetch_assoc($recent_hospitals_result)): 
+                    $status_color = $hospital['status'] == 'Active' ? '#22c55e' : '#ef4444';
+                    $status_bg = $hospital['status'] == 'Active' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)';
+                ?>
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.8rem 1rem; border-radius: 12px; background: <?php echo $theme == 'dark' ? '#1a1a1a' : '#f8fafc'; ?>; border-left: 4px solid <?php echo $status_color; ?>; transition: all 0.25s ease; cursor: default; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                        <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 0;">
+                            <!-- Avatar / Icon -->
+                            <div style="width: 38px; height: 38px; border-radius: 50%; background: <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: <?php echo $status_color; ?>; font-size: 1rem;">
+                                <i class="fas fa-hospital"></i>
+                            </div>
+                            <!-- Info -->
+                            <div style="overflow: hidden;">
+                                <div style="font-weight: 600; font-size: 0.9rem; color: <?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                    <?php echo htmlspecialchars($hospital['hospital_name']); ?>
                                 </div>
-                                <div class="text-xs text-secondary mt-2">
-                                    <i class="fas fa-calendar"></i> <?php echo date('d M Y', strtotime($hospital['created_at'])); ?>
+                                <div style="font-size: 0.7rem; color: <?php echo $theme == 'dark' ? '#9ca3af' : '#64748b'; ?>; display: flex; gap: 0.8rem; margin-top: 0.15rem;">
+                                    <span><i class="fas fa-user" style="margin-right: 0.2rem;"></i> <?php echo htmlspecialchars($hospital['admin_name'] ?? 'N/A'); ?></span>
+                                    <span><i class="fas fa-calendar" style="margin-right: 0.2rem;"></i> <?php echo date('d M Y', strtotime($hospital['created_at'])); ?></span>
                                 </div>
                             </div>
-                            <span class="status-badge <?php echo $hospital['status'] == 'Active' ? 'status-active' : 'status-inactive'; ?>">
-                                <?php echo htmlspecialchars($hospital['status']); ?>
-                            </span>
                         </div>
-                    <?php endwhile; ?>
-                <?php else: ?>
-                    <div class="text-center text-secondary py-4">No recent hospitals</div>
-                <?php endif; ?>
-            </div>
+                        <!-- Status Badge -->
+                        <span style="padding: 0.2rem 0.7rem; border-radius: 20px; font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; background: <?php echo $status_bg; ?>; color: <?php echo $status_color; ?>; white-space: nowrap;">
+                            <?php echo htmlspecialchars($hospital['status']); ?>
+                        </span>
+                    </div>
+                <?php endwhile; ?>
+            <?php else: ?>
+                <!-- Empty State -->
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2.5rem 1rem; text-align: center; color: <?php echo $theme == 'dark' ? '#6b7280' : '#94a3b8'; ?>; border-radius: 12px; background: <?php echo $theme == 'dark' ? '#1a1a1a' : '#f8fafc'; ?>; border: 1px dashed <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>;">
+                    <i class="fas fa-hospital" style="font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.3;"></i>
+                    <span style="font-size: 0.85rem;">No recent hospitals found</span>
+                </div>
+            <?php endif; ?>
         </div>
+    </div>
+
 
         <div class="content-card">
             <div class="card-title"><i class="fas fa-chart-pie"></i>Subscription Summary</div>
@@ -629,65 +689,80 @@ MAIN CONTENT
         </div>
     </div>
 
+    
+
     <!-- Recent Audit Logs -->
     <div class="content-card">
-        <div class="card-title"><i class="fas fa-history"></i>Recent Audit Logs</div>
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>User</th>
-                        <th>Hospital</th>
-                        <th>Module</th>
-                        <th>Action</th>
-                        <th>Date & Time</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if ($audit_logs_result && mysqli_num_rows($audit_logs_result) > 0): ?>
-                        <?php while($log = mysqli_fetch_assoc($audit_logs_result)): ?>
-                            <tr>
-                                <td>
-                                    <?php 
-                                    if ($log['register_id'] == 999) {
-                                        echo '<span class="user-badge superadmin">👑 Super Admin</span>';
-                                    } elseif (!empty($log['user_name'])) {
-                                        echo '<span class="user-badge">👤 ' . htmlspecialchars($log['user_name']) . '</span>';
-                                    } else {
-                                        echo '<span class="user-badge">❓ User #' . $log['register_id'] . '</span>';
-                                    }
-                                    ?>
-                                </td>
-                                <td>
-                                    <?php 
-                                    if (is_null($log['hospital_id']) || $log['hospital_id'] == 0) {
-                                        echo '<span class="hospital-badge system">🏢 System</span>';
-                                    } elseif (!empty($log['hospital_name']) && $log['hospital_name'] != 'N/A') {
-                                        echo '<span class="hospital-badge">🏥 ' . htmlspecialchars($log['hospital_name']) . '</span>';
-                                    } else {
-                                        echo '<span class="hospital-badge">🏥 Hospital #' . $log['hospital_id'] . '</span>';
-                                    }
-                                    ?>
-                                </td>
-                                <td>
-                                    <span class="user-badge"><?php echo htmlspecialchars($log['module']); ?></span>
-                                </td>
-                                <td class="text-sm">
-                                    <?php echo htmlspecialchars(substr($log['action'], 0, 50) . (strlen($log['action']) > 50 ? '...' : '')); ?>
-                                </td>
-                                <td class="text-xs text-secondary">
-                                    <?php echo date('d M Y H:i', strtotime($log['created_at'])); ?>
-                                </td>
-                            </tr>
-                        <?php endwhile; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="5" class="text-center text-secondary py-4">No audit logs found</td>
-                        </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
+    <!-- Card Header with Title and View All Button -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 1px solid <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>; padding-bottom: 0.75rem;">
+        <div class="card-title" style="display: flex; align-items: center; gap: 0.6rem; font-size: 1rem; font-weight: 700; color: <?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>;">
+            <i class="fas fa-history" style="color: #3b82f6;"></i>
+            Recent Audit Logs
+            <span style="font-size: 0.7rem; background: <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>; padding: 0.15rem 0.6rem; border-radius: 12px; font-weight: 400; color: <?php echo $theme == 'dark' ? '#94a3b8' : '#64748b'; ?>;">
+                Latest 10
+            </span>
         </div>
+        <a href="audit_logs.php" style="font-size: 0.75rem; color: #3b82f6; text-decoration: none; font-weight: 500; display: flex; align-items: center; gap: 0.3rem; transition: all 0.2s;">
+            View All <i class="fas fa-arrow-right" style="font-size: 0.6rem;"></i>
+        </a>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Hospital</th>
+                    <th>Module</th>
+                    <th>Action</th>
+                    <th>Date & Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if ($audit_logs_result && mysqli_num_rows($audit_logs_result) > 0): ?>
+                    <?php while($log = mysqli_fetch_assoc($audit_logs_result)): ?>
+                        <tr>
+                            <td>
+                                <?php 
+                                if ($log['register_id'] == 999) {
+                                    echo '<span class="user-badge superadmin">👑 Super Admin</span>';
+                                } elseif (!empty($log['user_name'])) {
+                                    echo '<span class="user-badge">👤 ' . htmlspecialchars($log['user_name']) . '</span>';
+                                } else {
+                                    echo '<span class="user-badge">❓ User #' . $log['register_id'] . '</span>';
+                                }
+                                ?>
+                            </td>
+                            <td>
+                                <?php 
+                                if (is_null($log['hospital_id']) || $log['hospital_id'] == 0) {
+                                    echo '<span class="hospital-badge system">🏢 System</span>';
+                                } elseif (!empty($log['hospital_name']) && $log['hospital_name'] != 'N/A') {
+                                    echo '<span class="hospital-badge">🏥 ' . htmlspecialchars($log['hospital_name']) . '</span>';
+                                } else {
+                                    echo '<span class="hospital-badge">🏥 Hospital #' . $log['hospital_id'] . '</span>';
+                                }
+                                ?>
+                            </td>
+                            <td>
+                                <span class="user-badge"><?php echo htmlspecialchars($log['module']); ?></span>
+                            </td>
+                            <td class="text-sm">
+                                <?php echo htmlspecialchars(substr($log['action'], 0, 50) . (strlen($log['action']) > 50 ? '...' : '')); ?>
+                            </td>
+                            <td class="text-xs text-secondary">
+                                <?php echo date('d M Y H:i', strtotime($log['created_at'])); ?>
+                            </td>
+                        </tr>
+                    <?php endwhile; ?>
+                <?php else: ?>
+                    <tr>
+                        <td colspan="5" class="text-center text-secondary py-4">No audit logs found</td>
+                    </tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
     </div>
 </div>
 

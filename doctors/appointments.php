@@ -3,8 +3,6 @@ session_start();
 
 include '../config/hospital.php';
 
-
-
 if (!isset($_SESSION['id'])) {
     header("Location: ../index.php");
     exit();
@@ -63,7 +61,6 @@ if (!$doctor_id) {
 }
 
 // Main query – all columns from appointments + patient_name
-// We LEFT JOIN patients without filtering on delete_flag, so we always get the name if it exists.
 $sql = "SELECT a.*, p.patient_name 
         FROM appointments a 
         LEFT JOIN patients p ON a.patient_id = p.patient_id
@@ -72,10 +69,10 @@ $sql = "SELECT a.*, p.patient_name
           AND (a.delete_flag = 0 OR a.delete_flag IS NULL) 
         ORDER BY a.appointment_date DESC, a.appointment_time ASC";
 
-$result = mysqli_query($conn, $sql);
-$totalCount = mysqli_num_rows($result);
+$re = mysqli_query($conn, $sql);
+$totalCount = mysqli_num_rows($re);
 
-// Helper function for counts using simple queries
+// Helper function for counts
 function getCount($conn, $sql) {
     $res = mysqli_query($conn, $sql);
     return $res ? (int) mysqli_fetch_assoc($res)['count'] : 0;
@@ -87,7 +84,6 @@ $upcomingCount = getCount($conn,
        AND (delete_flag = 0 OR delete_flag IS NULL) AND status = 'Confirmed'"
 );
 
-// Today count – uses the server's $todayDate
 $todayQuery = "SELECT COUNT(*) as count FROM appointments 
                WHERE doctor_id = $doctor_id AND hospital_id = $hospital_id 
                  AND (delete_flag = 0 OR delete_flag IS NULL) AND appointment_date = '$todayDate'";
@@ -146,11 +142,94 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointmen
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
-        .tab-active { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); border-radius: 10px 10px 0 0; }
-        .tab-active .badge-count { background: rgba(255,255,255,0.3); color: white; }
-        .tab-inactive { color: #64748b; border-radius: 10px 10px 0 0; }
-        .tab-inactive:hover { background: #f1f5f9; color: #0f172a; }
-        .tab-inactive .badge-count { background: #e2e8f0; color: #64748b; }
+        
+        /* ===== TAB STYLES ===== */
+        .tab-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 18px;
+            border-radius: 40px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            border: 1px solid #e5e7eb;
+            background: #fff;
+            color: #64748b;
+            text-decoration: none;
+            user-select: none;
+            white-space: nowrap;
+        }
+        .tab-btn:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+            transform: translateY(-1px);
+        }
+        .tab-btn .badge-count {
+            background: #e2e8f0;
+            color: #64748b;
+            padding: 1px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            transition: all 0.2s ease;
+        }
+        /* Active tab */
+        .tab-active {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            border-color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        .tab-active:hover {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            border-color: #2563eb;
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.35);
+        }
+        .tab-active .badge-count {
+            background: rgba(255,255,255,0.25);
+            color: white;
+        }
+        /* Inactive tab (default) */
+        .tab-inactive {
+            background: #fff;
+            color: #64748b;
+            border-color: #e5e7eb;
+        }
+        .tab-inactive .badge-count {
+            background: #e2e8f0;
+            color: #64748b;
+        }
+        /* Responsive tabs wrapper */
+        .tabs-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+              padding: 16px 9px;
+            margin-bottom: -31px;
+        }
+        .tabs-wrapper::-webkit-scrollbar {
+            height: 4px;
+        }
+        .tabs-wrapper::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        .tabs-wrapper::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .tabs-wrapper .flex-wrap {
+            flex-wrap: nowrap;
+        }
+        @media (min-width: 640px) {
+            .tabs-wrapper .flex-wrap {
+                flex-wrap: wrap;
+            }
+        }
+        /* ===== END TAB STYLES ===== */
+
         .status-badge { padding: 4px 14px; border-radius: 9999px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
         .status-scheduled { background: #dbeafe; color: #1e40af; }
         .status-completed { background: #d1fae5; color: #065f46; }
@@ -165,24 +244,60 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointmen
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .alert { animation: slideDown 0.3s ease; }
         @keyframes slideDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
-        .stat-card { background: white; border-radius: 12px; padding: 16px 20px; border: 1px solid #e5e7eb; transition: all 0.3s ease; }
-        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.06); border-color: #3b82f6; }
-        .stat-card .stat-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
-        .stat-card .stat-value { font-size: 1.5rem; font-weight: 700; color: #0f172a; }
-        .stat-card .stat-label { font-size: 0.78rem; color: #64748b; font-weight: 500; }
         .table-row-hover:hover { background: #f8fafc; }
         .btn-primary-custom { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; padding: 10px 24px; border-radius: 10px; font-weight: 600; border: none; transition: all 0.3s ease; }
         .btn-primary-custom:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(59, 130, 246, 0.35); }
         .main-content { margin-left: 260px; padding: 20px 28px; min-height: 100vh; width: 100%; }
         @media (max-width: 1024px) { .main-content { margin-left: 0; padding: 16px; } }
         @media (max-width: 768px) { .main-content { padding: 12px; } }
+        /* Small enhancement for doctor+dept display */
+        .doctor-dept { font-size: 0.7rem; color: #94a3b8; font-weight: 500; margin-top: 2px; }
+        table tbody tr td:last-child .action-btn { padding: 6px 10px; font-size: 12px; }
 
-        
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            margin-right: 4px;
+            border: none;
+            cursor: pointer;
+        }
+        .action-btn.view {
+            background-color: #e0f2fe;
+            color: #0284c7;
+        }
+        .action-btn.view:hover {
+            background-color: #bae6fd;
+        }
+        .action-btn.edit {
+            background-color: #fff7ed;
+            color: #ea580c;
+        }
+        .action-btn.edit:hover {
+            background-color: #fed7aa;
+        }
+        .action-btn.delete {
+            background-color: #fee2e2;
+            color: #dc2626;
+        }
+        .action-btn.delete:hover {
+            background-color: #fecaca;
+        }
+        .action-btn i {
+            width: 16px;
+            height: 16px;
+        }
     </style>
 </head>
 <body>
     <div class="flex min-h-screen flex-col bg-gray-50">
-        <?php include '../doctors/header.php'; ?>
+        <?php include '../header.php'; ?>
 
         <div class="flex flex-1 items-start">
             <?php include '../Sidebar.php'; ?>
@@ -238,77 +353,35 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointmen
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
-                        <div class="stat-card">
-                            <div class="flex items-center gap-3">
-                                <div class="stat-icon" style="background: #dbeafe; color: #3b82f6;"><i class="fas fa-calendar-check"></i></div>
-                                <div><div class="stat-value"><?php echo $totalCount; ?></div><div class="stat-label">Total</div></div>
+                    <!-- ===== RESPONSIVE TABS (now outside the table container) ===== -->
+
+                    <div class="bg-white rounded-xl border border-gray-200 shad ow-sm overflow-hidden">
+                          <div class="tabs-wrapper">
+                        <div class="flex flex-wrap gap-2 mb-6" style="flex-wrap: nowrap;">
+                            <div class="tab-btn tab-active" id="tab-all" onclick="filterAppointments('all')">
+                                All <span class="badge-count"><?php echo $totalCount; ?></span>
                             </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="flex items-center gap-3">
-                                <div class="stat-icon" style="background: #fef3c7; color: #f59e0b;"><i class="fas fa-clock"></i></div>
-                                <div><div class="stat-value"><?php echo $upcomingCount; ?></div><div class="stat-label">Confirmed</div></div>
+                            <div class="tab-btn tab-inactive" id="tab-today" onclick="filterAppointments('today')">
+                                Today <span class="badge-count"><?php echo $todayCount; ?></span>
                             </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="flex items-center gap-3">
-                                <div class="stat-icon" style="background: #d1fae5; color: #10b981;"><i class="fas fa-calendar-day"></i></div>
-                                <div><div class="stat-value"><?php echo $todayCount; ?></div><div class="stat-label">Today</div></div>
+                            <div class="tab-btn tab-inactive" id="tab-confirmed" onclick="filterAppointments('confirmed')">
+                                Confirmed <span class="badge-count"><?php echo $upcomingCount; ?></span>
                             </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="flex items-center gap-3">
-                                <div class="stat-icon" style="background: #fee2e2; color: #ef4444;"><i class="fas fa-times-circle"></i></div>
-                                <div><div class="stat-value"><?php echo $cancelledCount; ?></div><div class="stat-label">Cancelled</div></div>
+                            <div class="tab-btn tab-inactive" id="tab-cancelled" onclick="filterAppointments('cancelled')">
+                                Cancelled <span class="badge-count"><?php echo $cancelledCount; ?></span>
                             </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="flex items-center gap-3">
-                                <div class="stat-icon" style="background: #e0f2fe; color: #0284c7;"><i class="fas fa-user-md"></i></div>
-                                <div><div class="stat-value"><?php echo $opdCount; ?></div><div class="stat-label">OPD</div></div>
+                            <div class="tab-btn tab-inactive" id="tab-opd" onclick="filterAppointments('opd')">
+                                OPD <span class="badge-count"><?php echo $opdCount; ?></span>
                             </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="flex items-center gap-3">
-                                <div class="stat-icon" style="background: #fae8ff; color: #9333ea;"><i class="fas fa-hospital-user"></i></div>
-                                <div><div class="stat-value"><?php echo $ipdCount; ?></div><div class="stat-label">IPD</div></div>
+                            <div class="tab-btn tab-inactive" id="tab-ipd" onclick="filterAppointments('ipd')">
+                                IPD <span class="badge-count"><?php echo $ipdCount; ?></span>
                             </div>
                         </div>
                     </div>
+                  
+                    <!-- ===== END TABS ===== -->
 
-                    <div class="flex flex-wrap gap-1 mb-4 border-b border-gray-200">
-                        <button id="tab-all" class="tab-btn tab-active px-4 py-2.5 text-sm font-medium transition-all" onclick="filterAppointments('all')">
-                            <i data-lucide="list" class="w-4 h-4 inline mr-1.5"></i> All
-                            <span class="badge-count ml-1.5 px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-600"><?php echo $totalCount; ?></span>
-                        </button>
-                        <button id="tab-confirmed" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium transition-all" onclick="filterAppointments('confirmed')">
-                            <i data-lucide="check-circle" class="w-4 h-4 inline mr-1.5"></i> Confirmed
-                            <span class="badge-count ml-1.5 px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-600"><?php echo $upcomingCount; ?></span>
-                        </button>
-                        <button id="tab-today" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium transition-all" onclick="filterAppointments('today')">
-                            <i data-lucide="calendar" class="w-4 h-4 inline mr-1.5"></i> Today
-                            <span class="badge-count ml-1.5 px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-600"><?php echo $todayCount; ?></span>
-                        </button>
-                        <button id="tab-completed" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium transition-all" onclick="filterAppointments('completed')">
-                            <i data-lucide="check" class="w-4 h-4 inline mr-1.5"></i> Completed
-                            <span class="badge-count ml-1.5 px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-600"><?php echo $completedCount; ?></span>
-                        </button>
-                        <button id="tab-cancelled" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium transition-all" onclick="filterAppointments('cancelled')">
-                            <i data-lucide="x-circle" class="w-4 h-4 inline mr-1.5"></i> Cancelled
-                            <span class="badge-count ml-1.5 px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-600"><?php echo $cancelledCount; ?></span>
-                        </button>
-                        <button id="tab-opd" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium transition-all" onclick="filterAppointments('opd')">
-                            <i data-lucide="stethoscope" class="w-4 h-4 inline mr-1.5"></i> OPD
-                            <span class="badge-count ml-1.5 px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-600"><?php echo $opdCount; ?></span>
-                        </button>
-                        <button id="tab-ipd" class="tab-btn tab-inactive px-4 py-2.5 text-sm font-medium transition-all" onclick="filterAppointments('ipd')">
-                            <i data-lucide="hospital" class="w-4 h-4 inline mr-1.5"></i> IPD
-                            <span class="badge-count ml-1.5 px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-600"><?php echo $ipdCount; ?></span>
-                        </button>
-                    </div>
-
-                    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    
                         <div class="p-4 border-b border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                             <div>
                                 <h2 class="text-lg font-semibold text-gray-900" id="table-title">All Appointments</h2>
@@ -327,47 +400,91 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointmen
                             <table class="w-full text-sm">
                                 <thead>
                                     <tr class="border-b border-gray-200 bg-gray-50">
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Appt No</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
-                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date &amp; Time</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Patient Name</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Doctor</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mode</th>
                                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-36">Actions</th>
+                                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-36" style="text-align: center;">Actions</th>
                                     </tr>
                                 </thead>
-                               <tbody id="appointmentsTableBody">
-<?php if ($result && mysqli_num_rows($result) > 0) { ?>
+                              <tbody id="appointmentsTableBody">
+<?php if ($re && mysqli_num_rows($re) > 0) { ?>
+    <?php while ($row = mysqli_fetch_assoc($re)) { 
+        $statusText = $row['status'] ?? 'Scheduled';
+        $statusClass = 'status-scheduled';
+        if (strtolower($statusText) == 'completed') $statusClass = 'status-completed';
+        elseif (strtolower($statusText) == 'cancelled') $statusClass = 'status-cancelled';
+        elseif (strtolower($statusText) == 'confirmed') $statusClass = 'status-confirmed';
+        elseif (strtolower($statusText) == 'in progress') $statusClass = 'status-in-progress';
 
-    <?php while ($row = mysqli_fetch_assoc($result)) { ?>
-
-    <tr>
-        <td><?php echo htmlspecialchars($row['appointment_no']); ?></td>
-        <td><?php echo htmlspecialchars($row['patient_name']); ?></td>
-        <td><?php echo htmlspecialchars($row['opd_ipd_type']); ?></td>
-        <td><?php echo date('d-m-Y', strtotime($row['appointment_date'])); ?></td>
-        <td><?php echo date('h:i A', strtotime($row['appointment_time'])); ?></td>
-        <td><?php echo htmlspecialchars($row['duration']); ?> Min</td>
-        <td><?php echo htmlspecialchars($row['department']); ?></td>
-        <td><?php echo htmlspecialchars($row['status']); ?></td>
-        <td>
-            <a href="view_appointment.php?id=<?php echo $row['appointment_id']; ?>">View</a> |
-            <a href="edit_appointment.php?id=<?php echo $row['appointment_id']; ?>">Edit</a>
+        $dataStatus = strtolower($statusText);
+        $dataDate = $row['appointment_date'] ?? '';
+        $patientName = !empty($row['patient_name']) ? htmlspecialchars($row['patient_name']) : 'Unknown Patient';
+        $appointmentNo = !empty($row['appointment_no']) ? htmlspecialchars($row['appointment_no']) : 'NA-' . ($row['appointment_id'] ?? '000');
+        $appointmentTime = $row['appointment_time'] ?? '00:00:00';
+        $appointmentId = (int) ($row['appointment_id'] ?? 0);
+        $department = htmlspecialchars($row['department'] ?? 'N/A');
+        $appointmentType = !empty($row['opd_ipd_type']) ? $row['opd_ipd_type'] : 'OPD';
+        $dataType = strtolower($appointmentType);
+        $appointmentDateFormatted = '';
+        if ($dataDate && $dataDate != '0000-00-00') {
+            $appointmentDateFormatted = date('d M Y', strtotime($dataDate));
+        }
+        $docName = htmlspecialchars($doctor_name);
+        $deptName = $department;
+    ?>
+    <tr class="appointment-row border-b border-gray-100 hover:bg-gray-50 transition-all fade-in"
+        data-status="<?php echo $dataStatus; ?>"
+        data-date="<?php echo htmlspecialchars($dataDate); ?>"
+        data-type="<?php echo $dataType; ?>"
+        data-patient="<?php echo strtolower($patientName); ?>"
+        data-appointment="<?php echo strtolower($appointmentNo); ?>"
+        onclick="window.location='view_appointment.php?id=<?php echo $appointmentId; ?>'"
+        style="cursor:pointer;">
+        <td class="px-4 py-3 text-gray-700 whitespace-nowrap">
+            <div><?php echo $appointmentDateFormatted; ?></div>
+            <div class="text-xs text-gray-500"><?php echo date('h:i A', strtotime($appointmentTime)); ?></div>
+        </td>
+        <td class="px-4 py-3 text-gray-700"><?php echo $patientName; ?></td>
+        <td class="px-4 py-3">
+            <div class="font-medium text-gray-900"><?php echo $docName; ?></div>
+            <div class="doctor-dept"><?php echo $deptName; ?></div>
+        </td>
+        <td class="px-4 py-3">
+            <span class="px-2 py-1 rounded text-xs font-medium <?php echo $appointmentType == 'IPD' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'; ?>">
+                <?php echo htmlspecialchars($appointmentType); ?>
+            </span>
+        </td>
+        <td class="px-4 py-3">
+            <span class="status-badge <?php echo $statusClass; ?>">
+                <span class="w-1.5 h-1.5 rounded-full bg-current"></span> <?php echo ucfirst($statusText); ?>
+            </span>
+        </td>
+        <td class="px-4 py-3 text-right" onclick="event.stopPropagation();" style="text-align: center;">
+            <a href="view_appointment.php?id=<?php echo $appointmentId; ?>" 
+              
+               title="View">
+                
+            </a>
+            <a href="edit_appointment.php?id=<?php echo $appointmentId; ?>" 
+               class="action-btn edit" 
+               title="Edit">
+                <i data-lucide="edit" class="w-4 h-4"></i>
+            </a>
+            <a href="delete_appointment.php?id=<?php echo $appointmentId; ?>" 
+               class="action-btn delete" 
+               title="Delete"
+               onclick="return confirm('Are you sure you want to delete this appointment?');">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </a>
         </td>
     </tr>
-
     <?php } ?>
-
 <?php } else { ?>
-
-<tr>
-    <td colspan="9" style="text-align:center;padding:20px;">
-        No Appointments Found
-    </td>
-</tr>
-
+    <tr>
+        <td colspan="6" style="text-align:center;padding:20px;">No Appointments Found</td>
+    </tr>
 <?php } ?>
 </tbody>
                             </table>
@@ -387,15 +504,15 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointmen
         lucide.createIcons();
         let currentFilter = 'all';
 
-        // Use the server's current date for "Today" filtering – fixes time‑zone mismatch
         const serverToday = '<?php echo $todayDate; ?>';
 
         function filterAppointments(filter) {
             currentFilter = filter;
             const rows = document.querySelectorAll('.appointment-row');
-            const today = serverToday;   // now consistent with server-side counts
+            const today = serverToday;
             let visibleCount = 0;
 
+            // Toggle active class on tabs
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.classList.remove('tab-active');
                 btn.classList.add('tab-inactive');
@@ -454,7 +571,17 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointmen
 
         document.addEventListener('DOMContentLoaded', function () {
             lucide.createIcons();
-            //filterAppointments('all');
+            // Ensure 'all' tab is active by default
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('tab-active');
+                btn.classList.add('tab-inactive');
+            });
+            const allTab = document.getElementById('tab-all');
+            if (allTab) {
+                allTab.classList.remove('tab-inactive');
+                allTab.classList.add('tab-active');
+            }
+            filterAppointments('all');
         });
     </script>
 </body>

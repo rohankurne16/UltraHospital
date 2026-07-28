@@ -449,7 +449,491 @@ $theme = $_SESSION['theme'] ?? 'light';
             .main-content { margin-left: 0; padding: 1rem; }
             .main-content.collapsed { margin-left: 0; }
         }
-    </style>
+        /* ===== TOGGLE SWITCH STYLES ===== */
+.toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 0;
+}
+
+.toggle-switch {
+    position: relative;
+    width: 60px;
+    height: 32px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-label {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #e5e7eb;
+    border-radius: 34px;
+    transition: all 0.3s ease;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.toggle-slider {
+    position: absolute;
+    content: "";
+    height: 24px;
+    width: 24px;
+    left: 4px;
+    bottom: 4px;
+    background: white;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+.toggle-switch input:checked + .toggle-label {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+}
+
+.toggle-switch input:checked + .toggle-label .toggle-slider {
+    transform: translateX(28px);
+}
+
+.toggle-switch input:focus + .toggle-label {
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.3);
+}
+
+/* Toggle Text */
+.toggle-text {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
+    pointer-events: none;
+}
+
+.toggle-text.toggle-active {
+    left: 8px;
+    color: white;
+    opacity: 0;
+}
+
+.toggle-text.toggle-inactive {
+    right: 8px;
+    color: #6b7280;
+    opacity: 1;
+}
+
+.toggle-switch input:checked + .toggle-label .toggle-text.toggle-active {
+    opacity: 1;
+}
+
+.toggle-switch input:checked + .toggle-label .toggle-text.toggle-inactive {
+    opacity: 0;
+}
+
+/* Status Display Text */
+.toggle-status-text {
+    font-size: 14px;
+    font-weight: 600;
+    padding: 4px 14px;
+    border-radius: 20px;
+    transition: all 0.3s ease;
+    min-width: 70px;
+    text-align: center;
+}
+
+.toggle-status-text.active {
+    color: #16a34a;
+    background: #dcfce7;
+}
+
+.toggle-status-text.inactive {
+    color: #dc2626;
+    background: #fee2e2;
+}
+
+.toggle-hint {
+    display: block;
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 4px;
+}
+
+/* Toggle Sizes */
+.toggle-switch.small {
+    width: 44px;
+    height: 24px;
+}
+
+.toggle-switch.small .toggle-slider {
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+}
+
+.toggle-switch.small input:checked + .toggle-label .toggle-slider {
+    transform: translateX(20px);
+}
+
+.toggle-switch.large {
+    width: 76px;
+    height: 40px;
+}
+
+.toggle-switch.large .toggle-slider {
+    height: 32px;
+    width: 32px;
+    left: 4px;
+    bottom: 4px;
+}
+
+.toggle-switch.large input:checked + .toggle-label .toggle-slider {
+    transform: translateX(36px);
+}
+/* ============================================
+   TOGGLE SWITCH - SIMPLE
+   ============================================ */
+.toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.toggle-switch {
+    position: relative;
+    width: 50px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-label {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #cbd5e1;
+    border-radius: 34px;
+    transition: 0.3s;
+}
+
+.toggle-slider {
+    position: absolute;
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.3s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Checked State */
+.toggle-switch input:checked + .toggle-label {
+    background: #22c55e;
+}
+
+.toggle-switch input:checked + .toggle-label .toggle-slider {
+    transform: translateX(22px);
+}
+
+/* Focus */
+.toggle-switch input:focus + .toggle-label {
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.3);
+}
+
+/* Disabled */
+.toggle-switch.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.toggle-switch.disabled .toggle-label {
+    cursor: not-allowed;
+}
+
+/* Status Text */
+/* ============================================
+   TOGGLE SWITCH WITH ACTIVE/INACTIVE TEXT
+   ============================================ */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+    color: #475569;
+}
+
+.toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 4px 0;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+    position: relative;
+    width: 52px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-label {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #cbd5e1;
+    border-radius: 34px;
+    transition: 0.3s;
+}
+
+.toggle-slider {
+    position: absolute;
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.3s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+/* Checked State - Active */
+.toggle-switch input:checked + .toggle-label {
+    background: #22c55e;
+}
+
+.toggle-switch input:checked + .toggle-label .toggle-slider {
+    transform: translateX(24px);
+}
+
+/* Focus */
+.toggle-switch input:focus + .toggle-label {
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25);
+}
+
+/* Disabled */
+.toggle-switch.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.toggle-switch.disabled .toggle-label {
+    cursor: not-allowed;
+}
+
+/* ============================================
+   STATUS TEXT
+   ============================================ */
+.toggle-status-text {
+    font-size: 14px;
+    font-weight: 600;
+    padding: 2px 14px;
+    border-radius: 4px;
+    transition: 0.3s;
+    min-width: 70px;
+    text-align: center;
+}
+
+/* Active Status */
+.toggle-status-text.active {
+    color: #16a34a;
+    background: #dcfce7;
+}
+
+/* Inactive Status */
+.toggle-status-text.inactive {
+    color: #dc2626;
+    background: #fee2e2;
+}
+
+/* ============================================
+   HINT
+   ============================================ */
+.toggle-hint {
+    display: block;
+    font-size: 0.7rem;
+    color: #94a3b8;
+    margin-top: 4px;
+}
+
+/* ============================================
+   SIZES
+   ============================================ */
+/* Small */
+.toggle-switch.small {
+    width: 38px;
+    height: 20px;
+}
+
+.toggle-switch.small .toggle-slider {
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+}
+
+.toggle-switch.small input:checked + .toggle-label .toggle-slider {
+    transform: translateX(18px);
+}
+
+.toggle-switch.small .toggle-status-text {
+    font-size: 12px;
+    padding: 1px 10px;
+    min-width: 60px;
+}
+
+/* Large */
+.toggle-switch.large {
+    width: 64px;
+    height: 34px;
+}
+
+.toggle-switch.large .toggle-slider {
+    height: 28px;
+    width: 28px;
+    left: 3px;
+    bottom: 3px;
+}
+
+.toggle-switch.large input:checked + .toggle-label .toggle-slider {
+    transform: translateX(30px);
+}
+
+.toggle-switch.large .toggle-status-text {
+    font-size: 16px;
+    padding: 4px 16px;
+    min-width: 80px;
+}
+/* ============================================
+   RADIO BUTTONS - STATUS
+   ============================================ */
+/* ============================================
+   RADIO BUTTONS - STATUS (Image प्रमाणे)
+   ============================================ */
+.radio-group {
+    display: flex;
+    align-items: center;
+    gap: 35px;
+    padding: 4px 0;
+}
+
+.radio-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: #475569;
+    transition: all 0.2s ease;
+}
+
+/* Hide default radio */
+.radio-option input[type="radio"] {
+    display: none;
+}
+
+/* Custom radio circle */
+.radio-option .radio-custom {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #cbd5e1;
+    border-radius: 50%;
+    position: relative;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    display: inline-block;
+}
+
+/* Inner dot */
+.radio-option .radio-custom::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #3b82f6;
+    transition: all 0.2s ease;
+}
+
+/* Checked state */
+.radio-option input[type="radio"]:checked + .radio-custom {
+    border-color: #3b82f6;
+}
+
+.radio-option input[type="radio"]:checked + .radio-custom::after {
+    transform: translate(-50%, -50%) scale(1);
+}
+
+/* Checked text color */
+.radio-option input[type="radio"]:checked ~ span:last-child {
+    color: #1e293b;
+    font-weight: 600;
+}
+
+/* Hover effect */
+.radio-option:hover .radio-custom {
+    border-color: #94a3b8;
+}
+
+/* Dark theme support */
+body.dark .radio-option {
+    color: #94a3b8;
+}
+
+body.dark .radio-option input[type="radio"]:checked ~ span:last-child {
+    color: #f1f5f9;
+}
+
+body.dark .radio-option .radio-custom {
+    border-color: #475569;
+}
+
+body.dark .radio-option input[type="radio"]:checked + .radio-custom {
+    border-color: #3b82f6;
+}
+
+body.dark .radio-option .radio-custom::after {
+    background: #3b82f6;
+}
+    </style> 
 </head>
 <body class="<?php echo $theme; ?>">
 
@@ -504,67 +988,141 @@ $theme = $_SESSION['theme'] ?? 'light';
 
                 <!-- Step 1: Hospital Details -->
                 <div class="wizard-content" data-step="1">
-                    <div class="section-title">
-                        <i class="fas fa-hospital mr-2" style="color: #3b82f6;"></i>Hospital Details
+    <div class="section-title">
+        <i class="fas fa-hospital mr-2" style="color: #3b82f6;"></i>
+        Hospital Details
+    </div>
+    
+    <div class="form-grid">
+        <!-- Row 1: Hospital Name & Hospital Code -->
+        <div class="form-group">
+            <label>Hospital Name <span class="required">*</span></label>
+            <input type="text" 
+                   name="hospital_name" 
+                   id="hospital_name" 
+                   class="form-control" 
+                   required 
+                   placeholder="e.g., City Hospital" 
+                   data-required="true" 
+                   data-required-message="Hospital Name is required" 
+                   minlength="3" 
+                   maxlength="100">
+            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">
+                Hospital Name is required
+            </small>
+            <small class="validation-hint">
+                Minimum 3 characters, Maximum 100 characters
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label>Hospital Code <span class="required">*</span></label>
+            <input type="text" 
+                   name="hospital_code" 
+                   id="hospital_code" 
+                   class="form-control" 
+                   value="<?php echo $hospital_code; ?>" 
+                   readonly 
+                   data-required="true">
+            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">
+                Hospital Code is required
+            </small>
+        </div>
+
+        <!-- Row 2: Hospital Type & Status -->
+        <div class="form-group">
+            <label>Hospital Type</label>
+            <select name="hospital_type" class="form-control">
+                <option value="Multi-Speciality">Multi-Speciality</option>
+                <option value="Super-Speciality">Super-Speciality</option>
+                <option value="General">General</option>
+                <option value="Speciality">Speciality</option>
+                <option value="Clinic">Clinic</option>
+            </select>
+        </div>
+<!-- Status Toggle Switch -->
+<!-- Status Toggle with Active/Inactive Text -->
+<!-- Status Toggle with Active/Inactive Text -->
+<!-- Status Radio Buttons -->
+<div class="form-group">
+    <label>Status <span class="required">*</span></label>
+    <div class="radio-group">
+        <label class="radio-option">
+            <input type="radio" name="status" value="Active" checked>
+            <span class="radio-custom"></span>
+            Active
+        </label>
+        <label class="radio-option">
+            <input type="radio" name="status" value="Inactive">
+            <span class="radio-custom"></span>
+            Inactive
+        </label>
+    </div>
+</div>
+
+        <!-- Row 3: Registration Number & GST Number -->
+        <div class="form-group">
+            <label>Registration Number</label>
+            <input type="text" 
+                   name="registration_number" 
+                   class="form-control" 
+                   placeholder="e.g., REG/2026/001" 
+                   maxlength="50">
+            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">
+                Registration number cannot exceed 50 characters
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label>GST Number</label>
+            <input type="text" 
+                   name="gst_number" 
+                   id="gst_number" 
+                   class="form-control" 
+                   placeholder="e.g., 27ABCDE1234F1Z5" 
+                   pattern="[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}" 
+                   maxlength="15">
+            <small class="validation-hint">
+                Format: 2 digits, 5 letters, 4 digits, 1 letter, 1 alphanumeric, Z, 1 alphanumeric
+            </small>
+            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">
+                Please enter a valid GST number (e.g., 27ABCDE1234F1Z5)
+            </small>
+        </div>
+    </div>
+
+    <!-- ===== UPLOAD FILES SECTION - LAST ===== -->
+    <div class="upload-section" style="margin-top: 24px; padding-top: 24px; border-top: 2px solid #e5e7eb;">
+        <div class="section-title" style="font-size: 16px; margin-bottom: 16px;">
+            <i class="fas fa-cloud-upload-alt mr-2" style="color: #3b82f6;"></i>
+            Upload Files
+        </div>
+
+        <div class="form-grid">
+            <!-- Hospital Logo Upload -->
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label>Hospital Logo</label>
+                <div class="file-upload-box" id="logoUploadBox">
+                    <div class="upload-icon">
+                        <i class="fas fa-cloud-upload-alt"></i>
                     </div>
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label>Hospital Name <span class="required">*</span></label>
-                            <input type="text" name="hospital_name" id="hospital_name" class="form-control" required placeholder="e.g., City Hospital" data-required="true" data-required-message="Hospital Name is required" minlength="3" maxlength="100">
-                            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Hospital Name is required</small>
-                            <small class="validation-hint">Minimum 3 characters, Maximum 100 characters</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Hospital Code <span class="required">*</span></label>
-                            <input type="text" name="hospital_code" id="hospital_code" class="form-control" value="<?php echo $hospital_code; ?>" readonly data-required="true">
-                            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Hospital Code is required</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Hospital Logo</label>
-                            <div class="file-upload-box" id="logoUploadBox">
-                                <div class="upload-icon"><i class="fas fa-cloud-upload-alt"></i></div>
-                                <div class="upload-text">Click to upload hospital logo</div>
-                                <div class="upload-hint">PNG, JPG, GIF, SVG, WEBP (Max 2MB)</div>
-                                <input type="file" name="hospital_logo" id="hospital_logo" accept="image/*">
-                            </div>
-                            <div class="file-preview" id="logoPreview">
-                                <img id="logoPreviewImage" src="#" alt="Logo Preview">
-                                <span class="file-name" id="logoFileName">No file selected</span>
-                                <button type="button" onclick="removeLogo()" style="background: none; border: none; color: #ef4444; cursor: pointer;">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label>Hospital Type</label>
-                            <select name="hospital_type" class="form-control">
-                                <option value="Multi-Speciality">Multi-Speciality</option>
-                                <option value="Super-Speciality">Super-Speciality</option>
-                                <option value="General">General</option>
-                                <option value="Speciality">Speciality</option>
-                                <option value="Clinic">Clinic</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Registration Number</label>
-                            <input type="text" name="registration_number" class="form-control" placeholder="e.g., REG/2026/001" maxlength="50">
-                            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Registration number cannot exceed 50 characters</small>
-                        </div>
-                        <div class="form-group">
-                            <label>GST Number</label>
-                            <input type="text" name="gst_number" id="gst_number" class="form-control" placeholder="e.g., 27ABCDE1234F1Z5" pattern="[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}" maxlength="15">
-                            <small class="validation-hint">Format: 2 digits, 5 letters, 4 digits, 1 letter, 1 alphanumeric, Z, 1 alphanumeric</small>
-                            <small style="color: #ef4444; font-size: 0.7rem; display: none;" class="error-text">Please enter a valid GST number (e.g., 27ABCDE1234F1Z5)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Status</label>
-                            <select name="status" class="form-control">
-                                <option value="Active">Active</option>
-                                <option value="Inactive">Inactive</option>
-                            </select>
-                        </div>
-                    </div>
+                    <div class="upload-text">Click to upload hospital logo</div>
+                    <div class="upload-hint">PNG, JPG, GIF, SVG, WEBP (Max 2MB)</div>
+                    <input type="file" name="hospital_logo" id="hospital_logo" accept="image/*">
                 </div>
+                
+                <!-- Logo Preview -->
+                <div class="file-preview" id="logoPreview">
+                    <img id="logoPreviewImage" src="#" alt="Logo Preview">
+                    <span class="file-name" id="logoFileName">No file selected</span>
+                    <button type="button" onclick="removeLogo()" class="remove-file">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
                 <!-- Step 2: Address -->
                 <div class="wizard-content step-hidden" data-step="2">

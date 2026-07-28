@@ -752,14 +752,7 @@ $wards = fetchData($conn, "SELECT ward_id, ward_name, ward_type, floor_no, (SELE
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="space-y-2">
-                                        <label class="form-label">Patient Image</label>
-                                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition">
-                                            <input type="file" name="patient_image" accept="image/*" class="form-file-input">
-                                            <p id="image_file_name" class="mt-2 text-sm text-green-600"></p>
-                                        </div>
-                                    </div>
-                                </div>
+                                   
                                 <div class="space-y-2">
                                     <label class="form-label">Previous Hospital</label>
                                     <input type="text"
@@ -798,6 +791,15 @@ $wards = fetchData($conn, "SELECT ward_id, ward_name, ward_type, floor_no, (SELE
                                         <select name="bed_id" id="bed_id" class="form-select" required>
                                             <option value="">Select Bed</option>
                                         </select>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2">
+                                        <label class="form-label">Patient Image</label>
+                                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition">
+                                            <input type="file" name="patient_image" accept="image/*" >
+                                            <p id="image_file_name" class="mt-2 text-sm text-green-600"></p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

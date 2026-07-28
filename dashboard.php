@@ -175,7 +175,7 @@ $trendDataJson   = json_encode($trendData);
     <link rel="icon" type="image/png" href="<?php echo $hospital['hospital_logo'] ?>">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  
     
     <style>
         body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; background: #f8fafc; }

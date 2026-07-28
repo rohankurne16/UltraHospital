@@ -634,13 +634,7 @@ if (isset($_POST['email'])) {
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Patient Image</label>
-                                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition">
-                                            <input type="file" name="patient_image" accept="image/*">
-                                            <p id="image_file_name" class="mt-2 text-sm text-green-600"></p>
-                                        </div>
-                                    </div>
+                                    
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium">Hospital Name</label>
                                         <input type="text"
@@ -649,7 +643,16 @@ if (isset($_POST['email'])) {
                                             class="w-full h-10 px-3 rounded-md border border-gray-300">
                                     </div>
                                 </div>
+
+                                
                             </div>
+                            <div class="space-y-2">
+                                        <label class="text-sm font-medium">Patient Image</label>
+                                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition">
+                                            <input type="file" name="patient_image" accept="image/*">
+                                            <p id="image_file_name" class="mt-2 text-sm text-green-600"></p>
+                                        </div>
+                                    </div>
 
                             <div class="mt-8 flex justify-between">
                                 <button type="submit"

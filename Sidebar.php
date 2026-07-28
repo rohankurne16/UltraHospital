@@ -6,6 +6,7 @@
 
 // Include permission config
 require_once __DIR__ . '/config/permission.php';
+include "config/encryption.php";
 
 // Get current page
 $current_page = basename($_SERVER['PHP_SELF']);
@@ -18,6 +19,9 @@ $user_name = $_SESSION['name'] ?? 'User';
 $profile_image = $_SESSION['profile_image'] ?? '';
 $hospital_name = isset($hospital['hospital_name']) ? $hospital['hospital_name'] : 'Ultra Hospital';
 $hospital_logo = isset($hospital['hospital_logo']) ? $hospital['hospital_logo'] : '';
+
+$hid=$_SESSION['hospital_id'] ??'';
+$encrypted_hid = encryptId($hid);
 
 // Check if Super Admin
 $is_super_admin = isset($_SESSION['role']) && (strtolower(trim($_SESSION['role'])) === 'super admin' || strtolower(trim($_SESSION['role'])) === 'superadmin');
@@ -569,17 +573,16 @@ if (!function_exists('getDashboardUrl')) {
             </a>
 
             <div class="logout-section">
-                <?php if($role=='admin'){ ?>
-                    <a href="auth/logout.php" class="sidebar-link logout">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </a>
-             <?php   } else{ ?>
-                      <a href="../auth/logout.php" class="sidebar-link logout">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </a>
-           <?php  }?>
-            </div>
-
+    <?php if($role == 'admin'){ ?>
+        <a href="auth/logout.php?hid=<?php echo $encrypted_hid; ?>" class="sidebar-link logout">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+    <?php } else { ?>
+        <a href="../auth/logout.php?hid=<?php echo $encrypted_hid; ?>" class="sidebar-link logout">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
+    <?php } ?>
+</div>
         </nav>
 
         <!-- Footer -->

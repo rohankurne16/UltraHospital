@@ -175,9 +175,18 @@ $result = mysqli_query($conn, $query);
         <!-- Header -->
         <?php include 'header.php'; ?>
 
-            <a href="dashboard.php" class="btn btn-primary" style="margin-bottom:2%;">
-    <i class="fas fa-arrow-left"></i> Back
-</a>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+
+            <a href="dashboard.php" class="btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+
+            <a href="add_doctor.php" class="btn-primary">
+                <i class="fas fa-user-plus"></i> Add Doctor
+            </a>
+
+    </div>
+
        
 
        <?php if (!empty($success)): ?>

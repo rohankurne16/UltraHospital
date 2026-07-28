@@ -5,12 +5,52 @@ include_once '../config/permission.php';
 // Check Super Admin login
 checkSuperAdminLogin();
 
-
 $page_title = 'Role Management';
 $page_subtitle = 'Manage all system roles';
 
 $theme = $_SESSION['theme'] ?? 'light';
 
+// ============================================================
+// HANDLE ADD ROLE (NEW)
+// ============================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_role'])) {
+    $role_name = mysqli_real_escape_string($conn, trim($_POST['role_name']));
+    $role_slug = mysqli_real_escape_string($conn, trim($_POST['role_slug']));
+    $description = mysqli_real_escape_string($conn, trim($_POST['description'] ?? ''));
+    $created_by = $_SESSION['id'] ?? 0;
+
+    // Validate
+    $errors = [];
+    if (empty($role_name)) {
+        $errors[] = "Role name is required.";
+    }
+    if (empty($role_slug)) {
+        $errors[] = "Role slug is required.";
+    } else {
+        // Check uniqueness
+        $check = mysqli_query($conn, "SELECT role_id FROM roles WHERE role_slug = '$role_slug' AND delete_flag = 0");
+        if (mysqli_num_rows($check) > 0) {
+            $errors[] = "Role slug '$role_slug' already exists. Please use a different slug.";
+        }
+    }
+
+    if (empty($errors)) {
+        $insert = "INSERT INTO roles (hospital_id, role_name, role_slug, description, is_system, created_by, created_at, modified_at, delete_flag)
+                   VALUES (NULL, '$role_name', '$role_slug', '$description', 0, '$created_by', NOW(), NOW(), 0)";
+        if (mysqli_query($conn, $insert)) {
+            header("Location: role_list.php?add_success=1");
+            exit();
+        } else {
+            $error_msg = "Database error: " . mysqli_error($conn);
+        }
+    } else {
+        $error_msg = implode("<br>", $errors);
+    }
+}
+
+// ============================================================
+// EXISTING CODE (search, fetch roles, etc.)
+// ============================================================
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 
 $where = "delete_flag = 0";
@@ -25,6 +65,10 @@ $total_query = "SELECT COUNT(*) as total FROM roles WHERE delete_flag = 0";
 $total_result = mysqli_query($conn, $total_query);
 $total_row = mysqli_fetch_assoc($total_result);
 $total_roles = $total_row['total'];
+
+// Get messages
+$add_success = isset($_GET['add_success']);
+$error_msg_display = isset($error_msg) ? $error_msg : (isset($_GET['error']) ? $_GET['error'] : '');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -234,14 +278,57 @@ $total_roles = $total_row['total'];
             font-size: 0.85rem;
         }
         
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-box {
+            background: <?php echo $theme == 'dark' ? '#1a1a1a' : '#ffffff'; ?>;
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: modalFade 0.3s ease;
+        }
+        @keyframes modalFade {
+            from { transform: scale(0.95) translateY(-20px); opacity: 0; }
+            to { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        .modal-box h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            color: <?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>;
+        }
+        .modal-close {
+            float: right;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #94a3b8;
+            transition: color 0.2s;
+        }
+        .modal-close:hover { color: #ef4444; }
+        
         @media (max-width: 768px) {
-           
             .main-content { margin-left: 200px; padding: 1rem; }
             .main-content.collapsed { margin-left: 60px; }
-            .page-header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
+            .page-header { flex-direction: column; align-items: flex-start; }
+            .modal-box { padding: 1.5rem; }
         }
         @media (max-width: 480px) {
             .main-content { margin-left: 0; padding: 1rem; }
@@ -259,14 +346,12 @@ $total_roles = $total_row['total'];
     <!-- Header -->
     <?php include 'header.php'; ?>
 
-   
-
     <a href="dashboard.php" class="btn btn-secondary" style="margin-bottom:2%;display:inline-flex;align-items:center;gap:0.5rem;padding:0.6rem 1.2rem;border-radius:8px;background:#f1f5f9;color:#1e293b;border:1px solid #e2e8f0;text-decoration:none;">
         <i class="fas fa-arrow-left"></i> Back
     </a>
 
     <!-- Status Messages -->
-    <?php if (isset($_GET['success'])): ?>
+    <?php if ($add_success): ?>
         <div class="success-msg"><i class="fas fa-check-circle mr-2"></i> Role created successfully!</div>
     <?php endif; ?>
     <?php if (isset($_GET['updated'])): ?>
@@ -274,6 +359,9 @@ $total_roles = $total_row['total'];
     <?php endif; ?>
     <?php if (isset($_GET['deleted'])): ?>
         <div class="success-msg"><i class="fas fa-check-circle mr-2"></i> Role deleted successfully!</div>
+    <?php endif; ?>
+    <?php if (isset($error_msg_display) && !empty($error_msg_display)): ?>
+        <div class="error-msg"><i class="fas fa-exclamation-circle mr-2"></i> <?php echo $error_msg_display; ?></div>
     <?php endif; ?>
     <?php if (isset($_GET['error'])): 
         $error_msg = '';
@@ -301,6 +389,17 @@ $total_roles = $total_row['total'];
 
     <!-- Role List -->
     <div class="content-card">
+        <!-- Page Header with Add Button -->
+        <div class="page-header">
+            <div>
+                <h1>Role List</h1>
+                <p>Manage all system roles</p>
+            </div>
+            <button class="btn-primary" onclick="openModal()">
+                <i class="fas fa-plus"></i> Add New Role
+            </button>
+        </div>
+
         <div class="table-responsive">
             <table>
                 <thead>
@@ -402,7 +501,90 @@ $total_roles = $total_row['total'];
     </div>
 </div>
 
+<!-- ============================================================ -->
+<!-- ADD ROLE MODAL (NEW) -->
+<!-- ============================================================ -->
+<div class="modal-overlay" id="addRoleModal">
+    <div class="modal-box">
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+        <h2><i class="fas fa-user-plus" style="color:#3b82f6;"></i> Add New Role</h2>
+        <form method="POST" action="" onsubmit="return validateForm()">
+            <div style="margin-bottom:1rem;">
+                <label style="display:block;font-weight:600;margin-bottom:0.3rem;color:<?php echo $theme == 'dark' ? '#d1d5db' : '#475569'; ?>;">
+                    Role Name <span style="color:#ef4444;">*</span>
+                </label>
+                <input type="text" name="role_name" id="role_name" class="form-control" placeholder="e.g., Department Head" required oninput="generateSlug()">
+            </div>
+            <div style="margin-bottom:1rem;">
+                <label style="display:block;font-weight:600;margin-bottom:0.3rem;color:<?php echo $theme == 'dark' ? '#d1d5db' : '#475569'; ?>;">
+                    Role Slug <span style="color:#ef4444;">*</span>
+                </label>
+                <input type="text" name="role_slug" id="role_slug" class="form-control" placeholder="e.g., department-head" required>
+                <small style="color:#94a3b8;font-size:0.7rem;">Unique identifier (lowercase, hyphens only)</small>
+            </div>
+            <div style="margin-bottom:1.5rem;">
+                <label style="display:block;font-weight:600;margin-bottom:0.3rem;color:<?php echo $theme == 'dark' ? '#d1d5db' : '#475569'; ?>;">
+                    Description
+                </label>
+                <textarea name="description" class="form-control" rows="2" placeholder="Optional description"></textarea>
+            </div>
+            <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                <button type="submit" name="add_role" class="btn-primary">
+                    <i class="fas fa-save"></i> Create Role
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
+// Modal controls
+function openModal() {
+    document.getElementById('addRoleModal').classList.add('active');
+    document.getElementById('role_name').focus();
+}
+function closeModal() {
+    document.getElementById('addRoleModal').classList.remove('active');
+}
+// Close modal on overlay click
+document.getElementById('addRoleModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+// Auto-generate slug from name
+function generateSlug() {
+    const name = document.getElementById('role_name').value;
+    const slugInput = document.getElementById('role_slug');
+    // Only auto-generate if slug is empty or was auto-generated (not manually edited)
+    if (!slugInput.dataset.userModified) {
+        const slug = name
+            .toLowerCase()
+            .replace(/[^a-z0-9\s-]/g, '')
+            .replace(/\s+/g, '-')
+            .replace(/-+/g, '-');
+        slugInput.value = slug;
+    }
+}
+// Mark slug as user-modified when user types in it
+document.getElementById('role_slug').addEventListener('input', function() {
+    this.dataset.userModified = 'true';
+});
+
+// Validate form before submit
+function validateForm() {
+    const name = document.getElementById('role_name').value.trim();
+    const slug = document.getElementById('role_slug').value.trim();
+    if (!name || !slug) {
+        alert('Role Name and Slug are required.');
+        return false;
+    }
+    if (!/^[a-z0-9-]+$/.test(slug)) {
+        alert('Slug can only contain lowercase letters, numbers, and hyphens.');
+        return false;
+    }
+    return true;
+}
 
 function toggleTheme() {
     const body = document.body;

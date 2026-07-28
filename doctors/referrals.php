@@ -639,13 +639,7 @@ if (isset($_POST['email'])) {
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="space-y-2">
-                                        <label class="text-sm font-medium">Patient Image</label>
-                                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition">
-                                            <input type="file" name="patient_image" accept="image/*">
-                                            <p id="image_file_name" class="mt-2 text-sm text-green-600"></p>
-                                        </div>
-                                    </div>
+                                    
                                     <div class="space-y-2">
                                         <label class="text-sm font-medium">Hospital Name</label>
                                         <input type="text"
@@ -657,6 +651,7 @@ if (isset($_POST['email'])) {
                                             <label>Referral Doctor</label>
                                             <input type="text"
                                                 name="referral_doctor"
+                                                placeholder="Enter referral doctor's name"
                                                 class="w-full h-10 rounded-md border">
                                         </div>
 
@@ -664,15 +659,25 @@ if (isset($_POST['email'])) {
                                             <label>Referral Hospital</label>
                                             <input type="text"
                                                 name="referral_hospital"
+                                                placeholder="Enter referral hospital"
                                                 class="w-full h-10 rounded-md border">
                                         </div>
 
                                         <div class="space-y-2">
                                             <label>Referral Reason</label>
                                             <textarea name="referral_reason"
+                                            
                                                     class="w-full rounded-md border"></textarea>
                                         </div>
                                 </div>
+
+                                <div class="space-y-2">
+                                        <label class="text-sm font-medium">Patient Image</label>
+                                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition">
+                                            <input type="file" name="patient_image" accept="image/*">
+                                            <p id="image_file_name" class="mt-2 text-sm text-green-600"></p>
+                                        </div>
+                                    </div>
                             </div>
 
                             <div class="mt-8 flex justify-between">

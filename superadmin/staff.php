@@ -95,6 +95,22 @@ $result = mysqli_query($conn, $query);
         }
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 30px -10px rgba(59, 130, 246, 0.5); }
         
+        .btn-success {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            border: none;
+            padding: 0.6rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+        }
+        .btn-success:hover { transform: translateY(-2px); box-shadow: 0 10px 30px -10px rgba(34, 197, 94, 0.5); }
+        
         .btn-secondary {
             padding: 0.6rem 1.5rem;
             border-radius: 10px;
@@ -158,6 +174,30 @@ $result = mysqli_query($conn, $query);
 
         .main-content { margin-left: 18%; margin-top: 2%; padding: 2rem; }
         @media(max-width: 768px) { .main-content { margin-left: 0 !important; padding: 1rem; } }
+
+        /* Page Header */
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .page-header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: <?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>;
+        }
+        .page-header .subtitle {
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+        .page-header .header-actions {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
     </style>
 </head>
 <body class="<?php echo $theme; ?>">
@@ -170,12 +210,33 @@ $result = mysqli_query($conn, $query);
         <!-- Header -->
         <?php include 'header.php'; ?>
 
-        <a href="dashboard.php" class="btn btn-primary" style="margin-bottom:2%;">
-    <i class="fas fa-arrow-left"></i> Back
-</a>
+        <!-- Page Header -->
+        <div class="page-header">
+            <div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <a href="dashboard.php" class="btn-secondary" style="padding: 0.5rem 0.8rem;">
+                        <i class="fas fa-arrow-left"></i>
+                    </a>
+                    <div>
+                        <h1><i class="fas fa-users-cog text-blue-500 mr-2"></i> Staff Management</h1>
+                        <p class="subtitle">Manage hospital staff members and their assigned roles</p>
+                    </div>
+                </div>
+            </div>
+            <div class="header-actions">
+                <!-- Add Staff Button -->
+                <a href="add_staff.php" class="btn-success">
+                    <i class="fas fa-plus"></i> Add Staff
+                </a>
+            </div>
+        </div>
        
        <?php if (!empty($success)): ?>
             <div class="success-msg"><i class="fas fa-check-circle mr-2"></i> <?php echo $success; ?></div>
+        <?php endif; ?>
+        
+        <?php if (!empty($error)): ?>
+            <div class="error-msg"><i class="fas fa-exclamation-circle mr-2"></i> <?php echo $error; ?></div>
         <?php endif; ?>
 
         <!-- Filters -->
@@ -205,6 +266,16 @@ $result = mysqli_query($conn, $query);
 
         <!-- Staff List -->
         <div class="content-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                <div>
+                    <span style="font-weight: 600; color: <?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>;">
+                        <i class="fas fa-users mr-2"></i> Total Staff: <?php echo mysqli_num_rows($result); ?>
+                    </span>
+                </div>
+                <div style="font-size: 0.8rem; color: #94a3b8;">
+                    <i class="fas fa-sync-alt mr-1"></i> Live updates
+                </div>
+            </div>
             <div class="table-responsive">
                 <table>
                     <thead>
@@ -214,7 +285,7 @@ $result = mysqli_query($conn, $query);
                             <th>Role / Designation</th>
                             <th>Hospital</th>
                             <th>Status</th>
-                         
+                            <th style="text-align: center;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -259,7 +330,32 @@ $result = mysqli_query($conn, $query);
                                             <?php echo ucfirst($row['status']); ?>
                                         </span>
                                     </td>
-                                    
+                                    <td style="text-align: center;">
+                                        <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                                            <!-- View Button -->
+                                            <a href="view_staff.php?id=<?php echo $row['staff_id']; ?>" 
+                                               class="btn-secondary" 
+                                               style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" 
+                                               title="View Staff">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <!-- Edit Button -->
+                                            <a href="edit_staff.php?id=<?php echo $row['staff_id']; ?>" 
+                                               class="btn-primary" 
+                                               style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" 
+                                               title="Edit Staff">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <!-- Delete Button -->
+                                            <a href="delete_staff.php?id=<?php echo $row['staff_id']; ?>" 
+                                               class="btn-secondary" 
+                                               style="padding: 0.3rem 0.6rem; font-size: 0.75rem; border-color: #ef4444; color: #ef4444;" 
+                                               title="Delete Staff"
+                                               onclick="return confirm('Are you sure you want to delete this staff member?')">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        </div>
+                                    </td>
                                 </tr>
                             <?php endwhile; ?>
                         <?php else: ?>
@@ -267,11 +363,19 @@ $result = mysqli_query($conn, $query);
                                 <td colspan="6" style="padding: 3rem; text-align: center; color: #94a3b8;">
                                     <i class="fas fa-users-cog mb-3" style="font-size: 2.5rem; opacity: 0.2;"></i>
                                     <p>No staff members found.</p>
+                                    <a href="add_staff.php" class="btn-success" style="margin-top: 1rem; display: inline-flex;">
+                                        <i class="fas fa-plus"></i> Add New Staff
+                                    </a>
                                 </td>
                             </tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
+            </div>
+            <!-- Footer Stats -->
+            <div style="margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>; display: flex; justify-content: space-between; font-size: 0.8rem; color: #94a3b8; flex-wrap: wrap; gap: 0.5rem;">
+                <span>Showing <?php echo mysqli_num_rows($result); ?> staff member(s)</span>
+                <span>Last updated: <?php echo date('d M Y, h:i A'); ?></span>
             </div>
         </div>
     </div>

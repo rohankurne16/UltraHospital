@@ -1,5 +1,6 @@
 <?php
 session_start();
+
 include "../config/hospital.php";
 
 if (!isset($_SESSION['id'])) {
@@ -7,19 +8,19 @@ if (!isset($_SESSION['id'])) {
     exit();
 }
 
-$doctor_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+$doctor_id = $_SESSION['doctor_id'];
 $message = "";
 $error = "";
 
 if ($doctor_id <= 0) {
-    header("location: update_doctor.php");
+    header("location: doctors.php");
     exit();
 }
 
 $sql = "SELECT * FROM doctor WHERE doctor_id = '$doctor_id' AND (delete_flag=0 OR delete_flag IS NULL)";
 $result = $conn->query($sql);
 if ($result->num_rows == 0) {
-    header("location: update_doctor.php");
+    header("location: update_adminprofile.php");
     exit();
 }
 $doctor = $result->fetch_assoc();
@@ -84,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
         if (mysqli_query($conn, $sql2)) {
             echo "<script>
                 alert('Doctor updated successfully!');
-                window.location.href='view_doctor.php?id=$id';
+                window.location.href='dashboard.php';
             </script>";
             exit();
         } else {
@@ -114,10 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
             font-family: 'Inter', sans-serif; 
             background: #f8fafc; 
         }
-        .sidebar-active { 
-            background-color: #f3f4f6; 
-            color: #111827; 
-        }
+      
         .main-content { 
             margin-left: 260px; 
             padding: 30px 40px; 
@@ -402,13 +400,13 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
 </head>
 <body>
     <div class="flex min-h-screen flex-col bg-gray-50">
-        <?php include 'header.php'; ?>
+        <?php include '../header.php'; ?>
         <div class="flex flex-1 items-start">
-            <?php include 'Sidebar.php'; ?>
+            <?php include '../Sidebar.php'; ?>
             <main class="main-content w-full">
                 <div class="form-container w-full">
                     <div class="flex items-center gap-4 mb-6">
-                        <a href="view_doctor.php?id=<?php echo $doctor_id; ?>" class="back-btn">
+                        <a href="dashboard.php" class="back-btn">
                             <i class="fas fa-arrow-left"></i>
                         </a>
                         <div class="header-title">
@@ -527,7 +525,7 @@ if ($_SERVER['REQUEST_METHOD'] == "POST") {
 
                                 <div class="btn-actions">
                                     <button type="submit" class="btn-primary"><i class="fas fa-save"></i> Update Doctor</button>
-                                    <a href="doctor_profile.php?id=<?php echo $doctor_id; ?>" class="btn-secondary"><i class="fas fa-times"></i> Cancel</a>
+                                    <a href="update_adminprofile.php?id=<?php echo $doctor_id; ?>" class="btn-secondary"><i class="fas fa-times"></i> Cancel</a>
                                 </div>
                             </form>
                         </div>

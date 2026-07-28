@@ -9,18 +9,19 @@
     }
 
     if (!isset($_GET['id']) || empty($_GET['id'])) {
-        header("Location: prescription_list.php");
+        header("Location: prescriptions.php");
         exit();
     }
 
     $prescription_id = mysqli_real_escape_string($conn, $_GET['id']);
     
-   
-    $prescription_query = "SELECT pr.*, p.patient_name, p.email, p.mobile, p.address, p.age, p.gender, d.doctor_name, d.department, d.specialization 
-                          FROM prescriptions pr 
-                          JOIN patients p ON pr.patient_id = p.patient_id 
-                          JOIN doctor d ON pr.doctor_id = d.doctor_id 
-                          WHERE pr.id = '$prescription_id'";
+    $prescription_query = "SELECT pm.*, p.patient_name, p.email, p.mobile, p.address,
+       p.age, p.gender,
+       d.doctor_name, d.department, d.specialization
+FROM prescription_master pm
+JOIN patients p ON pm.patient_id = p.patient_id
+JOIN doctor d ON pm.doctor_id = d.doctor_id
+WHERE pm.prescription_id='$prescription_id';";
     
     $result = $conn->query($prescription_query);
     
@@ -30,6 +31,24 @@
     }
 
     $presc = $result->fetch_assoc();
+    $patient_id = $presc["patient_id"];
+    $doctor_id = $presc["doctor_id"];
+    $prescription_date = date('Y-m-d', strtotime($presc['created_at']));
+    
+    $all_medicines_query = "
+SELECT *
+FROM prescription_details
+WHERE prescription_id='$prescription_id'
+ORDER BY detail_id ASC";
+    
+    $medicines_result = $conn->query($all_medicines_query);
+    $all_medicines = [];
+    
+    if ($medicines_result && $medicines_result->num_rows > 0) {
+        while ($row = $medicines_result->fetch_assoc()) {
+            $all_medicines[] = $row;
+        }
+    }
 ?>
 
 <!DOCTYPE html>
@@ -37,7 +56,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prescription #<?php echo $presc['id']; ?> - <?php echo $hospital['hospital_name'] ?></title>
+    <title>Prescription #<?php echo $presc['prescription_id']; ?> - <?php echo $hospital['hospital_name'] ?></title>
     <link rel="icon" type="image/png" href="../<?php echo $hospital['hospital_logo'] ?>">
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -58,19 +77,24 @@
 <body class="bg-gray-50 text-neutral-900">
 
     <div class="flex min-h-screen flex-col">
-         <div class="no-print"><?php include('header.php') ?></div>
+         <div class="no-print"><?php include('../header.php') ?></div>
         
         <div class="flex flex-1 items-start">
-            <div class="no-print"><?php include('Sidebar.php') ?></div>
+            <div class="no-print"><?php include('../Sidebar.php') ?></div>
             <main class="main-content flex-1 p-4 xl:p-8 w-full">
                 <div class="max-w-4xl mx-auto">
                     
                     <div class="flex items-center justify-between mb-8 no-print">
-                        <a href="prescription_list.php" class="text-gray-500 hover:text-gray-700 flex items-center gap-2 transition-colors">
+                        <a href="prescriptions.php" class="text-gray-500 hover:text-gray-700 flex items-center gap-2 transition-colors">
                             <i data-lucide="arrow-left" class="w-5 h-5"></i>
                             Back to Prescriptions
                         </a>
                         <div class="flex gap-3">
+                             <button onclick="window.location.href='view_prescription_history.php?id=<?php echo $patient_id ?>'" class="bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-gray-50 transition-all shadow-sm">
+                                <i data-lucide="clock" class="w-4 h-4"></i>
+                                View History
+                            </button>
+
                             <button onclick="window.print()" class="bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-gray-50 transition-all shadow-sm">
                                 <i data-lucide="printer" class="w-4 h-4"></i>
                                 Print Prescription
@@ -96,7 +120,7 @@
                             <div class="md:text-right">
                                 <h1 class="text-4xl font-black text-gray-100 mb-4 uppercase select-none">Prescription</h1>
                                 <p class="text-sm font-bold uppercase tracking-widest text-gray-400 mb-1">Record Number</p>
-                                <p class="font-black text-xl text-blue-600 mb-4">#PRE-<?php echo str_pad($presc['id'], 5, '0', STR_PAD_LEFT); ?></p>
+                                <p class="font-black text-xl text-blue-600 mb-4">#PRE-<?php echo str_pad($presc['prescription_id'], 5, '0', STR_PAD_LEFT); ?></p>
                                 <p class="text-sm font-bold uppercase tracking-widest text-gray-400 mb-1">Date Prescribed</p>
                                 <p class="font-bold text-gray-900"><?php echo date('F d, Y', strtotime($presc['created_at'])); ?></p>
                             </div>
@@ -122,6 +146,7 @@
 
                         <!-- Medication Table -->
                         <div class="p-8 lg:p-12">
+                            <h3 class="text-sm font-bold uppercase tracking-widest text-gray-400 mb-6">Prescribed Medicines</h3>
                             <table class="w-full text-left mb-8">
                                 <thead>
                                     <tr class="border-b-2 border-gray-100 text-xs font-bold uppercase text-gray-400">
@@ -132,15 +157,23 @@
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-50">
-                                    <tr>
-                                        <td class="py-6">
-                                            <p class="font-bold text-lg text-blue-600"><?php echo htmlspecialchars($presc['medicine_name']); ?></p>
-                                            <p class="text-sm text-gray-500 mt-1 italic"><?php echo htmlspecialchars($presc['timing']); ?></p>
-                                        </td>
-                                        <td class="py-6 text-center font-bold text-gray-700"><?php echo htmlspecialchars($presc['dosage']); ?></td>
-                                        <td class="py-6 text-center font-bold text-gray-700"><?php echo htmlspecialchars($presc['frequency']); ?></td>
-                                        <td class="py-6 text-right font-bold text-gray-700"><?php echo htmlspecialchars($presc['days']); ?> Days</td>
-                                    </tr>
+                                    <?php if (count($all_medicines) > 0): ?>
+                                        <?php foreach ($all_medicines as $medicine): ?>
+                                            <tr>
+                                                <td class="py-6">
+                                                    <p class="font-bold text-lg text-blue-600"><?php echo htmlspecialchars($medicine['medicine_name']); ?></p>
+                                                    <p class="text-sm text-gray-500 mt-1 italic"><?php echo htmlspecialchars($medicine['timing']); ?></p>
+                                                </td>
+                                                <td class="py-6 text-center font-bold text-gray-700"><?php echo htmlspecialchars($medicine['dosage']); ?></td>
+                                                <td class="py-6 text-center font-bold text-gray-700"><?php echo htmlspecialchars($medicine['frequency']); ?></td>
+                                                <td class="py-6 text-right font-bold text-gray-700"><?php echo htmlspecialchars($medicine['days']); ?> Days</td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <tr>
+                                            <td colspan="4" class="py-6 text-center text-gray-500">No medicines found for this prescription.</td>
+                                        </tr>
+                                    <?php endif; ?>
                                 </tbody>
                             </table>
 
@@ -149,7 +182,14 @@
                                 <h3 class="text-sm font-bold uppercase tracking-widest text-gray-400 mb-3">Advice & Remarks</h3>
                                 <div class="p-5 bg-blue-50 rounded-xl border border-blue-100">
                                     <p class="text-sm text-gray-700 leading-relaxed italic">
-                                        "<?php echo $presc['advice'] ? htmlspecialchars($presc['advice']) : 'No additional advice provided.'; ?>"
+                                        "<?php 
+                                            // Get advice from the first medicine record (they should all have the same advice for the same prescription date)
+                                            $advice_text = '';
+                                            if (count($all_medicines) > 0) {
+                                                $advice_text = $all_medicines[0]['advice'];
+                                            }
+                                            echo $advice_text ? htmlspecialchars($advice_text) : 'No additional advice provided.'; 
+                                        ?>"
                                     </p>
                                 </div>
                             </div>

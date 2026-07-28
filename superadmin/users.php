@@ -293,8 +293,6 @@ $result = mysqli_query($conn, $query);
         <a href="dashboard.php" class="back-btn">
             <i class="fas fa-arrow-left"></i> Back to Dashboard
         </a>
-        
-        <!-- Success/Error Messages -->
       
         
         <!-- Filters -->

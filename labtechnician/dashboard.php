@@ -1,7 +1,58 @@
 <?php
 session_start();
 include "../config/hospital.php";
-
+// ========== HELPER: GET DOCTOR NAME ==========
+function getDoctorName($conn, $doctor_id, $order_data = []) {
+    if (empty($doctor_id)) {
+        return 'Not Assigned';
+    }
+    
+    // Check if doctor name is already in order data
+    if (!empty($order_data['doctor_name'])) {
+        $name = $order_data['doctor_name'];
+        // Remove any existing "Dr" or "Dr." prefix
+        $name = preg_replace('/^Dr\.?\s*/i', '', $name);
+        // Add single "Dr. " prefix
+        return 'Dr. ' . $name;
+    }
+    
+    // Try to get from doctor table
+    $sql = "SELECT doctor_name, department, qualification 
+            FROM doctor 
+            WHERE doctor_id = $doctor_id 
+            AND (delete_flag = 0 OR delete_flag IS NULL) 
+            LIMIT 1";
+    $result = $conn->query($sql);
+    
+    if ($result && $result->num_rows > 0) {
+        $doctor = $result->fetch_assoc();
+        $name = $doctor['doctor_name'] ?? '';
+        // Remove any existing "Dr" or "Dr." prefix
+        $name = preg_replace('/^Dr\.?\s*/i', '', $name);
+        // Add single "Dr. " prefix
+        return 'Dr. ' . $name;
+    }
+    
+    // Try staff table
+    $sql = "SELECT name, role 
+            FROM staff 
+            WHERE staff_id = $doctor_id 
+            AND role = 'Doctor'
+            AND (delete_flag = 0 OR delete_flag IS NULL) 
+            LIMIT 1";
+    $result = $conn->query($sql);
+    
+    if ($result && $result->num_rows > 0) {
+        $staff = $result->fetch_assoc();
+        $name = $staff['name'] ?? '';
+        // Remove any existing "Dr" or "Dr." prefix
+        $name = preg_replace('/^Dr\.?\s*/i', '', $name);
+        // Add single "Dr. " prefix
+        return 'Dr. ' . $name;
+    }
+    
+    return 'Not Assigned';
+}
 
 // Check if user is logged in
 if (!isset($_SESSION["id"]) || empty($_SESSION["id"])) {
@@ -95,17 +146,17 @@ $rejected_orders = $result_rejected ? $result_rejected->fetch_assoc()['total'] :
 // ============================================================
 // FIX: GET ORDERS - DIRECT QUERY
 // ============================================================
-// ============================================================
-// FIX: GET ORDERS - DIRECT QUERY
-// ============================================================
+// ========== GET ORDERS - IMPROVED DOCTOR FETCH ==========
 $orders = [];
 
-// Direct query - doctor name with department
+// 🔽 IMPROVED: Better doctor fetching with multiple fallbacks
 $sql_orders = "SELECT o.*, p.patient_name, p.mobile as patient_mobile, p.gender, 
-               d.doctor_name, d.department
+               d.doctor_name, d.department, d.qualification,
+               s.name as staff_doctor_name
                FROM lab_orders o
-               LEFT JOIN patients p ON o.patient_id = p.patient_id
-               LEFT JOIN doctor d ON o.doctor_id = d.doctor_id
+               LEFT JOIN patients p ON o.patient_id = p.patient_id AND (p.delete_flag = 0 OR p.delete_flag IS NULL)
+               LEFT JOIN doctor d ON o.doctor_id = d.doctor_id AND (d.delete_flag = 0 OR d.delete_flag IS NULL)
+               LEFT JOIN staff s ON o.doctor_id = s.staff_id AND s.role = 'Doctor' AND (s.delete_flag = 0 OR s.delete_flag IS NULL)
                WHERE o.technician_id = $user_id AND o.delete_flag = 0
                ORDER BY o.order_id DESC";
 
@@ -118,15 +169,46 @@ if ($result_orders && $result_orders->num_rows > 0) {
         $test_count_result = $conn->query($test_count_sql);
         $row['test_count'] = $test_count_result ? $test_count_result->fetch_assoc()['count'] : 0;
         
-        // Format doctor name with department
+        // 🔽 IMPROVED: Better doctor name formatting with fallbacks
+        $doctor_display = 'Not Assigned';
+        
+        // Try doctor table first
         if (!empty($row['doctor_name'])) {
+            $doctor_display = $row['doctor_name'];
             if (!empty($row['department'])) {
-                $row['doctor_name'] = $row['doctor_name'] . ' (' . $row['department'] . ')';
+                $doctor_display .= ' (' . $row['department'] . ')';
             }
-        } else {
-            $row['doctor_name'] = 'Not Assigned';
+            if (!empty($row['qualification'])) {
+                // Remove duplicate "Dr" if exists
+                $doctor_display = preg_replace('/^Dr\.?\s*/i', '', $doctor_display);
+                $doctor_display = 'Dr. ' . $doctor_display;
+            }
+        } 
+        // Try staff table as fallback
+        else if (!empty($row['staff_doctor_name'])) {
+            $doctor_display = $row['staff_doctor_name'];
+            // Remove duplicate "Dr" if exists
+            $doctor_display = preg_replace('/^Dr\.?\s*/i', '', $doctor_display);
+            $doctor_display = 'Dr. ' . $doctor_display;
+        }
+        // Try to get doctor from session or other source
+        else {
+            // Check if we can get doctor name from the order creator
+            if (!empty($row['created_by'])) {
+                $creator_sql = "SELECT doctor_name FROM doctor WHERE register_id = " . $row['created_by'] . " AND (delete_flag = 0 OR delete_flag IS NULL) LIMIT 1";
+                $creator_result = $conn->query($creator_sql);
+                if ($creator_result && $creator_result->num_rows > 0) {
+                    $creator = $creator_result->fetch_assoc();
+                    if (!empty($creator['doctor_name'])) {
+                        $doctor_display = $creator['doctor_name'];
+                        $doctor_display = preg_replace('/^Dr\.?\s*/i', '', $doctor_display);
+                        $doctor_display = 'Dr. ' . $doctor_display;
+                    }
+                }
+            }
         }
         
+        $row['doctor_display'] = $doctor_display;
         $orders[] = $row;
     }
 }
@@ -135,11 +217,12 @@ if ($result_orders && $result_orders->num_rows > 0) {
 // FALLBACK: If no orders found, try with all orders
 // ============================================================
 if (empty($orders)) {
+    // 🔽 FIXED: Also apply delete_flag condition here
     $fallback_sql = "SELECT o.*, p.patient_name, p.mobile as patient_mobile, p.gender,
                      d.doctor_name, d.department
                      FROM lab_orders o
                      LEFT JOIN patients p ON o.patient_id = p.patient_id
-                     LEFT JOIN doctor d ON o.doctor_id = d.doctor_id
+                     LEFT JOIN doctor d ON o.doctor_id = d.doctor_id AND (d.delete_flag = 0 OR d.delete_flag IS NULL)
                      WHERE o.delete_flag = 0
                      ORDER BY o.order_id DESC";
     $fallback_result = $conn->query($fallback_sql);
@@ -249,7 +332,6 @@ if (isset($_POST['save_result'])) {
     exit();
 }
 
-// ========== GENERATE REPORT ==========
 // ========== GENERATE REPORT ==========
 if (isset($_POST['generate_report'])) {
     $order_id = intval($_POST['order_id'] ?? 0);
@@ -635,24 +717,7 @@ if (isset($_POST['generate_report'])) {
                 <?php endif; ?>
 
                 <!-- Quick Actions -->
-                <div class="quick-actions">
-                    <div class="quick-action-btn" onclick="switchTab('orders')">
-                        <i class="fas fa-list text-blue-500"></i>
-                        <div class="label">View Orders</div>
-                    </div>
-                    <div class="quick-action-btn" onclick="switchTab('pending')">
-                        <i class="fas fa-edit text-yellow-500"></i>
-                        <div class="label">Pending Results</div>
-                    </div>
-                    <div class="quick-action-btn" onclick="switchTab('completed')">
-                        <i class="fas fa-check-circle text-green-500"></i>
-                        <div class="label">Completed</div>
-                    </div>
-                    <div class="quick-action-btn" onclick="window.location.href='../lab_reports.php'">
-                        <i class="fas fa-file-alt text-purple-500"></i>
-                        <div class="label">My Reports</div>
-                    </div>
-                </div>
+           
 
                 <!-- Statistics -->
                 <div class="stat-grid">
@@ -727,7 +792,7 @@ if (isset($_POST['generate_report'])) {
         <?php echo htmlspecialchars($order['patient_name'] ?? 'N/A'); ?>
         <div class="text-xs text-gray-500"><?php echo htmlspecialchars($order['patient_mobile'] ?? ''); ?></div>
     </td>
-    <td><?php echo htmlspecialchars($order['doctor_name'] ?? 'N/A'); ?></td>
+  <td><?php echo htmlspecialchars($order['doctor_display'] ?? 'N/A'); ?></td>
     <td><span class="badge-count"><?php echo $order['test_count']; ?> tests</span></td>
     <td>
         <?php 
@@ -779,10 +844,7 @@ if (isset($_POST['generate_report'])) {
                         class="btn-success btn-sm" title="Generate Report">
                     <i class="fas fa-file-alt"></i>
                 </button>
-                <button onclick="event.stopPropagation(); window.location.href='../print_report.php?order_id=<?php echo $order['order_id']; ?>'" 
-                        class="print-btn btn-sm" title="Print Report">
-                    <i class="fas fa-print"></i>
-                </button>
+             
             <?php endif; ?>
         </div>
     </td>
@@ -891,7 +953,7 @@ if (isset($_POST['generate_report'])) {
                                                     <td><?php echo $counter++; ?></td>
                                                     <td><span class="test-code-badge"><?php echo htmlspecialchars($order['order_no']); ?></span></td>
                                                     <td><?php echo htmlspecialchars($order['patient_name'] ?? 'N/A'); ?></td>
-                                                    <td><?php echo htmlspecialchars($order['doctor_name'] ?? 'N/A'); ?></td>
+                                       <td><?php echo htmlspecialchars($order['doctor_display'] ?? 'N/A'); ?></td>
                                                     <td><span class="badge-count"><?php echo $order['test_count']; ?> tests</span></td>
                                                     <td class="actions-cell">
                                                         <div class="flex items-center gap-1 flex-wrap">
@@ -899,10 +961,7 @@ if (isset($_POST['generate_report'])) {
                                                                     class="btn-success btn-sm">
                                                                 <i class="fas fa-file-alt"></i> Generate Report
                                                             </button>
-                                                            <button onclick="window.location.href='../print_report.php?order_id=<?php echo $order['order_id']; ?>'" 
-                                                                    class="print-btn btn-sm">
-                                                                <i class="fas fa-print"></i> Print
-                                                            </button>
+                                                            
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -966,53 +1025,58 @@ if (isset($_POST['generate_report'])) {
     </div>
 
     <!-- ========== GENERATE REPORT MODAL ========== -->
-    <div class="modal" id="reportModal">
-        <div class="modal-content" style="max-width: 900px;">
-            <div class="modal-header">
-                <h2><i class="fas fa-file-alt mr-2 text-green-500"></i> Generate Report with Test Documents</h2>
-                <button class="modal-close" onclick="closeModal('reportModal')">&times;</button>
-            </div>
-            <form method="POST" action="dashboard.php" enctype="multipart/form-data">
-                <input type="hidden" name="order_id" id="report_order_id">
-                
-                <!-- Test Count Info -->
-                <div class="bg-blue-50 p-3 rounded-lg mb-4">
-                    <p class="text-sm text-blue-700">
-                        <i class="fas fa-info-circle mr-1"></i> 
-                        Upload separate document for each test. <strong id="testCountDisplay">0</strong> test(s) found.
-                    </p>
-                </div>
-                
-                <div class="form-group">
-                    <label>Report Date</label>
-                    <input type="date" class="form-input" name="report_date" value="<?php echo date('Y-m-d'); ?>">
-                </div>
+    <!-- ========== GENERATE REPORT MODAL ========== -->
+<div class="modal" id="reportModal">
+    <div class="modal-content" style="max-width: 900px;">
+        <div class="modal-header">
+            <h2><i class="fas fa-file-alt mr-2 text-green-500"></i> Generate Report with Test Documents</h2>
+            <button class="modal-close" onclick="closeModal('reportModal')">&times;</button>
+        </div>
+        <form method="POST" action="dashboard.php" enctype="multipart/form-data">
+            <input type="hidden" name="order_id" id="report_order_id">
 
-                <!-- Dynamic Test File Uploads -->
-                <div id="testUploadContainer" class="mb-4">
-                    <h4 class="font-semibold text-gray-700 mb-2">Upload Documents for Each Test</h4>
-                    <div id="testUploadList" class="space-y-3">
-                        <!-- Will be populated by JavaScript -->
-                        <div class="text-gray-500 text-center py-4">
-                            <i class="fas fa-spinner fa-spin mr-2"></i> Loading tests...
-                        </div>
+            <!-- Test Count Info -->
+            <div class="bg-blue-50 p-3 rounded-lg mb-4">
+                <p class="text-sm text-blue-700">
+                    <i class="fas fa-info-circle mr-1"></i> 
+                    Upload a document for each test below. 
+                    <strong id="testCountDisplay">0</strong> test(s) found.
+                </p>
+            </div>
+
+            <!-- Report Date -->
+            <div class="form-group">
+                <label>Report Date</label>
+                <input type="date" class="form-input" name="report_date" value="<?php echo date('Y-m-d'); ?>">
+            </div>
+
+            <!-- Dynamic Test File Uploads -->
+            <div id="testUploadContainer" class="mb-4">
+                <h4 class="font-semibold text-gray-700 mb-2">Upload Documents for Each Test</h4>
+                <div id="testUploadList" class="space-y-3">
+                    <!-- Will be populated by JavaScript -->
+                    <div class="text-gray-500 text-center py-4">
+                        <i class="fas fa-spinner fa-spin mr-2"></i> Loading tests...
                     </div>
                 </div>
+            </div>
 
-                <div class="form-group">
-                    <label>General Remarks (Optional)</label>
-                    <textarea class="form-input" name="report_remarks" rows="2" placeholder="Additional notes for all tests..."></textarea>
-                </div>
+            <!-- General Remarks -->
+            <div class="form-group">
+                <label>General Remarks (Optional)</label>
+                <textarea class="form-input" name="report_remarks" rows="2" placeholder="Additional notes for all tests..."></textarea>
+            </div>
 
-                <div class="modal-footer">
-                    <button type="button" class="btn-outline" onclick="closeModal('reportModal')">Cancel</button>
-                    <button type="submit" name="generate_report" class="btn-success">
-                        <i class="fas fa-save"></i> Generate Report
-                    </button>
-                </div>
-            </form>
-        </div>
+            <!-- Footer Buttons -->
+            <div class="modal-footer">
+                <button type="button" class="btn-outline" onclick="closeModal('reportModal')">Cancel</button>
+                <button type="submit" name="generate_report" class="btn-success">
+                    <i class="fas fa-save"></i> Generate Report
+                </button>
+            </div>
+        </form>
     </div>
+</div>
 
     <script>
         // ========== TAB SWITCHING ==========
@@ -1134,4 +1198,4 @@ function viewOrder(orderId) {
 }
     </script>
 </body>
-</html> 
+</html>

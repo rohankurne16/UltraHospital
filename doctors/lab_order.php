@@ -9,16 +9,25 @@ if (!isset($_SESSION["id"]) || empty($_SESSION["id"])) {
 
 $user_id = $_SESSION["id"];
 $hid = $_SESSION["hospital_id"];
+$hname =$_SESSION["hospital_name"];
+
+$hlogo = $_SESSION["hospital_logo"];
+
+
+
 
 // ========== GET DOCTOR INFO ==========
 // ========== GET DOCTOR INFO ==========
 $doctor = [];
 
 // Try doctor table first
-$doctor_sql = "SELECT doctor_id, doctor_name, qualification, mobile, email 
-               FROM doctor 
-               WHERE doctor_id = $user_id AND hospital_id = $hid";
+$doctor_sql = "SELECT doctor_id, doctor_name, qualification, mobile, email
+FROM doctor
+WHERE register_id = '$user_id'
+AND hospital_id = '$hid'
+LIMIT 1";
 $doctor_result = $conn->query($doctor_sql);
+
 
 if ($doctor_result && $doctor_result->num_rows > 0) {
     $doctor = $doctor_result->fetch_assoc();
@@ -234,6 +243,22 @@ if ($result_doctor && $result_doctor->num_rows > 0) {
     }
 }
 
+$register_id = $_SESSION['id'];
+
+$doctor_id = 0;
+
+$sqlDoctor = "SELECT doctor_id
+              FROM doctor
+              WHERE register_id = '$register_id'
+              AND hospital_id = '$hid'
+              LIMIT 1";
+
+$resultDoctor = mysqli_query($conn, $sqlDoctor);
+
+if ($resultDoctor && mysqli_num_rows($resultDoctor) > 0) {
+    $doctorData = mysqli_fetch_assoc($resultDoctor);
+    $doctor_id = $doctor['doctor_id'];
+}
 // Search patients (AJAX)
 if (isset($_GET['search_patient'])) {
 
@@ -241,7 +266,7 @@ if (isset($_GET['search_patient'])) {
 
     $sql = "SELECT patient_id, patient_name, mobile, gender, date_of_birth
             FROM patients
-            WHERE hospital_id = $hid
+            WHERE hospital_id = $hid AND doctor_id = $doctor_id
             AND (delete_flag = 0 OR delete_flag IS NULL)
             AND (patient_name LIKE '%$search%' OR mobile LIKE '%$search%')
             LIMIT 10";
@@ -266,8 +291,8 @@ if (isset($_GET['search_patient'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($hospital_name); ?> - Create Lab Order</title>
-    <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($hospital_logo); ?>">
+    <title><?php echo $hname; ?> - Create Lab Order</title>
+    <link rel="icon" type="image/png" href="../<?php echo htmlspecialchars($hlogo); ?>">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -281,7 +306,24 @@ if (isset($_GET['search_patient'])) {
         .card-header { padding: 16px 24px; display: flex; align-items: center; border-bottom: 1px solid #e5e7eb; }
         .card-header h3 { font-size: 16px; font-weight: 600; color: #0f172a; }
         .card-body { padding: 20px 24px; }
-        
+        .back-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: white;
+    color: #374151;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    margin-right: 12px;
+}
+.back-btn:hover {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+}
         .form-input, .form-select, .form-textarea { 
             width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px; 
             font-size: 14px; transition: all 0.2s; background: white; 
@@ -408,17 +450,20 @@ if (isset($_GET['search_patient'])) {
             <?php include '../Sidebar.php'; ?>
             <main class="main-content">
                 <!-- Page Header -->
-                <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
-                    <div>
-                        <h1 class="text-2xl lg:text-3xl font-bold tracking-tight text-gray-900">
-                            <i class="fas fa-flask text-blue-500 mr-2"></i>Create Lab Order
-                        </h1>
-                        <p class="text-gray-500 mt-1">Select patient, assign technician, and choose tests</p>
-                    </div>
-                    <a href="doctor_dashboard.php" class="btn-secondary">
-                        <i class="fas fa-arrow-left"></i> Back to Dashboard
-                    </a>
-                </div>
+             <!-- Page Header -->
+<div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
+    <div class="flex items-center">
+        <a href="dashboard.php" class="back-btn">
+            <i class="fas fa-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="text-2xl lg:text-3xl font-bold tracking-tight text-gray-900">
+                <i class="fas fa-flask text-blue-500 mr-2"></i>Create Lab Order
+            </h1>
+            <p class="text-gray-500 mt-1">Select patient, assign technician, and choose tests</p>
+        </div>
+    </div>
+</div>
 
                 <!-- Alerts -->
                 <?php if (isset($_SESSION['success']) && !empty($_SESSION['success'])): ?>

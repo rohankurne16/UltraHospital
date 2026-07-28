@@ -5,24 +5,27 @@ use PHPMailer\PHPMailer\Exception;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-function encryptId($id)
-{
-    $key = 'UltraHospital@2026#SecureKey';
-
-    $iv = openssl_random_pseudo_bytes(
-        openssl_cipher_iv_length('aes-256-cbc')
-    );
-
-    $encrypted = openssl_encrypt(
-        $id,
-        'aes-256-cbc',
-        $key,
-        0,
-        $iv
-    );
-
-    return base64_encode($iv . $encrypted);
+// ============================================================
+// ENCRYPTION (only define if not already present)
+// ============================================================
+if (!function_exists('encryptId')) {
+    function encryptId($id)
+    {
+        $key = 'UltraHospital@2026#SecureKey';
+        $iv = openssl_random_pseudo_bytes(
+            openssl_cipher_iv_length('aes-256-cbc')
+        );
+        $encrypted = openssl_encrypt(
+            $id,
+            'aes-256-cbc',
+            $key,
+            0,
+            $iv
+        );
+        return base64_encode($iv . $encrypted);
+    }
 }
+
 function sendRegistrationEmail(
     $conn,
     $hospital_id,
@@ -35,7 +38,6 @@ function sendRegistrationEmail(
     $mail = new PHPMailer(true);
 
     try {
-
         $mail->isSMTP();
         $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth = true;
@@ -64,37 +66,22 @@ function sendRegistrationEmail(
         ));
 
         if (!empty($hospital['hospital_logo'])) {
+            $logoPath = __DIR__ . '/../' . $hospital['hospital_logo'];
+            if (file_exists($logoPath)) {
+                $mail->addEmbeddedImage($logoPath, 'hospital_logo');
+                $bodyLogo = '<img src="cid:hospital_logo" alt="' . htmlspecialchars($hospital['hospital_name']) . '" style="max-width:120px;height:auto;">';
+            } else {
+                $bodyLogo = '';
+            }
+        } else {
+            $bodyLogo = '';
+        }
 
-    $logoPath = __DIR__ . '/../' . $hospital['hospital_logo'];
-
-    if (file_exists($logoPath)) {
-
-        $mail->addEmbeddedImage(
-            $logoPath,
-            'hospital_logo'
-        );
-
-        $bodyLogo = '<img src="cid:hospital_logo" alt="' . htmlspecialchars($hospital['hospital_name']) . '" style="max-width:120px;height:auto;">';
-
-    } else {
-
-        $bodyLogo = '';
-
-    }
-
-} else {
-
-    $bodyLogo = '';
-
-}
-
-        // Encrypt Hospital ID
+        // Encrypt Hospital ID (uses the global encryptId if defined)
         $encryptedHospitalId = urlencode(encryptId($hospital_id));
-
-        $loginLink = "http://localhost/Ultra_Hospital/UltraHospital-main/index.php?hid=".$encryptedHospitalId;
+        $loginLink = "http://localhost/Ultra_Hospital/UltraHospital-main/index.php?hid=" . $encryptedHospitalId;
 
         $body = $template['body'];
-
         $body = str_replace("{message}", $message, $body);
         $body = str_replace("{admin_name}", $name, $body);
         $body = str_replace("{hospital_name}", $hospital['hospital_name'], $body);
@@ -116,3 +103,4 @@ function sendRegistrationEmail(
         return false;
     }
 }
+?>

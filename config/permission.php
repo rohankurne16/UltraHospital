@@ -560,12 +560,20 @@ if (empty($permission_names) && !$is_super_admin && isset($_SESSION['id'])) {
     }
 
     if (basename($_SERVER['PHP_SELF']) != basename($profile)) {
-        header("Location: $profile");
-        exit();
+        // ============================================================
+        // FIX: Check if headers have already been sent
+        // ============================================================
+        if (!headers_sent()) {
+            header("Location: $profile");
+            exit();
+        } else {
+            // Fallback: use JavaScript or meta refresh to redirect
+            echo "<script>window.location.href='$profile';</script>";
+            echo "<noscript><meta http-equiv='refresh' content='0;url=$profile'></noscript>";
+            exit();
+        }
     }
 }
-
-  
 
 // ============================================================
 // DATABASE HELPER FUNCTIONS

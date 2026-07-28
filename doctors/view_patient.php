@@ -449,9 +449,10 @@ $appointment_info = $conn->query($patient_appointment);
                             <div class="flex items-start space-x-4">
                                 <?php 
                                     $img_path = $image;
-                                    if (!empty($img_path) && file_exists($img_path)): 
+                                      $full_path = '../' . $img_path;
+                                    if (!empty($full_path) && file_exists($full_path)): 
                                 ?>
-                                    <img src="<?php echo $img_path; ?>" class="w-16 h-16 rounded-2xl object-cover border-2 border-gray-200 shadow-sm">
+                                    <img src="<?php echo $full_path; ?>" class="w-16 h-16 rounded-2xl object-cover border-2 border-gray-200 shadow-sm">
                                 <?php else: ?>
                                     <div class="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-2xl border-2 border-gray-200 shadow-sm">
                                         <?php echo strtoupper(substr($name, 0, 2)); ?>

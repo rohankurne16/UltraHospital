@@ -16,7 +16,7 @@ $sql = "SELECT
             a.appointment_no,
             p.patient_name,
             d.doctor_name,
-            a.department,
+            d.department as doctor_department,
             a.appointment_type,
             a.opd_ipd_type,
             a.appointment_date,
@@ -171,7 +171,6 @@ if ($stmt) {
                 overflow-x: visible;
             }
             
-            /* Hide table headers on mobile */
             table thead {
                 display: none;
             }
@@ -209,7 +208,6 @@ if ($stmt) {
                 font-size: 12px;
             }
             
-            /* Add label before each cell */
             table tbody tr td::before {
                 content: attr(data-label);
                 font-weight: 600;
@@ -221,12 +219,10 @@ if ($stmt) {
                 min-width: 85px;
             }
             
-            /* Remove label for actions column */
             table tbody tr td:last-child::before {
                 display: none;
             }
             
-            /* Style status badge in mobile view */
             table tbody tr td .status-scheduled,
             table tbody tr td .status-confirmed,
             table tbody tr td .status-completed,
@@ -238,7 +234,6 @@ if ($stmt) {
                 font-weight: 500;
             }
             
-            /* Appointment number as header in card */
             table tbody tr td:first-child {
                 font-weight: 700;
                 font-size: 14px;
@@ -378,7 +373,6 @@ if ($stmt) {
             border-color: #d1d5db;
         }
 
-        /* Count badge */
         .count-badge {
             background: #eff6ff;
             color: #3b82f6;
@@ -401,7 +395,6 @@ if ($stmt) {
             display: block;
         }
 
-        /* Mobile Toggle Button */
         #mobile-toggle {
             display: none;
         }
@@ -409,6 +402,50 @@ if ($stmt) {
         @media (max-width: 1279px) {
             #mobile-toggle {
                 display: flex;
+            }
+        }
+
+        /* Doctor Name with Department */
+        .doctor-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .doctor-name {
+            font-weight: 600;
+            color: #0f172a;
+        }
+        .doctor-dept {
+            font-size: 11px;
+            color: #94a3b8;
+            font-weight: 500;
+            margin-top: 2px;
+        }
+
+        /* Date & Time Combined */
+        .datetime-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .datetime-date {
+            font-weight: 500;
+            color: #0f172a;
+        }
+        .datetime-time {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        /* Mobile view */
+        @media (max-width: 768px) {
+            .doctor-info {
+                width: 100%;
+            }
+            .doctor-dept {
+                font-size: 10px;
+            }
+            .datetime-info {
+                width: 100%;
             }
         }
     </style>
@@ -450,14 +487,12 @@ if ($stmt) {
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>Appointment No</th>
+                                         <th>Date &amp; Time</th>
                                         <th>Patient Name</th>
-                                        <th>Doctor Name</th>
-                                        <th>Department</th>
+                                        <th>Doctor</th>
                                         <th>Type</th>
                                         <th>OPD/IPD</th>
-                                        <th>Date</th>
-                                        <th>Time</th>
+                                      
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
@@ -465,7 +500,7 @@ if ($stmt) {
                                 <tbody>
                                     <?php if (empty($appointments)) { ?>
                                         <tr>
-                                            <td colspan="10" class="no-records">
+                                            <td colspan="8" class="no-records">
                                                 <i class="fas fa-calendar-times"></i>
                                                 No OPD appointments found.
                                             </td>
@@ -473,17 +508,20 @@ if ($stmt) {
                                     <?php } else { ?>
                                         <?php foreach ($appointments as $appointment) { ?>
                                             <tr onclick="window.location.href='view_appointment.php?id=<?php echo $appointment['appointment_id']; ?>'">
-                                                <td data-label="Appointment No">
-                                                    <span class="font-semibold text-blue-600"><?php echo htmlspecialchars($appointment['appointment_no']); ?></span>
+                                                <td data-label="Date & Time">
+                                                    <div class="datetime-info">
+                                                        <span class="datetime-date"><?php echo date('d M Y', strtotime($appointment['appointment_date'])); ?></span>
+                                                        <span class="datetime-time"><?php echo date('h:i A', strtotime($appointment['appointment_time'])); ?></span>
+                                                    </div>
                                                 </td>
                                                 <td data-label="Patient">
                                                     <?php echo htmlspecialchars($appointment['patient_name']); ?>
                                                 </td>
                                                 <td data-label="Doctor">
-                                                    <?php echo htmlspecialchars($appointment['doctor_name']); ?>
-                                                </td>
-                                                <td data-label="Department">
-                                                    <?php echo htmlspecialchars($appointment['department']); ?>
+                                                    <div class="doctor-info">
+                                                        <span class="doctor-name"><?php echo htmlspecialchars($appointment['doctor_name']); ?></span>
+                                                        <span class="doctor-dept"><?php echo htmlspecialchars($appointment['doctor_department'] ?? 'N/A'); ?></span>
+                                                    </div>
                                                 </td>
                                                 <td data-label="Type">
                                                     <span class="text-xs px-2 py-0.5 bg-gray-100 rounded-full">
@@ -495,12 +533,7 @@ if ($stmt) {
                                                         <?php echo htmlspecialchars($appointment['opd_ipd_type']); ?>
                                                     </span>
                                                 </td>
-                                                <td data-label="Date">
-                                                    <?php echo date('d M Y', strtotime($appointment['appointment_date'])); ?>
-                                                </td>
-                                                <td data-label="Time">
-                                                    <?php echo date('h:i A', strtotime($appointment['appointment_time'])); ?>
-                                                </td>
+                                                
                                                 <td data-label="Status">
                                                     <?php
                                                     $statusClass = '';

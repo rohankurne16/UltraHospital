@@ -199,38 +199,7 @@ $dept_result = $conn->query($dept_query);
                         </div>
                     </div>
                                 
-                    <!-- Statistics Cards -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                        <div class="stat-card bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl p-6 shadow-sm" onclick="filterDepartments('all')">
-                            <div class="flex items-center justify-between mb-2">
-                                <h3 class="text-xs font-bold uppercase tracking-widest text-gray-400">Total Depts</h3>
-                                <div class="size-8 rounded-lg bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center text-blue-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>
-                                </div>
-                            </div>
-                            <p class="text-3xl font-black" id="totalDepts"><?php echo $total_depts; ?></p>
-                        </div>
-                        <div class="stat-card bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl p-6 shadow-sm" onclick="filterDepartments('Active')">
-                            <div class="flex items-center justify-between mb-2">
-                                <h3 class="text-xs font-bold uppercase tracking-widest text-gray-400">Active Depts</h3>
-                                <div class="size-8 rounded-lg bg-green-100 dark:bg-green-900/20 flex items-center justify-center text-green-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                                </div>
-                            </div>
-                            <p class="text-3xl font-black text-green-600" id="activeDepts"><?php echo $active_depts; ?></p>
-                        </div>
-                        <div class="stat-card bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl p-6 shadow-sm" onclick="filterDepartments('Inactive')">
-                            <div class="flex items-center justify-between mb-2">
-                                <h3 class="text-xs font-bold uppercase tracking-widest text-gray-400">Inactive Depts</h3>
-                                <div class="size-8 rounded-lg bg-red-100 dark:bg-red-900/20 flex items-center justify-center text-red-600">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" x2="9" y1="9" y2="15"/><line x1="9" x2="15" y1="9" y2="15"/></svg>
-                                </div>
-                            </div>
-                            <p class="text-3xl font-black text-red-600" id="inactiveDepts"><?php echo $inactive_depts; ?></p>
-                        </div>
-                        
-                    </div>
-
+                  
                     <!-- Main Table -->
                     <div class="bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 rounded-xl overflow-hidden shadow-sm">
                         
@@ -318,10 +287,18 @@ $dept_result = $conn->query($dept_query);
                                                   <a href="edit_department.php?id=<?php echo $row['id']; ?>" class="p-2 text-gray-400 hover:text-green-600 transition-colors">
                                                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
                                                     </a>
-                                                  
-                                                    <button onclick="confirmDelete(<?php echo $row['id']; ?>)" class="p-2 text-gray-400 hover:text-red-600 transition-colors">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
-                                                    </button>
+                                                    
+                                                   <a href="delete_department.php?id=<?php echo $row['id']; ?>"
+   onclick="return confirm('Are you sure you want to delete this department?');"
+   class="p-2 text-gray-400 hover:text-red-600 transition-colors">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 6h18"/>
+        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+        <line x1="10" x2="10" y1="11" y2="17"/>
+        <line x1="14" x2="14" y1="11" y2="17"/>
+    </svg>
+</a>
                                                 </div>
                                             </td>
                                         </tr>

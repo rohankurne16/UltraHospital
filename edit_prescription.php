@@ -1,6 +1,23 @@
 <?php 
 session_start(); 
 include "config/hospital.php";
+$id = mysqli_real_escape_string($conn,$_GET['id']);
+
+$sql = "
+SELECT d.doctor_id, d.doctor_name
+FROM prescription_master pm
+INNER JOIN doctor d
+    ON pm.doctor_id = d.doctor_id
+WHERE pm.prescription_id = '$id'
+";
+
+$result = $conn->query($sql);
+
+if($result && $result->num_rows > 0){
+    $doctor = $result->fetch_assoc();
+    $doctor_id   = $doctor['doctor_id'];
+    $doctor_name = $doctor['doctor_name'];
+}
 
 if (!isset($_SESSION['id'])) {
     header("Location: index.php");
@@ -12,64 +29,172 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
     exit();
 }
 
-$doctor_register_id = $_SESSION["id"];
 
-$sql = "SELECT * FROM doctor WHERE register_id='$doctor_register_id'";
-$all_doctor_info = $conn->query($sql);
-
-if ($all_doctor_info && $all_doctor_info->num_rows > 0) {
-    $doctor = $all_doctor_info->fetch_assoc();
-    $doctor_name = $doctor["doctor_name"];
-    $doctor_id = $doctor["doctor_id"];
-}
-
-$id = mysqli_real_escape_string($conn, $_GET['id']);
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit'])) {
-    $patient_id = mysqli_real_escape_string($conn, $_POST['patient_id']);
-   
-    $medicine_name = mysqli_real_escape_string($conn, $_POST['medicine_name']);
-    $dosage = mysqli_real_escape_string($conn, $_POST['dosage']);
-    $frequency = mysqli_real_escape_string($conn, $_POST['frequency']);
-    $days = mysqli_real_escape_string($conn, $_POST['days']);
-    $timing = mysqli_real_escape_string($conn, $_POST['timing']);
-    $advice = mysqli_real_escape_string($conn, $_POST['advice']);
-    $followup_date = mysqli_real_escape_string($conn, $_POST['followup_date']);
 
-    $update_query = "UPDATE prescriptions SET 
-                     patient_id = '$patient_id', 
-                     medicine_name = '$medicine_name', 
-                     dosage = '$dosage', 
-                     frequency = '$frequency', 
-                     days = '$days', 
-                     timing = '$timing', 
-                     advice = '$advice', 
-                     followup_date = '$followup_date', 
-                     modified_at = NOW() 
-                     WHERE id = '$id'";
+    $patient_id = mysqli_real_escape_string($conn,$_POST['patient_id']);
+    $complaint = mysqli_real_escape_string($conn,$_POST['complaint']);
+    $followup_date = mysqli_real_escape_string($conn,$_POST['followup_date']);
 
-    if ($conn->query($update_query)) {
+    $medicine_names = $_POST['medicine_name'];
+    $dosages = $_POST['dosage'];
+    $frequencies = $_POST['frequency'];
+    $days_array = $_POST['days'];
+    $timings = $_POST['timing'];
+    $advices = $_POST['advice'];
+
+    mysqli_begin_transaction($conn);
+
+    try{
+
+        $updateMaster="
+        UPDATE prescription_master
+        SET
+            patient_id='$patient_id',
+            complaint='$complaint',
+            followup_date='$followup_date',
+            modified_at=NOW()
+        WHERE prescription_id='$id'
+        ";
+
+        if(!$conn->query($updateMaster)){
+            throw new Exception($conn->error);
+        }
+
+        $delete="
+        DELETE FROM prescription_details
+        WHERE prescription_id='$id'
+        ";
+
+        if(!$conn->query($delete)){
+            throw new Exception($conn->error);
+        }
+
+        for($i=0;$i<count($medicine_names);$i++){
+
+            if(trim($medicine_names[$i])==""){
+                continue;
+            }
+
+            $medicine=mysqli_real_escape_string($conn,$medicine_names[$i]);
+            $dosage=mysqli_real_escape_string($conn,$dosages[$i]);
+            $frequency=mysqli_real_escape_string($conn,$frequencies[$i]);
+            $days=mysqli_real_escape_string($conn,$days_array[$i]);
+            $timing=mysqli_real_escape_string($conn,$timings[$i]);
+            $advice=mysqli_real_escape_string($conn,$advices[$i]);
+
+            $insert="
+            INSERT INTO prescription_details
+            (
+                prescription_id,
+                medicine_name,
+                dosage,
+                frequency,
+                days,
+                timing,
+                advice
+            )
+            VALUES
+            (
+                '$id',
+                '$medicine',
+                '$dosage',
+                '$frequency',
+                '$days',
+                '$timing',
+                '$advice'
+            )
+            ";
+
+            if(!$conn->query($insert)){
+                throw new Exception($conn->error);
+            }
+
+        }
+
+        mysqli_commit($conn);
+
         echo "<script>
-            alert('Prescription updated successfully!');
-            window.location.href='prescriptions.php';
+        alert('Prescription Updated Successfully');
+        window.location='prescriptions.php';
         </script>";
+
         exit();
-    } else {
-        $error = "Error: " . $conn->error;
+
     }
+
+    catch(Exception $e){
+
+        mysqli_rollback($conn);
+
+        $error=$e->getMessage();
+
+    }
+
 }
 
-$fetch_query = "SELECT * FROM prescriptions WHERE id = '$id'";
-$result = $conn->query($fetch_query);
-if (!$result || $result->num_rows == 0) {
-    header("Location: prescription_list.php");
+$masterQuery="
+SELECT *
+FROM prescription_master
+WHERE prescription_id='$id'
+";
+
+$masterResult=$conn->query($masterQuery);
+
+if($masterResult->num_rows==0){
+
+    header("Location: prescriptions.php");
     exit();
+
 }
-$data = $result->fetch_assoc();
 
-$patients_result = $conn->query("SELECT patient_id, patient_name FROM patients WHERE delete_flag = 0 OR delete_flag IS NULL");
+$data=$masterResult->fetch_assoc();
 
-// Get patient name for selected patient
+$medicineQuery="
+SELECT *
+FROM prescription_details
+WHERE prescription_id='$id'
+ORDER BY detail_id ASC
+";
+
+$medicineResult=$conn->query($medicineQuery);
+
+$medicines=[];
+
+while($row=$medicineResult->fetch_assoc()){
+
+    $medicines[]=$row;
+
+}
+
+$patients_result=$conn->query("
+SELECT patient_id,patient_name
+FROM patients
+WHERE delete_flag=0
+OR delete_flag IS NULL
+");
+
+
+
+
+$selected_patient_name='';
+
+$patientQuery="
+SELECT patient_name
+FROM patients
+WHERE patient_id='".$data['patient_id']."'
+";
+
+$patientResult=$conn->query($patientQuery);
+
+if($patientResult && $patientResult->num_rows){
+
+    $patientData=$patientResult->fetch_assoc();
+
+    $selected_patient_name=$patientData['patient_name'];
+
+}
 $selected_patient_name = '';
 if (!empty($data['patient_id'])) {
     $patientQuery = "SELECT patient_name FROM patients WHERE patient_id = '" . $data['patient_id'] . "'";
@@ -149,7 +274,7 @@ if (!empty($data['patient_id'])) {
                 <div class="max-w-4xl mx-auto fade-in">
                     <div class="mb-8">
                         <div class="flex items-center gap-4">
-                            <a href="prescription_list.php" class="back-btn">
+                            <a href="prescriptions.php" class="back-btn">
                                 <i class="fas fa-arrow-left"></i>
                             </a>
                             <div>
@@ -172,87 +297,343 @@ if (!empty($data['patient_id'])) {
                         </div>
                         <div class="card-body">
                             <form action="" method="POST">
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div class="form-group">
-                                        <label class="form-label">Patient <span class="required">*</span></label>
-                                        <input type="text" 
-                                               name="patient_name" 
-                                               class="form-input" 
-                                               value="<?php echo htmlspecialchars($selected_patient_name); ?>" 
-                                               placeholder="Enter patient name" 
-                                               disabled>
-                                        <input type="hidden" name="patient_id" value="<?php echo $data['patient_id']; ?>">
-                                    </div>
 
-                                    <div class="form-group">
-                                        <label class="form-label">Doctor <span class="required">*</span></label>
-                                        <input type="text" class="form-input" value="<?php echo htmlspecialchars($doctor_name); ?>" disabled>
-                                        <input type="hidden" name="doctor_id" value="<?php echo $doctor_id; ?>">
-                                    </div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                                    <div class="form-group md:col-span-2">
-                                        <label class="form-label">Medicine Name <span class="required">*</span></label>
-                                        <input type="text" name="medicine_name" class="form-input" value="<?php echo htmlspecialchars($data['medicine_name']); ?>" placeholder="e.g. Paracetamol" required>
-                                    </div>
+    <!-- Patient -->
 
-                                    <div class="form-group">
-                                        <label class="form-label">Dosage <span class="required">*</span></label>
-                                        <input type="text" name="dosage" class="form-input" value="<?php echo htmlspecialchars($data['dosage']); ?>" placeholder="e.g. 500mg" required>
-                                    </div>
+    <div class="form-group">
 
-                                    <div class="form-group">
-                                        <label class="form-label">Frequency <span class="required">*</span></label>
-                                        <input type="text" name="frequency" class="form-input" value="<?php echo htmlspecialchars($data['frequency']); ?>" placeholder="e.g. Twice a day" required>
-                                    </div>
+        <label class="form-label">
 
-                                    <div class="form-group">
-                                        <label class="form-label">Duration (Days) <span class="required">*</span></label>
-                                        <input type="number" name="days" class="form-input" value="<?php echo htmlspecialchars($data['days']); ?>" placeholder="e.g. 7" required>
-                                    </div>
+            Patient <span class="required">*</span>
 
-                                    <div class="form-group">
-                                        <label class="form-label">Timing <span class="required">*</span></label>
-                                        <select name="timing" class="form-input" required>
-                                            <option value="Morning" <?php echo ($data['timing'] == 'Morning') ? 'selected' : ''; ?>>Morning</option>
-                                            <option value="Afternoon" <?php echo ($data['timing'] == 'Afternoon') ? 'selected' : ''; ?>>Afternoon</option>
-                                            <option value="Evening" <?php echo ($data['timing'] == 'Evening') ? 'selected' : ''; ?>>Evening</option>
-                                            <option value="Night" <?php echo ($data['timing'] == 'Night') ? 'selected' : ''; ?>>Night</option>
-                                            <option value="M-A-N" <?php echo ($data['timing'] == 'M-A-N') ? 'selected' : ''; ?>>M-A-N</option>
-                                            <option value="M-N" <?php echo ($data['timing'] == 'M-N') ? 'selected' : ''; ?>>M-N</option>
-                                        </select>
-                                    </div>
+        </label>
 
-                                    <div class="form-group md:col-span-2">
-                                        <label class="form-label">Advice / Instructions</label>
-                                        <textarea name="advice" class="form-textarea" placeholder="e.g. Take after meal"><?php echo htmlspecialchars($data['advice']); ?></textarea>
-                                    </div>
+        <input
+            type="text"
+            class="form-input"
+            value="<?php echo htmlspecialchars($selected_patient_name); ?>"
+            readonly>
 
-                                    <div class="form-group">
-                                        <label class="form-label">Follow-up Date</label>
-                                        <input type="date" name="followup_date" class="form-input" value="<?php echo $data['followup_date']; ?>">
-                                    </div>
-                                </div>
+        <input
+            type="hidden"
+            name="patient_id"
+            value="<?php echo $data['patient_id']; ?>">
 
-                                <div class="mt-8 flex items-center justify-end gap-4">
-                                    <a href="prescription_list.php" class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-all">
-                                        <i class="fas fa-times mr-2"></i> Cancel
-                                    </a>
-                                    <button type="submit" name="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-all shadow-sm">
-                                        <i class="fas fa-save mr-2"></i> Update Prescription
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </main>
-        </div>
     </div>
 
+    <!-- Doctor -->
+
+    <div class="form-group">
+
+        <label class="form-label">
+
+            Doctor
+
+        </label>
+
+        <input
+            type="text"
+            class="form-input"
+            value="<?php echo htmlspecialchars($doctor_name); ?>"
+            readonly>
+
+    </div>
+
+    <!-- Complaint -->
+
+    <div class="form-group md:col-span-2">
+
+        <label class="form-label">
+
+            Chief Complaint
+            <span class="required">*</span>
+
+        </label>
+
+        <textarea
+            name="complaint"
+            rows="4"
+            class="form-textarea"
+            required><?php echo htmlspecialchars($data['complaint']); ?></textarea>
+
+    </div>
+
+    <!-- Followup -->
+
+    <div class="form-group">
+
+        <label class="form-label">
+
+            Follow-up Date
+
+        </label>
+
+        <input
+            type="date"
+            name="followup_date"
+            class="form-input"
+            value="<?php echo $data['followup_date']; ?>">
+
+    </div>
+
+</div>
+
+<hr class="my-6">
+
+<h3 class="text-lg font-semibold mb-4">
+
+Medicines
+
+</h3>
+<div class="overflow-x-auto">
+<table class="min-w-full border border-gray-300" id="medicineTable">
+
+    <thead class="bg-gray-100">
+        <tr>
+            <th class="border p-2">Medicine</th>
+            <th class="border p-2">Dosage</th>
+            <th class="border p-2">Frequency</th>
+            <th class="border p-2">Days</th>
+            <th class="border p-2">Timing</th>
+            <th class="border p-2">Advice</th>
+            <th class="border p-2">Action</th>
+        </tr>
+    </thead>
+
+    <tbody>
+
+    <?php foreach($medicines as $medicine){ ?>
+
+    <tr>
+
+        <td class="border p-2">
+            <input type="text"
+                   name="medicine_name[]"
+                   class="form-input"
+                   value="<?php echo htmlspecialchars($medicine['medicine_name']); ?>"
+                   required>
+        </td>
+
+        <td class="border p-2">
+            <input type="text"
+                   name="dosage[]"
+                   class="form-input"
+                   value="<?php echo htmlspecialchars($medicine['dosage']); ?>"
+                   required>
+        </td>
+
+        <td class="border p-2">
+            <input type="text"
+                   name="frequency[]"
+                   class="form-input"
+                   value="<?php echo htmlspecialchars($medicine['frequency']); ?>"
+                   required>
+        </td>
+
+        <td class="border p-2">
+            <input type="number"
+                   name="days[]"
+                   class="form-input"
+                   value="<?php echo htmlspecialchars($medicine['days']); ?>"
+                   required>
+        </td>
+
+        <td class="border p-2">
+
+            <select name="timing[]" class="form-input">
+
+                <option value="Morning" <?=($medicine['timing']=="Morning")?'selected':'';?>>
+                    Morning
+                </option>
+
+                <option value="Afternoon" <?=($medicine['timing']=="Afternoon")?'selected':'';?>>
+                    Afternoon
+                </option>
+
+                <option value="Evening" <?=($medicine['timing']=="Evening")?'selected':'';?>>
+                    Evening
+                </option>
+
+                <option value="Night" <?=($medicine['timing']=="Night")?'selected':'';?>>
+                    Night
+                </option>
+
+                <option value="M-A-N" <?=($medicine['timing']=="M-A-N")?'selected':'';?>>
+                    M-A-N
+                </option>
+
+                <option value="M-N" <?=($medicine['timing']=="M-N")?'selected':'';?>>
+                    M-N
+                </option>
+
+            </select>
+
+        </td>
+
+        <td class="border p-2">
+            <input type="text"
+                   name="advice[]"
+                   class="form-input"
+                   value="<?php echo htmlspecialchars($medicine['advice']); ?>">
+        </td>
+
+        <td class="border p-2 text-center">
+
+            <button
+                type="button"
+                onclick="removeRow(this)"
+                class="bg-red-500 text-white px-3 py-1 rounded">
+
+                Delete
+
+            </button>
+
+        </td>
+
+    </tr>
+
+    <?php } ?>
+
+    </tbody>
+
+</table>
+</div>
+
+<div class="mt-4">
+
+    <button
+        type="button"
+        onclick="addRow()"
+        class="bg-green-600 text-white px-4 py-2 rounded">
+
+        <i class="fas fa-plus"></i>
+
+        Add Medicine
+
+    </button>
+
+</div>
+
+<div class="mt-8 flex justify-end gap-3">
+
+    <a href="prescriptions.php"
+       class="px-5 py-2 border rounded">
+
+        Cancel
+
+    </a>
+
+    <button
+        type="submit"
+        name="submit"
+        class="bg-blue-600 text-white px-6 py-2 rounded">
+
+        Update Prescription
+
+    </button>
+
+</div>
+
+</form>
+
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Any additional JavaScript can go here
-        });
-    </script>
+
+function addRow() {
+
+    let tbody = document.querySelector("#medicineTable tbody");
+
+    let row = `
+    <tr>
+
+        <td class="border p-2">
+            <input type="text"
+                   name="medicine_name[]"
+                   class="form-input"
+                   required>
+        </td>
+
+        <td class="border p-2">
+            <input type="text"
+                   name="dosage[]"
+                   class="form-input"
+                   required>
+        </td>
+
+        <td class="border p-2">
+            <input type="text"
+                   name="frequency[]"
+                   class="form-input"
+                   required>
+        </td>
+
+        <td class="border p-2">
+            <input type="number"
+                   name="days[]"
+                   class="form-input"
+                   required>
+        </td>
+
+        <td class="border p-2">
+
+            <select
+                name="timing[]"
+                class="form-input">
+
+                <option value="Morning">Morning</option>
+                <option value="Afternoon">Afternoon</option>
+                <option value="Evening">Evening</option>
+                <option value="Night">Night</option>
+                <option value="M-A-N">M-A-N</option>
+                <option value="M-N">M-N</option>
+
+            </select>
+
+        </td>
+
+        <td class="border p-2">
+
+            <input
+                type="text"
+                name="advice[]"
+                class="form-input">
+
+        </td>
+
+        <td class="border p-2 text-center">
+
+            <button
+                type="button"
+                onclick="removeRow(this)"
+                class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded">
+
+                Delete
+
+            </button>
+
+        </td>
+
+    </tr>
+    `;
+
+    tbody.insertAdjacentHTML("beforeend", row);
+}
+
+function removeRow(button) {
+
+    let tbody = document.querySelector("#medicineTable tbody");
+
+    if (tbody.rows.length == 1) {
+
+        alert("At least one medicine is required.");
+        return;
+
+    }
+
+    button.closest("tr").remove();
+}
+
+</script>
 </body>
 </html>

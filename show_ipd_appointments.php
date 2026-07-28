@@ -16,7 +16,7 @@ $sql = "SELECT
             a.appointment_no,
             p.patient_name,
             d.doctor_name,
-            a.department,
+            d.department as doctor_department,
             a.appointment_type,
             a.opd_ipd_type,
             a.appointment_date,
@@ -66,7 +66,46 @@ if ($stmt) {
             background: #f8fafc;
         }
         
-      
+        /* Sidebar and Layout */
+        #sidebar-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            z-index: 50;
+            transition: transform 0.3s ease;
+            background: white;
+        }
+
+        @media (max-width: 1279px) {
+            #sidebar-container {
+                transform: translateX(-100%);
+                box-shadow: 4px 0 10px rgba(0,0,0,0.1);
+            }
+            #sidebar-container.active {
+                transform: translateX(0);
+            }
+            .sidebar-overlay {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                z-index: 40;
+            }
+            .sidebar-overlay.active {
+                display: block;
+            }
+        }
+
+        @media (min-width: 1280px) {
+            #sidebar-container {
+                transform: translateX(0);
+                width: 260px;
+            }
+        }
 
         #mobile-toggle {
             display: flex;
@@ -119,7 +158,7 @@ if ($stmt) {
         table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 700px;
+            min-width: 650px;
         }
 
         /* Mobile Card View */
@@ -199,7 +238,7 @@ if ($stmt) {
                 font-weight: 500;
             }
             
-            /* Appointment number as header in card */
+            /* Date & Time as header in card */
             table tbody tr td:first-child {
                 font-weight: 700;
                 font-size: 14px;
@@ -211,7 +250,7 @@ if ($stmt) {
             
             table tbody tr td:first-child::before {
                 font-weight: 600;
-                color: #8b5cf6;
+                color: #7c3aed;
             }
         }
 
@@ -339,7 +378,6 @@ if ($stmt) {
             border-color: #d1d5db;
         }
 
-        /* Count badge */
         .count-badge {
             background: #f3e8ff;
             color: #7c3aed;
@@ -362,7 +400,6 @@ if ($stmt) {
             display: block;
         }
 
-        /* Mobile Toggle Button */
         #mobile-toggle {
             display: none;
         }
@@ -371,6 +408,37 @@ if ($stmt) {
             #mobile-toggle {
                 display: flex;
             }
+        }
+
+        /* Doctor Name with Department */
+        .doctor-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .doctor-name {
+            font-weight: 600;
+            color: #0f172a;
+        }
+        .doctor-dept {
+            font-size: 11px;
+            color: #94a3b8;
+            font-weight: 500;
+            margin-top: 2px;
+        }
+
+        /* Date & Time Combined */
+        .datetime-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .datetime-date {
+            font-weight: 500;
+            color: #0f172a;
+        }
+        .datetime-time {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 500;
         }
 
         /* IPD specific color accent */
@@ -382,10 +450,23 @@ if ($stmt) {
             font-size: 11px;
             font-weight: 600;
         }
+
+        /* Mobile view */
+        @media (max-width: 768px) {
+            .doctor-info {
+                width: 100%;
+            }
+            .doctor-dept {
+                font-size: 10px;
+            }
+            .datetime-info {
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
-    
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
     <div class="flex min-h-screen flex-col bg-gray-50">
         <?php include 'header.php'; ?>
@@ -421,14 +502,11 @@ if ($stmt) {
                             <table>
                                 <thead>
                                     <tr>
-                                        <th>Appointment No</th>
+                                        <th>Date &amp; Time</th>
                                         <th>Patient Name</th>
-                                        <th>Doctor Name</th>
-                                        <th>Department</th>
+                                        <th>Doctor</th>
                                         <th>Type</th>
                                         <th>OPD/IPD</th>
-                                        <th>Date</th>
-                                        <th>Time</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
@@ -436,7 +514,7 @@ if ($stmt) {
                                 <tbody>
                                     <?php if (empty($appointments)) { ?>
                                         <tr>
-                                            <td colspan="10" class="no-records">
+                                            <td colspan="7" class="no-records">
                                                 <i class="fas fa-hospital-user"></i>
                                                 No IPD appointments found.
                                             </td>
@@ -444,17 +522,20 @@ if ($stmt) {
                                     <?php } else { ?>
                                         <?php foreach ($appointments as $appointment) { ?>
                                             <tr onclick="window.location.href='view_appointment.php?id=<?php echo $appointment['appointment_id']; ?>'">
-                                                <td data-label="Appointment No">
-                                                    <span class="font-semibold text-purple-600"><?php echo htmlspecialchars($appointment['appointment_no']); ?></span>
+                                                <td data-label="Date & Time">
+                                                    <div class="datetime-info">
+                                                        <span class="datetime-date"><?php echo date('d M Y', strtotime($appointment['appointment_date'])); ?></span>
+                                                        <span class="datetime-time"><?php echo date('h:i A', strtotime($appointment['appointment_time'])); ?></span>
+                                                    </div>
                                                 </td>
                                                 <td data-label="Patient">
                                                     <?php echo htmlspecialchars($appointment['patient_name']); ?>
                                                 </td>
                                                 <td data-label="Doctor">
-                                                    <?php echo htmlspecialchars($appointment['doctor_name']); ?>
-                                                </td>
-                                                <td data-label="Department">
-                                                    <?php echo htmlspecialchars($appointment['department']); ?>
+                                                    <div class="doctor-info">
+                                                        <span class="doctor-name"><?php echo htmlspecialchars($appointment['doctor_name']); ?></span>
+                                                        <span class="doctor-dept"><?php echo htmlspecialchars($appointment['doctor_department'] ?? 'N/A'); ?></span>
+                                                    </div>
                                                 </td>
                                                 <td data-label="Type">
                                                     <span class="text-xs px-2 py-0.5 bg-gray-100 rounded-full">
@@ -465,12 +546,6 @@ if ($stmt) {
                                                     <span class="ipd-badge">
                                                         <?php echo htmlspecialchars($appointment['opd_ipd_type']); ?>
                                                     </span>
-                                                </td>
-                                                <td data-label="Date">
-                                                    <?php echo date('d M Y', strtotime($appointment['appointment_date'])); ?>
-                                                </td>
-                                                <td data-label="Time">
-                                                    <?php echo date('h:i A', strtotime($appointment['appointment_time'])); ?>
                                                 </td>
                                                 <td data-label="Status">
                                                     <?php
@@ -516,6 +591,58 @@ if ($stmt) {
         </div>
     </div>
 
-   
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // Sidebar Toggle Logic
+        document.addEventListener('DOMContentLoaded', function() {
+            const mobileToggle = document.getElementById('mobile-toggle');
+            const sidebarContainer = document.getElementById('sidebar-container');
+            const sidebarOverlay = document.getElementById('sidebar-overlay');
+            
+            function openSidebar() {
+                sidebarContainer.classList.add('active');
+                sidebarOverlay.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closeSidebar() {
+                sidebarContainer.classList.remove('active');
+                sidebarOverlay.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+
+            if (mobileToggle) {
+                mobileToggle.addEventListener('click', openSidebar);
+            }
+            
+            if (sidebarOverlay) {
+                sidebarOverlay.addEventListener('click', closeSidebar);
+            }
+
+            // Handle close button inside Sidebar.php
+            document.addEventListener('click', function(e) {
+                const closeBtn = e.target.closest('.lucide-x') || e.target.closest('.fa-xmark') || e.target.closest('#sidebar-close');
+                if (closeBtn && window.innerWidth < 1280) {
+                    closeSidebar();
+                }
+            });
+
+            // Close sidebar on escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && window.innerWidth < 1280) {
+                    closeSidebar();
+                }
+            });
+
+            // Auto-close sidebar on window resize to desktop
+            window.addEventListener('resize', function() {
+                if (window.innerWidth >= 1280) {
+                    closeSidebar();
+                }
+            });
+        });
+    </script>
 </body>
 </html>

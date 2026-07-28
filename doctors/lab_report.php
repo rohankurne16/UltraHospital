@@ -59,6 +59,24 @@ if ($result_reports) {
     }
 }
 
+// ========== COUNT STATISTICS ==========
+$total_reports = count($reports);
+$completed_reports = 0;
+$pending_reports = 0;
+$today_reports = 0;
+$today = date('Y-m-d');
+
+foreach ($reports as $r) {
+    if ($r['report_status'] == 'Completed') {
+        $completed_reports++;
+    } else {
+        $pending_reports++;
+    }
+    if (isset($r['report_date']) && date('Y-m-d', strtotime($r['report_date'])) == $today) {
+        $today_reports++;
+    }
+}
+
 // ========== GET REPORT DETAILS FOR VIEW MODAL ==========
 $report_detail = null;
 if (isset($_GET['view_report']) && isset($_GET['report_id'])) {
@@ -75,7 +93,6 @@ if (isset($_GET['view_report']) && isset($_GET['report_id'])) {
     if ($result_detail && $result_detail->num_rows > 0) {
         $report_detail = $result_detail->fetch_assoc();
         
-        // Get test results for this report
         $sql_tests = "SELECT od.*, t.test_name, t.test_code, t.normal_range as test_normal_range, t.unit,
                       r2.result_value, r2.normal_range, r2.remarks as result_remarks
                       FROM lab_order_details od
@@ -101,6 +118,48 @@ if (isset($_GET['delete_report']) && isset($_GET['report_id'])) {
     header("Location: doctor_lab_reports.php");
     exit();
 }
+
+// ========== VIEW REPORT FILE DIRECTLY ==========
+if (isset($_GET['view_file']) && isset($_GET['report_id'])) {
+    $report_id = intval($_GET['report_id']);
+    $sql = "SELECT report_file FROM lab_reports WHERE report_id = $report_id";
+    $result = $conn->query($sql);
+    if ($result && $result->num_rows > 0) {
+        $file = $result->fetch_assoc();
+        if (!empty($file['report_file'])) {
+            $file_path = "../documents/reports/" . $file['report_file'];
+            if (file_exists($file_path)) {
+                $ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
+                switch($ext) {
+                    case 'pdf': header('Content-Type: application/pdf'); break;
+                    case 'jpg': case 'jpeg': header('Content-Type: image/jpeg'); break;
+                    case 'png': header('Content-Type: image/png'); break;
+                    case 'doc': header('Content-Type: application/msword'); break;
+                    case 'docx': header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document'); break;
+                    case 'xls': header('Content-Type: application/vnd.ms-excel'); break;
+                    case 'xlsx': header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); break;
+                    default: header('Content-Type: application/octet-stream');
+                }
+                header('Content-Disposition: inline; filename="' . basename($file_path) . '"');
+                header('Content-Length: ' . filesize($file_path));
+                readfile($file_path);
+                exit();
+            } else {
+                $_SESSION['error'] = "File not found!";
+                header("Location: doctor_lab_reports.php");
+                exit();
+            }
+        } else {
+            $_SESSION['error'] = "No file attached to this report!";
+            header("Location: doctor_lab_reports.php");
+            exit();
+        }
+    } else {
+        $_SESSION['error'] = "Report not found!";
+        header("Location: doctor_lab_reports.php");
+        exit();
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -108,10 +167,13 @@ if (isset($_GET['delete_report']) && isset($_GET['report_id'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($hospital_name); ?> - Lab Reports</title>
-    <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($hospital_logo); ?>">
+  
+    <link rel="icon" type="image/png" href="../<?php echo $hospital['hospital_logo'] ?>">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         * { font-family: 'Inter', sans-serif; }
         body { background: #f8fafc; }
@@ -122,6 +184,90 @@ if (isset($_GET['delete_report']) && isset($_GET['report_id'])) {
         .card-header { padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; gap: 10px; }
         .card-header h3 { font-size: 16px; font-weight: 600; color: #0f172a; }
         .card-body { padding: 20px 24px; }
+        
+        /* ===== TAB STYLES (Same as Appointments) ===== */
+        .tab-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 18px;
+            border-radius: 40px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            border: 1px solid #e5e7eb;
+            background: #fff;
+            color: #64748b;
+            text-decoration: none;
+            user-select: none;
+            white-space: nowrap;
+        }
+        .tab-btn:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+            transform: translateY(-1px);
+        }
+        .tab-btn .badge-count {
+            background: #e2e8f0;
+            color: #64748b;
+            padding: 1px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            transition: all 0.2s ease;
+        }
+        .tab-active {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            border-color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        .tab-active:hover {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            border-color: #2563eb;
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.35);
+        }
+        .tab-active .badge-count {
+            background: rgba(255,255,255,0.25);
+            color: white;
+        }
+        .tab-inactive {
+            background: #fff;
+            color: #64748b;
+            border-color: #e5e7eb;
+        }
+        .tab-inactive .badge-count {
+            background: #e2e8f0;
+            color: #64748b;
+        }
+        .tabs-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            padding: 16px 9px;
+            margin-bottom: -31px;
+        }
+        .tabs-wrapper::-webkit-scrollbar {
+            height: 4px;
+        }
+        .tabs-wrapper::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        .tabs-wrapper::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .tabs-wrapper .flex-wrap {
+            flex-wrap: nowrap;
+        }
+        @media (min-width: 640px) {
+            .tabs-wrapper .flex-wrap {
+                flex-wrap: wrap;
+            }
+        }
+        /* ===== END TAB STYLES ===== */
         
         .btn-primary { background: #3b82f6; color: white; padding: 8px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; border: none; transition: all 0.2s; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
         .btn-primary:hover { background: #2563eb; }
@@ -137,6 +283,22 @@ if (isset($_GET['delete_report']) && isset($_GET['report_id'])) {
         .print-btn { background: #8b5cf6; color: white; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; transition: all 0.2s; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
         .print-btn:hover { background: #7c3aed; }
         
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: white;
+            color: #374151;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+        .back-btn:hover { background: #f3f4f6; border-color: #d1d5db; }
+        
         .table-container { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; font-size: 14px; }
         thead { background: #f9fafb; }
@@ -147,6 +309,7 @@ if (isset($_GET['delete_report']) && isset($_GET['report_id'])) {
         .test-code-badge { font-family: monospace; background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
         .badge-count { background: #e5e7eb; color: #4b5563; padding: 1px 8px; border-radius: 12px; font-size: 11px; }
         .badge-completed { background: #dcfce7; color: #166534; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; display: inline-block; }
+        .badge-pending { background: #fef3c7; color: #92400e; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; display: inline-block; }
         
         .empty-state { text-align: center; padding: 40px 20px; color: #6b7280; }
         .empty-state i { font-size: 48px; color: #d1d5db; margin-bottom: 12px; }
@@ -155,48 +318,75 @@ if (isset($_GET['delete_report']) && isset($_GET['report_id'])) {
         .alert-success { background: #dcfce7; color: #166534; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #22c55e; }
         .alert-error { background: #fecaca; color: #991b1b; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #ef4444; }
         
-        /* Modal Styles */
-        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; justify-content: center; align-items: center; }
-        .modal.show { display: flex; }
-        .modal-content { background: white; border-radius: 12px; max-width: 900px; width: 95%; max-height: 90vh; overflow-y: auto; padding: 24px; position: relative; animation: slideDown 0.3s ease; }
-        @keyframes slideDown { from { transform: translateY(-50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #e5e7eb; }
-        .modal-header h2 { font-size: 20px; font-weight: 600; color: #0f172a; }
-        .modal-close { background: none; border: none; font-size: 24px; color: #6b7280; cursor: pointer; padding: 4px 8px; }
-        .modal-close:hover { color: #1f2937; }
+        /* Page Header */
+        .page-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .page-header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+        .page-header .subtitle {
+            color: #6b7280;
+            font-size: 14px;
+            margin-top: 2px;
+        }
         
-        .report-header { background: linear-gradient(135deg, #1e40af, #2563eb); color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
-        .report-header .title { font-size: 20px; font-weight: 700; }
-        .report-header .subtitle { opacity: 0.9; }
-        
-        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-        @media (max-width: 640px) { .info-grid { grid-template-columns: 1fr; } }
-        
-        .result-normal { color: #16a34a; font-weight: 600; }
-        .result-abnormal { color: #dc2626; font-weight: 600; }
-        .result-pending { color: #f59e0b; font-weight: 600; }
-        
-        .status-badge.completed { background: #dcfce7; color: #166534; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; display: inline-block; }
-        .status-badge.pending { background: #fef3c7; color: #92400e; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; display: inline-block; }
-        
-        .welcome-section { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; padding: 24px; border-radius: 12px; margin-bottom: 24px; }
-        .welcome-section h1 { font-size: 24px; font-weight: 700; }
-        .welcome-section p { opacity: 0.9; margin-top: 4px; }
-        
-        .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+        /* Statistics Cards */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
         @media (max-width: 768px) { .stat-grid { grid-template-columns: 1fr 1fr; } }
         @media (max-width: 480px) { .stat-grid { grid-template-columns: 1fr; } }
         
-        .stat-card { background: white; border-radius: 12px; padding: 16px; border: 1px solid #e5e7eb; text-align: center; }
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid #e5e7eb;
+            text-align: center;
+        }
         .stat-card .stat-number { font-size: 28px; font-weight: 700; }
         .stat-card .stat-label { color: #6b7280; font-size: 13px; margin-top: 2px; }
         .stat-card .stat-icon { font-size: 20px; margin-bottom: 4px; }
         
-        .quick-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
-        .quick-action-btn { padding: 12px 20px; border-radius: 10px; border: 1px solid #e5e7eb; background: white; cursor: pointer; transition: all 0.2s; text-align: center; flex: 1; min-width: 120px; text-decoration: none; color: #1f2937; }
-        .quick-action-btn:hover { background: #f1f5f9; border-color: #3b82f6; transform: translateY(-2px); }
-        .quick-action-btn i { font-size: 24px; display: block; margin-bottom: 6px; }
-        .quick-action-btn .label { font-size: 12px; color: #6b7280; }
+        /* Action Buttons */
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            margin-right: 4px;
+            border: none;
+            cursor: pointer;
+        }
+        .action-btn.view { background-color: #e0f2fe; color: #0284c7; }
+        .action-btn.view:hover { background-color: #bae6fd; }
+        .action-btn.edit { background-color: #fff7ed; color: #ea580c; }
+        .action-btn.edit:hover { background-color: #fed7aa; }
+        .action-btn.delete { background-color: #fee2e2; color: #dc2626; }
+        .action-btn.delete:hover { background-color: #fecaca; }
+        .action-btn.print { background-color: #f3e8ff; color: #7c3aed; }
+        .action-btn.print:hover { background-color: #e9d5ff; }
+        .action-btn.download { background-color: #d1fae5; color: #059669; }
+        .action-btn.download:hover { background-color: #a7f3d0; }
+        
+        .fade-in { animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .no-file-text { color: #9ca3af; font-size: 12px; font-style: italic; }
     </style>
 </head>
 <body>
@@ -205,280 +395,244 @@ if (isset($_GET['delete_report']) && isset($_GET['report_id'])) {
         <div class="flex flex-1 items-start">
             <?php include '../Sidebar.php'; ?>
             <main class="main-content">
-                <!-- Welcome Section -->
-                <div class="welcome-section">
-                    <h1><i class="fas fa-file-alt mr-2"></i> Lab Reports</h1>
-                    <p>View, download and print patient lab reports</p>
-                </div>
-
-                <!-- Alerts -->
-                <?php if (isset($_SESSION['success']) && !empty($_SESSION['success'])): ?>
-                    <div class="alert-success"><i class="fas fa-check-circle mr-2"></i><?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?></div>
-                <?php endif; ?>
-                <?php if (isset($_SESSION['error']) && !empty($_SESSION['error'])): ?>
-                    <div class="alert-error"><i class="fas fa-exclamation-circle mr-2"></i><?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?></div>
-                <?php endif; ?>
-
-                <!-- Quick Actions -->
-                <div class="quick-actions">
-                    <a href="lab_order.php" class="quick-action-btn">
-                        <i class="fas fa-plus-circle text-blue-500"></i>
-                        <div class="label">Create Lab Order</div>
-                    </a>
-                    <a href="doctor_lab_orders.php" class="quick-action-btn">
-                        <i class="fas fa-list text-green-500"></i>
-                        <div class="label">My Orders</div>
-                    </a>
-                    <a href="doctor_lab_reports.php" class="quick-action-btn">
-                        <i class="fas fa-file-alt text-purple-500"></i>
-                        <div class="label">Lab Reports</div>
-                    </a>
-                </div>
-
-                <!-- Statistics -->
-                <?php 
-                $total_reports = count($reports);
-                $completed_reports = 0;
-                foreach ($reports as $r) {
-                    if ($r['report_status'] == 'Completed') $completed_reports++;
-                }
-                ?>
-                <div class="stat-grid">
-                    <div class="stat-card" style="border-left: 4px solid #3b82f6;">
-                        <div class="stat-icon text-blue-500"><i class="fas fa-file-alt"></i></div>
-                        <div class="stat-number text-blue-600"><?php echo $total_reports; ?></div>
-                        <div class="stat-label">Total Reports</div>
+                <div class="max-w-7xl mx-auto w-full">
+                    <!-- Page Header -->
+                    <div class="page-header">
+                        <a href="dashboard.php" class="back-btn" title="Go back to Dashboard">
+                            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+                        </a>
+                        <div>
+                            <h1><i class="fas fa-file-alt text-blue-500 mr-2"></i> Lab Reports</h1>
+                            <p class="subtitle">View, download and print patient lab reports</p>
+                        </div>
                     </div>
-                    <div class="stat-card" style="border-left: 4px solid #22c55e;">
-                        <div class="stat-icon text-green-500"><i class="fas fa-check-circle"></i></div>
-                        <div class="stat-number text-green-600"><?php echo $completed_reports; ?></div>
-                        <div class="stat-label">Completed</div>
-                    </div>
-                    <div class="stat-card" style="border-left: 4px solid #f59e0b;">
-                        <div class="stat-icon text-yellow-500"><i class="fas fa-clock"></i></div>
-                        <div class="stat-number text-yellow-600"><?php echo $total_reports - $completed_reports; ?></div>
-                        <div class="stat-label">Pending</div>
-                    </div>
-                </div>
 
-                <!-- Reports Table -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3><i class="fas fa-file-alt mr-2 text-purple-500"></i> All Reports</h3>
-                        <span class="badge-count"><?php echo count($reports); ?> reports</span>
-                    </div>
-                    <div class="card-body">
-                        <?php if (!empty($reports)): ?>
-                            <div class="table-container">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Report No</th>
-                                            <th>Order No</th>
-                                            <th>Patient</th>
-                                            <th>Tests</th>
-                                            <th>Date</th>
-                                            <th>Status</th>
-                                            <th class="text-center">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($reports as $report): ?>
+                    <!-- Alerts -->
+                    <?php if (isset($_SESSION['success']) && !empty($_SESSION['success'])): ?>
+                        <div class="alert-success"><i class="fas fa-check-circle mr-2"></i><?php echo htmlspecialchars($_SESSION['success']); unset($_SESSION['success']); ?></div>
+                    <?php endif; ?>
+                    <?php if (isset($_SESSION['error']) && !empty($_SESSION['error'])): ?>
+                        <div class="alert-error"><i class="fas fa-exclamation-circle mr-2"></i><?php echo htmlspecialchars($_SESSION['error']); unset($_SESSION['error']); ?></div>
+                    <?php endif; ?>
+
+                    <!-- Statistics -->
+                  
+
+                    <!-- Reports Table -->
+                    <div class="card">
+                      
+                        <div class="card-body">
+                            <!-- ===== TABS (Same as Appointments) ===== -->
+                            <div class="tabs-wrapper">
+                                <div class="flex flex-wrap gap-2 mb-6" style="flex-wrap: nowrap;">
+                                    <div class="tab-btn tab-active" id="tab-all" onclick="filterReports('all')">
+                                        All <span class="badge-count"><?php echo $total_reports; ?></span>
+                                    </div>
+                                    <div class="tab-btn tab-inactive" id="tab-completed" onclick="filterReports('completed')">
+                                        Completed <span class="badge-count"><?php echo $completed_reports; ?></span>
+                                    </div>
+                                    <div class="tab-btn tab-inactive" id="tab-pending" onclick="filterReports('pending')">
+                                        Pending <span class="badge-count"><?php echo $pending_reports; ?></span>
+                                    </div>
+                                    <div class="tab-btn tab-inactive" id="tab-today" onclick="filterReports('today')">
+                                        Today <span class="badge-count"><?php echo $today_reports; ?></span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- ===== END TABS ===== -->
+
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                                <div>
+                                    <h2 class="text-lg font-semibold text-gray-900" id="table-title">All Reports</h2>
+                                    <p class="text-sm text-gray-500" id="table-subtitle">View and manage all your lab reports.</p>
+                                </div>
+                                <div class="relative flex-1 sm:flex-none">
+                                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"></i>
+                                    <input type="text" id="searchInput"
+                                           placeholder="Search reports..."
+                                           class="w-full sm:w-64 pl-9 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                                           onkeyup="searchReports()">
+                                </div>
+                            </div>
+
+                            <?php if (!empty($reports)): ?>
+                                <div class="table-container">
+                                    <table>
+                                        <thead>
                                             <tr>
-                                                <td><span class="test-code-badge"><?php echo htmlspecialchars($report['report_no']); ?></span></td>
-                                                <td><?php echo htmlspecialchars($report['order_no'] ?? 'N/A'); ?></td>
-                                                <td>
-                                                    <?php echo htmlspecialchars($report['patient_name'] ?? 'N/A'); ?>
-                                                    <div class="text-xs text-gray-500"><?php echo htmlspecialchars($report['mobile'] ?? ''); ?></div>
-                                                </td>
-                                                <td><span class="badge-count"><?php echo $report['test_count']; ?> tests</span></td>
-                                                <td><?php echo date('d-m-Y', strtotime($report['report_date'])); ?></td>
-                                                <td>
-                                                    <span class="badge-completed"><?php echo htmlspecialchars($report['report_status']); ?></span>
-                                                </td>
-                                                <td class="actions-cell">
-                                                    <div class="flex items-center gap-1 flex-wrap">
-                                                        <!-- View Report -->
-                                                        <a href="?view_report=1&report_id=<?php echo $report['report_id']; ?>" class="btn-info btn-sm">
-                                                            <i class="fas fa-eye"></i>
-                                                        </a>
-                                                        
-                                                        <!-- Download Report -->
-                                                        <?php if (!empty($report['report_file'])): ?>
-                                                            <a href="../documents/reports/<?php echo htmlspecialchars($report['report_file']); ?>" download class="btn-success btn-sm" title="Download">
-                                                                <i class="fas fa-download"></i>
-                                                            </a>
-                                                        <?php else: ?>
-                                                            <span class="text-gray-400 text-xs" title="No file attached">No file</span>
-                                                        <?php endif; ?>
-                                                        
-                                                        <!-- Print Report -->
-                                                        <a href="print_report.php?order_id=<?php echo $report['order_id']; ?>" target="_blank" class="print-btn btn-sm" title="Print Report">
-                                                            <i class="fas fa-print"></i>
-                                                        </a>
-                                                        
-                                                        <!-- View Previous Reports -->
-                                                        <a href="view_previous_reports.php?patient_id=<?php echo $report['patient_id']; ?>" class="btn-secondary btn-sm" title="View Previous Reports">
-                                                            <i class="fas fa-history"></i>
-                                                        </a>
-                                                        
-                                                        <!-- Delete Report -->
-                                                        <a href="?delete_report=1&report_id=<?php echo $report['report_id']; ?>" class="btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this report?')" title="Delete">
-                                                            <i class="fas fa-trash"></i>
-                                                        </a>
-                                                    </div>
-                                                </td>
+                                                <th>Report No</th>
+                                                <th>Order No</th>
+                                                <th>Patient</th>
+                                                <th>Tests</th>
+                                                <th>Date</th>
+                                                <th>Status</th>
+                                                <th class="text-center">Action</th>
                                             </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody id="reportsTableBody">
+                                            <?php foreach ($reports as $report): 
+                                                $status = $report['report_status'] ?? 'Pending';
+                                                $statusClass = ($status == 'Completed') ? 'badge-completed' : 'badge-pending';
+                                                $dataStatus = strtolower($status);
+                                                $reportDate = $report['report_date'] ?? '';
+                                            ?>
+                                                <tr class="report-row border-b border-gray-100 hover:bg-gray-50 transition-all fade-in"
+                                                    data-status="<?php echo $dataStatus; ?>"
+                                                    data-date="<?php echo htmlspecialchars($reportDate); ?>"
+                                                    data-patient="<?php echo strtolower($report['patient_name'] ?? ''); ?>"
+                                                    data-report="<?php echo strtolower($report['report_no'] ?? ''); ?>">
+                                                    <td><span class="test-code-badge"><?php echo htmlspecialchars($report['report_no']); ?></span></td>
+                                                    <td><?php echo htmlspecialchars($report['order_no'] ?? 'N/A'); ?></td>
+                                                    <td>
+                                                        <?php echo htmlspecialchars($report['patient_name'] ?? 'N/A'); ?>
+                                                        <div class="text-xs text-gray-500"><?php echo htmlspecialchars($report['mobile'] ?? ''); ?></div>
+                                                    </td>
+                                                    <td><span class="badge-count"><?php echo $report['test_count']; ?> tests</span></td>
+                                                    <td><?php echo date('d-m-Y', strtotime($reportDate)); ?></td>
+                                                    <td>
+                                                        <span class="<?php echo $statusClass; ?>"><?php echo htmlspecialchars($status); ?></span>
+                                                    </td>
+                                                    <td class="actions-cell" style="text-align: center;">
+                                                        <div class="flex items-center gap-1 flex-wrap" style="justify-content: center;">
+                                                            <!-- View File Button -->
+                                                            <?php if (!empty($report['report_file'])): ?>
+                                                                <a href="?view_file=1&report_id=<?php echo $report['report_id']; ?>" 
+                                                                   target="_blank" 
+                                                                   class="action-btn view btn-sm" 
+                                                                   title="View Report File">
+                                                                    <i data-lucide="eye" class="w-4 h-4"></i>
+                                                                </a>
+                                                            <?php else: ?>
+                                                                <span class="no-file-text" title="No file attached">
+                                                                    <i data-lucide="eye-off" class="w-4 h-4"></i>
+                                                                </span>
+                                                            <?php endif; ?>
+                                                            
+                                                            <!-- Download Report -->
+                                                            <?php if (!empty($report['report_file'])): ?>
+                                                                <a href="../documents/reports/<?php echo htmlspecialchars($report['report_file']); ?>" 
+                                                                   download 
+                                                                   class="action-btn download btn-sm" 
+                                                                   title="Download Report">
+                                                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                                                </a>
+                                                            <?php endif; ?>
+                                                            
+                                                            <!-- Print Report -->
+                                                            <?php if (!empty($report['order_id'])): ?>
+                                                                <button onclick="window.open('print_report.php?order_id=<?php echo $report['order_id']; ?>', '_blank')" 
+                                                                        class="action-btn print btn-sm" 
+                                                                        title="Print Report">
+                                                                    <i data-lucide="printer" class="w-4 h-4"></i>
+                                                                </button>
+                                                            <?php endif; ?>
+                                                            
+                                                            <!-- Delete Report -->
+                                                            <a href="?delete_report=1&report_id=<?php echo $report['report_id']; ?>" 
+                                                               class="action-btn delete btn-sm" 
+                                                               onclick="return confirm('Are you sure you want to delete this report?')" 
+                                                               title="Delete Report">
+                                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                                            </a>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php else: ?>
+                                <div class="empty-state">
+                                    <i class="fas fa-file-alt"></i>
+                                    <p class="text-lg font-medium text-gray-700">No reports found</p>
+                                    <p class="text-sm text-gray-400 mt-1">Reports will appear here after lab tests are completed</p>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <div class="px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-gray-500">
+                                <div>Showing <span id="visibleCount"><?php echo count($reports); ?></span> reports</div>
+                                <div class="text-xs text-gray-400"><i class="fas fa-sync-alt mr-1"></i> Live updates</div>
                             </div>
-                        <?php else: ?>
-                            <div class="empty-state">
-                                <i class="fas fa-file-alt"></i>
-                                <p class="text-lg font-medium text-gray-700">No reports found</p>
-                                <p class="text-sm text-gray-400 mt-1">Reports will appear here after lab tests are completed</p>
-                            </div>
-                        <?php endif; ?>
+                        </div>
                     </div>
                 </div>
             </main>
         </div>
     </div>
 
-    <!-- ========== VIEW REPORT MODAL ========== -->
-    <?php if ($report_detail): ?>
-    <div class="modal show" id="reportModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2><i class="fas fa-file-alt mr-2 text-blue-500"></i> Report Details</h2>
-                <button class="modal-close" onclick="closeModal()">&times;</button>
-            </div>
-            
-            <!-- Report Header -->
-            <div class="report-header">
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
-                    <div>
-                        <div class="title"><?php echo htmlspecialchars($hospital_name); ?></div>
-                        <div class="subtitle">Lab Report - <?php echo htmlspecialchars($report_detail['report_no']); ?></div>
-                    </div>
-                    <div class="flex gap-2 mt-2 md:mt-0">
-                        <a href="print_report.php?order_id=<?php echo $report_detail['order_id']; ?>" target="_blank" class="btn-primary" style="background: rgba(255,255,255,0.2); color: white; padding: 4px 12px; font-size: 12px;">
-                            <i class="fas fa-print"></i> Print
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Patient & Order Info -->
-            <div class="info-grid">
-                <div>
-                    <h4 class="text-sm font-semibold text-gray-500">Patient Information</h4>
-                    <p class="font-medium"><?php echo htmlspecialchars($report_detail['patient_name'] ?? 'N/A'); ?></p>
-                    <p class="text-sm text-gray-600"><?php echo htmlspecialchars($report_detail['mobile'] ?? ''); ?></p>
-                    <p class="text-sm text-gray-600">Gender: <?php echo htmlspecialchars($report_detail['gender'] ?? 'N/A'); ?></p>
-                    <p class="text-sm text-gray-600">DOB: <?php echo htmlspecialchars($report_detail['date_of_birth'] ?? 'N/A'); ?></p>
-                </div>
-                <div>
-                    <h4 class="text-sm font-semibold text-gray-500">Order Details</h4>
-                    <p class="font-medium">Order #<?php echo htmlspecialchars($report_detail['order_no']); ?></p>
-                    <p class="text-sm text-gray-600">Report Date: <?php echo date('d-m-Y', strtotime($report_detail['report_date'])); ?></p>
-                    <p class="text-sm text-gray-600">Technician: <?php echo htmlspecialchars($report_detail['technician_name'] ?? 'N/A'); ?></p>
-                    <?php if (!empty($report_detail['remarks'])): ?>
-                        <p class="text-sm text-gray-600">Remarks: <?php echo htmlspecialchars($report_detail['remarks']); ?></p>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Test Results -->
-            <div class="mt-4">
-                <h4 class="text-sm font-semibold text-gray-500 mb-2">Test Results</h4>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Test Code</th>
-                                <th>Test Name</th>
-                                <th>Result</th>
-                                <th>Normal Range</th>
-                                <th>Unit</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (!empty($test_results)): ?>
-                                <?php foreach ($test_results as $test): ?>
-                                    <tr>
-                                        <td><span class="test-code-badge"><?php echo htmlspecialchars($test['test_code']); ?></span></td>
-                                        <td><?php echo htmlspecialchars($test['test_name']); ?></td>
-                                        <td>
-                                            <?php if (!empty($test['result_value'])): ?>
-                                                <span class="font-medium"><?php echo htmlspecialchars($test['result_value']); ?></span>
-                                                <?php if (!empty($test['result_remarks'])): ?>
-                                                    <div class="text-xs text-gray-500"><?php echo htmlspecialchars($test['result_remarks']); ?></div>
-                                                <?php endif; ?>
-                                            <?php else: ?>
-                                                <span class="result-pending">Pending</span>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td><?php echo htmlspecialchars($test['normal_range'] ?? $test['test_normal_range'] ?? '-'); ?></td>
-                                        <td><?php echo htmlspecialchars($test['unit'] ?? '-'); ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="5" class="text-center text-gray-500">No test results found</td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Report File -->
-            <?php if (!empty($report_detail['report_file'])): ?>
-                <div class="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <span class="font-semibold text-sm">Attached Report:</span>
-                    <a href="../documents/reports/<?php echo htmlspecialchars($report_detail['report_file']); ?>" target="_blank" class="btn-info btn-sm ml-2">
-                        <i class="fas fa-file-pdf"></i> View PDF
-                    </a>
-                    <a href="../documents/reports/<?php echo htmlspecialchars($report_detail['report_file']); ?>" download class="btn-success btn-sm">
-                        <i class="fas fa-download"></i> Download
-                    </a>
-                </div>
-            <?php endif; ?>
-
-            <div class="modal-footer flex justify-end gap-2 mt-4 pt-3 border-t border-gray-200">
-                <button onclick="closeModal()" class="btn-secondary btn-sm">Close</button>
-                <a href="print_report.php?order_id=<?php echo $report_detail['order_id']; ?>" target="_blank" class="print-btn btn-sm">
-                    <i class="fas fa-print"></i> Print Report
-                </a>
-            </div>
-        </div>
-    </div>
-    <?php endif; ?>
-
     <script>
-        // ========== CLOSE MODAL ==========
-        function closeModal() {
-            document.getElementById('reportModal').classList.remove('show');
-            // Remove query parameter from URL
-            if (window.history && window.history.pushState) {
-                window.history.pushState('', '', window.location.pathname);
+        lucide.createIcons();
+        let currentFilter = 'all';
+        const serverToday = '<?php echo date('Y-m-d'); ?>';
+
+        function filterReports(filter) {
+            currentFilter = filter;
+            const rows = document.querySelectorAll('.report-row');
+            let visibleCount = 0;
+
+            // Toggle active class on tabs
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('tab-active');
+                btn.classList.add('tab-inactive');
+            });
+            const activeTab = document.getElementById('tab-' + filter);
+            if (activeTab) {
+                activeTab.classList.remove('tab-inactive');
+                activeTab.classList.add('tab-active');
             }
+
+            const titles = {
+                'all': ['All Reports', 'View all your lab reports'],
+                'completed': ['Completed Reports', 'View completed reports'],
+                'pending': ['Pending Reports', 'View pending reports'],
+                'today': ['Today Reports', 'View reports generated today']
+            };
+            document.getElementById('table-title').textContent = titles[filter]?.[0] || 'All Reports';
+            document.getElementById('table-subtitle').textContent = titles[filter]?.[1] || '';
+
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+            rows.forEach(row => {
+                let show = true;
+                const status = row.dataset.status;
+                const date = row.dataset.date;
+                const searchText = (row.dataset.patient || '') + ' ' + (row.dataset.report || '');
+
+                switch (filter) {
+                    case 'completed': show = status === 'completed'; break;
+                    case 'pending': show = status === 'pending'; break;
+                    case 'today': show = date === serverToday; break;
+                    default: show = true;
+                }
+
+                if (show && (searchTerm === '' || searchText.includes(searchTerm))) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            document.getElementById('visibleCount').textContent = visibleCount;
         }
 
-        // ========== CLOSE MODAL ON ESC ==========
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                closeModal();
-            }
-        });
+        function searchReports() {
+            filterReports(currentFilter);
+        }
 
-        // ========== CLOSE MODAL ON CLICK OUTSIDE ==========
-        document.addEventListener('click', function(e) {
-            if (e.target.classList.contains('modal')) {
-                closeModal();
+        document.addEventListener('DOMContentLoaded', function () {
+            lucide.createIcons();
+            // Ensure 'all' tab is active by default
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('tab-active');
+                btn.classList.add('tab-inactive');
+            });
+            const allTab = document.getElementById('tab-all');
+            if (allTab) {
+                allTab.classList.remove('tab-inactive');
+                allTab.classList.add('tab-active');
             }
+            filterReports('all');
         });
     </script>
 </body>

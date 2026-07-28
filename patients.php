@@ -8,9 +8,7 @@
     $hid = $_SESSION["hospital_id"];
 
     if(!$hid){
-
      header('Location:index.php');
-
     }
 
     if (!$conn) {
@@ -291,94 +289,102 @@
             color: #1d4ed8;
         }
 
-        /* Tab styles */
-        .patient-tab {
+        /* ===== TAB STYLES (Same as Appointments) ===== */
+        .tab-btn {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 10px 20px;
-            border-radius: 10px;
-            font-weight: 500;
-            font-size: 14px;
-            color: #6b7280;
-            background: transparent;
-            border: none;
+            padding: 8px 18px;
+            border-radius: 40px;
+            font-size: 13px;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.25s ease;
+            border: 1px solid #e5e7eb;
+            background: #fff;
+            color: #64748b;
             text-decoration: none;
+            user-select: none;
+            white-space: nowrap;
         }
-
-        .patient-tab:hover {
-            background: #f3f4f6;
-            color: #374151;
+        .tab-btn:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+            transform: translateY(-1px);
         }
+        .tab-btn .badge-count {
+            background: #e2e8f0;
+            color: #64748b;
+            padding: 1px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            transition: all 0.2s ease;
+        }
+        .tab-active {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            border-color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        .tab-active:hover {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            border-color: #2563eb;
+            box-shadow: 0 6px 16px rgba(59, 130, 246, 0.35);
+        }
+        .tab-active .badge-count {
+            background: rgba(255,255,255,0.25);
+            color: white;
+        }
+        .tab-inactive {
+            background: #fff;
+            color: #64748b;
+            border-color: #e5e7eb;
+        }
+        .tab-inactive .badge-count {
+            background: #e2e8f0;
+            color: #64748b;
+        }
+        .tabs-wrapper {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            padding: 16px 9px;
+            margin-bottom: -31px;
+        }
+        .tabs-wrapper::-webkit-scrollbar {
+            height: 4px;
+        }
+        .tabs-wrapper::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        .tabs-wrapper::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .tabs-wrapper .flex-wrap {
+            flex-wrap: nowrap;
+        }
+        @media (min-width: 640px) {
+            .tabs-wrapper .flex-wrap {
+                flex-wrap: wrap;
+            }
+        }
+        /* ===== END TAB STYLES ===== */
 
-        .patient-tab.active {
-            background: #eff6ff;
-            color: #2563eb;
+        /* Stage badge styles */
+        .stage-badge {
+            display: inline-block;
+            padding: 2px 12px;
+            border-radius: 9999px;
+            font-size: 11px;
             font-weight: 600;
         }
-
-        .patient-tab .tab-icon {
-            width: 18px;
-            height: 18px;
-        }
-
-        /* Count Box Styles */
-        .count-box {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 16px 20px;
-            border-radius: 12px;
-            border: 1px solid #e5e7eb;
-            background: white;
-            min-width: 100px;
-            transition: all 0.2s ease;
-            text-decoration: none;
-            color: #374151;
-        }
-
-        .count-box:hover {
-            border-color: #3b82f6;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
-            transform: translateY(-2px);
-        }
-
-        .count-box.active {
-            border-color: #3b82f6;
-            background: #eff6ff;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
-        }
-
-        .count-box .count-number {
-            font-size: 28px;
-            font-weight: 700;
-            line-height: 1.2;
-        }
-
-        .count-box .count-label {
-            font-size: 12px;
-            font-weight: 500;
-            color: #6b7280;
-            margin-top: 4px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .count-box .count-icon {
-            width: 24px;
-            height: 24px;
-            margin-bottom: 4px;
-        }
-
-        /* Color variants for count boxes */
-        .count-box.total .count-number { color: #3b82f6; }
-        .count-box.call .count-number { color: #8b5cf6; }
-        .count-box.opd .count-number { color: #06b6d4; }
-        .count-box.ipd .count-number { color: #10b981; }
-        .count-box.referral .count-number { color: #f59e0b; }
+        .stage-call { background: #f3e8ff; color: #7c3aed; }
+        .stage-opd { background: #dbeafe; color: #1d4ed8; }
+        .stage-ipd { background: #d1fae5; color: #065f46; }
+        .stage-referral { background: #fef3c7; color: #b45309; }
 
         @media (max-width: 768px) {
             html,
@@ -393,31 +399,15 @@
                 -webkit-overflow-scrolling: touch;
             }
 
-            .patient-tab {
-                padding: 8px 14px;
+            .tab-btn {
+                padding: 6px 14px;
                 font-size: 12px;
-            }
-            
-            .count-box {
-                min-width: 70px;
-                padding: 12px 14px;
-            }
-
-            .count-box .count-number {
-                font-size: 20px;
-            }
-
-            .count-box .count-label {
-                font-size: 10px;
             }
         }
     </style>
 </head>
 
 <body class='bg-gray-50 text-gray-900'>
-    <script>
-    lucide.createIcons();
-</script>
     <div class='flex min-h-screen flex-col bg-gray-50'>
         <?php include 'header.php'; ?> 
         <div class='flex flex-1 items-start'>
@@ -434,108 +424,91 @@
                                 <p class='text-gray-500 text-sm'>Manage your registered patients and their medical records.</p>
                             </div>
                         </div>
+                        <div class="flex flex-wrap gap-3">
+                            <a href="add_patient.php" class="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-all shadow-sm hover:shadow-md">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                                Add Patient
+                            </a>
+                        </div>
                     </div>
 
-                    <!-- Patient Type Count Boxes -->
-                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
-                        <a href="patients.php?view=<?php echo $view; ?>&date=<?php echo $currentDate; ?>&patient_stage=all" 
-                           class="count-box total <?php echo $activeTab == 'all' ? 'active' : ''; ?>">
-                            <svg class="count-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                                <circle cx="12" cy="7" r="4"/>
-                            </svg>
-                            <span class="count-number"><?php echo $stageCounts['all']; ?></span>
-                            <span class="count-label">Total</span>
-                        </a>
-                        
-                        <a href="patients.php?view=<?php echo $view; ?>&date=<?php echo $currentDate; ?>&patient_stage=Call" 
-                           class="count-box call <?php echo $activeTab == 'Call' ? 'active' : ''; ?>">
-                            <svg class="count-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
-                            </svg>
-                            <span class="count-number"><?php echo $stageCounts['Call']; ?></span>
-                            <span class="count-label">Call</span>
-                        </a>
-                        
-                        <a href="patients.php?view=<?php echo $view; ?>&date=<?php echo $currentDate; ?>&patient_stage=OPD" 
-                           class="count-box opd <?php echo $activeTab == 'OPD' ? 'active' : ''; ?>">
-                            <svg class="count-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                                <path d="M9 12l2 2 4-4"/>
-                            </svg>
-                            <span class="count-number"><?php echo $stageCounts['OPD']; ?></span>
-                            <span class="count-label">OPD</span>
-                        </a>
-                        
-                        <a href="patients.php?view=<?php echo $view; ?>&date=<?php echo $currentDate; ?>&patient_stage=IPD" 
-                           class="count-box ipd <?php echo $activeTab == 'IPD' ? 'active' : ''; ?>">
-                            <svg class="count-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
-                                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
-                            </svg>
-                            <span class="count-number"><?php echo $stageCounts['IPD']; ?></span>
-                            <span class="count-label">IPD</span>
-                        </a>
-                        
-                        <a href="patients.php?view=<?php echo $view; ?>&date=<?php echo $currentDate; ?>&patient_stage=Referral" 
-                           class="count-box referral <?php echo $activeTab == 'Referral' ? 'active' : ''; ?>">
-                            <svg class="count-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                            </svg>
-                            <span class="count-number"><?php echo $stageCounts['Referral']; ?></span>
-                            <span class="count-label">Referral</span>
-                        </a>
-                    </div>
-
-                   
-
-                    <div class="bg-white rounded-xl border shadow-sm p-4 mt-2 mb-5 flex justify-between items-center">
+                    <!-- Navigation Controls -->
+                    <div class="bg-white rounded-xl border shadow-sm p-4 mt-2 mb-5 flex flex-wrap justify-between items-center gap-3">
                         <div class="flex items-center gap-2">
                             <a href="patients.php?view=<?php echo $view; ?>&date=<?php echo $prevDate; ?>&patient_stage=<?php echo $patient_stage; ?>"
                                class="p-2 border rounded-lg hover:bg-gray-100">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
-                                fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor" stroke-width="2">
-                                <path d="M15 18l-6-6 6-6"/>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path d="M15 18l-6-6 6-6"/>
                                 </svg>
                             </a>
 
                             <a href="patients.php?view=<?php echo $view; ?>&date=<?php echo date('Y-m-d'); ?>&patient_stage=<?php echo $patient_stage; ?>"
-                               class="px-4 py-2 border rounded-lg hover:bg-gray-100">
+                               class="px-4 py-2 border rounded-lg hover:bg-gray-100 font-medium text-sm">
                                 <?php echo $title; ?>
                             </a>
 
                             <a href="patients.php?view=<?php echo $view; ?>&date=<?php echo $nextDate; ?>&patient_stage=<?php echo $patient_stage; ?>"
                                class="p-2 border rounded-lg hover:bg-gray-100">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"
-                                fill="none" viewBox="0 0 24 24"
-                                stroke="currentColor" stroke-width="2">
-                                <path d="M9 6l6 6-6 6"/>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 6l6 6-6 6"/>
                                 </svg>
                             </a>
                         </div>
 
                         <div class="flex rounded-lg border overflow-hidden">
                             <a href="patients.php?view=day&date=<?php echo $currentDate; ?>&patient_stage=<?php echo $patient_stage; ?>"
-                               class="px-4 py-2 <?php echo ($view=='day')?'bg-blue-600 text-white':'hover:bg-gray-100'; ?>">
+                               class="px-4 py-2 text-sm <?php echo ($view=='day')?'bg-blue-600 text-white':'hover:bg-gray-100'; ?>">
                                 Day
                             </a>
                             <a href="patients.php?view=week&date=<?php echo $currentDate; ?>&patient_stage=<?php echo $patient_stage; ?>"
-                               class="px-4 py-2 <?php echo ($view=='week')?'bg-blue-600 text-white':'hover:bg-gray-100'; ?>">
+                               class="px-4 py-2 text-sm <?php echo ($view=='week')?'bg-blue-600 text-white':'hover:bg-gray-100'; ?>">
                                 Week
                             </a>
                             <a href="patients.php?view=month&date=<?php echo $currentDate; ?>&patient_stage=<?php echo $patient_stage; ?>"
-                               class="px-4 py-2 <?php echo ($view=='month')?'bg-blue-600 text-white':'hover:bg-gray-100'; ?>">
+                               class="px-4 py-2 text-sm <?php echo ($view=='month')?'bg-blue-600 text-white':'hover:bg-gray-100'; ?>">
                                 Month
                             </a>
                         </div>
                     </div>
 
+                    <!-- ===== TABS (Appointments style) ===== -->
+                    <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+                        <div class="tabs-wrapper">
+                            <div class="flex flex-wrap gap-2 mb-6" style="flex-wrap: nowrap;">
+                                <a href="patients.php?view=<?php echo $view; ?>&date=<?php echo $currentDate; ?>&patient_stage=all" 
+                                   class="tab-btn <?php echo ($activeTab == 'all') ? 'tab-active' : 'tab-inactive'; ?>" 
+                                   id="tab-all">
+                                    All <span class="badge-count"><?php echo $stageCounts['all']; ?></span>
+                                </a>
+                                <a href="patients.php?view=<?php echo $view; ?>&date=<?php echo $currentDate; ?>&patient_stage=Call" 
+                                   class="tab-btn <?php echo ($activeTab == 'Call') ? 'tab-active' : 'tab-inactive'; ?>" 
+                                   id="tab-call">
+                                    Call <span class="badge-count"><?php echo $stageCounts['Call']; ?></span>
+                                </a>
+                                <a href="patients.php?view=<?php echo $view; ?>&date=<?php echo $currentDate; ?>&patient_stage=OPD" 
+                                   class="tab-btn <?php echo ($activeTab == 'OPD') ? 'tab-active' : 'tab-inactive'; ?>" 
+                                   id="tab-opd">
+                                    OPD <span class="badge-count"><?php echo $stageCounts['OPD']; ?></span>
+                                </a>
+                                <a href="patients.php?view=<?php echo $view; ?>&date=<?php echo $currentDate; ?>&patient_stage=IPD" 
+                                   class="tab-btn <?php echo ($activeTab == 'IPD') ? 'tab-active' : 'tab-inactive'; ?>" 
+                                   id="tab-ipd">
+                                    IPD <span class="badge-count"><?php echo $stageCounts['IPD']; ?></span>
+                                </a>
+                                <a href="patients.php?view=<?php echo $view; ?>&date=<?php echo $currentDate; ?>&patient_stage=Referral" 
+                                   class="tab-btn <?php echo ($activeTab == 'Referral') ? 'tab-active' : 'tab-inactive'; ?>" 
+                                   id="tab-referral">
+                                    Referral <span class="badge-count"><?php echo $stageCounts['Referral']; ?></span>
+                                </a>
+                            </div>
+                        </div>
+                    <!-- ===== END TABS ===== -->
+
+                    <!-- Patients Table -->
                     <div class='rounded-xl border bg-white shadow-sm overflow-hidden'>
                         <div class='flex flex-col md:flex-row md:items-center md:justify-between p-4 border-b bg-gray-50/50'>
                             <div>
-                                <h2 class='text-lg font-semibold text-gray-900'>
+                                <h2 class='text-lg font-semibold text-gray-900' id="table-title">
                                     <?php 
                                         if ($patient_stage == 'all') {
                                             echo 'All Registered Patients';
@@ -544,7 +517,7 @@
                                         }
                                     ?>
                                 </h2>
-                                <div class='text-xs text-gray-500 mt-0.5'>
+                                <div class='text-xs text-gray-500 mt-0.5' id="table-subtitle">
                                     Showing <?php echo $result->num_rows; ?> patient<?php echo $result->num_rows > 1 ? 's' : ''; ?> 
                                     <?php if ($patient_stage != 'all'): ?>
                                         in <span class="font-medium"><?php echo ucfirst(strtolower($patient_stage)); ?></span> category
@@ -614,10 +587,10 @@
                                                 
                                                 // Stage badge color
                                                 $stageColors = [
-                                                    'Call' => 'bg-purple-100 text-purple-700',
-                                                    'OPD' => 'bg-blue-100 text-blue-700',
-                                                    'IPD' => 'bg-green-100 text-green-700',
-                                                    'Referral' => 'bg-orange-100 text-orange-700'
+                                                    'Call' => 'stage-call',
+                                                    'OPD' => 'stage-opd',
+                                                    'IPD' => 'stage-ipd',
+                                                    'Referral' => 'stage-referral'
                                                 ];
                                                 $stageColor = $stageColors[$stage] ?? 'bg-gray-100 text-gray-700';
                                         ?>
@@ -644,7 +617,7 @@
                                             <td class='p-4 align-middle text-gray-700'><?php echo htmlspecialchars($blood_group); ?></td>
                                             <td class='p-4 align-middle text-gray-700'><?php echo htmlspecialchars($gender); ?></td>
                                             <td class='p-4 align-middle'>
-                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $stageColor; ?>">
+                                                <span class="stage-badge <?php echo $stageColor; ?>">
                                                     <?php echo htmlspecialchars($stage); ?>
                                                 </span>
                                             </td>
@@ -655,16 +628,19 @@
                                             <td class='p-4 align-middle text-right'>
                                                 <div class='action-icons'>
                                                     <a href='view_patient.php?id=<?php echo $patient_id; ?>' class='action-icon view-icon' title='View Patient'>
-                                                         
+                                                        <svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>
+                                                            <path d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'></path>
+                                                            <circle cx='12' cy='12' r='3'></circle>
+                                                        </svg>
                                                     </a>
                                                     <a href='update_patient.php?id=<?php echo $patient_id; ?>' class='action-icon edit-icon' title='Edit Patient'>
-                                                        <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>
+                                                        <svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>
                                                             <path d='M12 20h9'></path>
                                                             <path d='M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z'></path>
                                                         </svg>
                                                     </a>
                                                     <a href='delete_patient.php?id=<?php echo $patient_id; ?>' class='action-icon delete-icon' title='Delete Patient' onclick='return confirm("Are you sure you want to delete this patient?")'>
-                                                        <svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>
+                                                        <svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>
                                                             <polyline points='3 6 5 6 21 6'></polyline>
                                                             <path d='M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'></path>
                                                             <line x1='10' y1='11' x2='10' y2='17'></line>
@@ -711,6 +687,7 @@
                                     in <span class="font-medium text-gray-700"><?php echo ucfirst(strtolower($patient_stage)); ?></span> category
                                 <?php endif; ?>
                             </div>
+                            <div class="text-xs text-gray-400"><i class="fas fa-sync-alt mr-1"></i> Live updates</div>
                         </div>
                     </div>
                 </div>
@@ -764,6 +741,14 @@
                 rowCountSpan.textContent = visible;
             }
         }
+
+        // Keyboard shortcut for search (Ctrl+F)
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                e.preventDefault();
+                document.getElementById('searchInput').focus();
+            }
+        });
     </script>
 </body>
 </html>

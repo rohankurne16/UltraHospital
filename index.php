@@ -1,13 +1,8 @@
 <?php
-// ============================================================
-// LOGIN PAGE - UPDATED WITH DYNAMIC SUPER ADMIN CHECK
-// ============================================================
 
-if (isset($_GET['hid']) && !empty($_GET['hid'])) {
-    $hospital_id = decryptId(urldecode($_GET['hid']));
-}
 session_start();
 include("config/db.php");
+
 
 
 // ============================================================
@@ -18,8 +13,11 @@ $hospital_id = 0;
 if (isset($_GET['hid']) && !empty($_GET['hid'])) {
 
     $hospital_id = decryptId($_GET['hid']);
+  
+    
 
 }
+
 $hospital = null;
 
 if (!empty($hospital_id) && is_numeric($hospital_id) && $hospital_id > 0) {
@@ -473,9 +471,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </button>
         </form>
 
-        <div class="mt-8 text-center text-sm text-slate-500">
-            Don't have an account? <a href="register.php" class="text-blue-600 font-semibold hover:underline">Contact Administrator</a>
-        </div>
+       
     </div>
 
 </body>
