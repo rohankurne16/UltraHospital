@@ -252,12 +252,12 @@ $theme = $_SESSION['theme'] ?? 'light';
             margin: 0; 
         }
         
-        .main-content {
-            margin-left: 250px;
-            padding: 1.5rem;
-            min-height: 100vh;
-            transition: margin-left 0.3s ease;
-        }
+       .main-content {
+    margin-left: 250px; 
+    padding: 1.5rem; 
+    min-height: 100vh;
+    margin-top: 70px; /* Adjust to match your header height */
+}
         .main-content.collapsed { margin-left: 70px; }
         
         .content-card { 
@@ -330,16 +330,17 @@ $theme = $_SESSION['theme'] ?? 'light';
             font-weight: 500; 
             cursor: pointer; 
             transition: all 0.3s ease; 
-            border: 1px solid <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>;
-            background: <?php echo $theme == 'dark' ? '#2a2a2a' : '#f1f5f9'; ?>;
-            color: <?php echo $theme == 'dark' ? '#d1d5db' : '#475569'; ?>;
+            border: 1px solid <?php echo $theme == 'dark' ? '#f5eeee' : '#e2e8f0'; ?>;
+            background: <?php echo $theme == 'dark' ? '#2a2a2a' : '#0780f9'; ?>;
+            color: <?php echo $theme == 'dark' ? '#d1d5db' : '#eff1f4'; ?>;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
         }
         .btn-secondary:hover { 
-            background: <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>; 
+            background: <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>;
+             background-color: #2980d6 
         }
         
         .btn-success { 

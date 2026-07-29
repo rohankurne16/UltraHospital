@@ -3,6 +3,9 @@
 session_start();
 include 'config/hospital.php'; 
 
+require_once 'config/subscription_limits.php';
+
+
 if (!isset($_SESSION["id"]) && empty($_SESSION["id"])) {
     header("Location:auth/logout.php");
     exit();
@@ -35,19 +38,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $check_result = $conn->query($check_query);
 
         if ($check_result && $check_result->num_rows > 0) {
-            $message = "Error: A department with this name already exists!";
-            $messageType = "error";
+    $message = "Error: A department with this name already exists!";
+    $messageType = "error";
+} else {
+    // ============================================================
+    // NEW: Check subscription limit for departments
+    // ============================================================
+    if (!checkResourceLimit($hid, 'department')) {
+        $message = getLimitMessage('department');
+        $messageType = "error";
+    } else {
+        // Proceed with insertion
+        $sql = "INSERT INTO department (department_name, description, status, hospital_id) VALUES ('$dept_name', '$description', '$status', '$hid')";   
+        if ($conn->query($sql) === TRUE) {
+            header("Location: departments.php?success=Department added successfully");
+            exit();
         } else {
-            $sql = "INSERT INTO department (department_name, description, status, hospital_id) VALUES ('$dept_name', '$description', '$status', '$hid')";   
-            if ($conn->query($sql) === TRUE) {
-                header("Location: departments.php?success=Department added successfully");
-                exit();
-            } else {
-                $message = "Error: " . $conn->error;
-                $messageType = "error";
-            }
+            $message = "Error: " . $conn->error;
+            $messageType = "error";
         }
     }
+}
+}
 }
 
 ?>

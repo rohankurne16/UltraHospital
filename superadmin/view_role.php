@@ -55,7 +55,12 @@ $perm_count = mysqli_fetch_assoc($perm_count_result)['total'];
         body.light { background: #f1f5f9; }
         body.dark { background: #0a0a0a; }
         
-        .main-content { margin-left: 240px; padding: 1.5rem; min-height: 100vh; transition: margin-left 0.3s ease; }
+        .main-content {
+    margin-left: 250px; 
+    padding: 1.5rem; 
+    min-height: 100vh;
+    margin-top: 70px; /* Adjust to match your header height */
+}
         .main-content.collapsed { margin-left: 72px; }
         
         .content-card {

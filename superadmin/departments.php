@@ -197,7 +197,12 @@ mysqli_data_seek($hospitals_result, 0);
         .success-msg { background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #22c55e; padding: 1rem; border-radius: 10px; margin-bottom: 1rem; }
         .error-msg { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #ef4444; padding: 1rem; border-radius: 10px; margin-bottom: 1rem; }
 
-        .main-content { margin-left: 18%; margin-top: 2%; padding: 2rem; }
+        .main-content {
+    margin-left: 250px; 
+    padding: 1.5rem; 
+    min-height: 100vh;
+    margin-top: 70px; /* Adjust to match your header height */
+}
         @media(max-width: 768px) { .main-content { margin-left: 0 !important; padding: 1rem; } }
 
         /* Modal Styles */

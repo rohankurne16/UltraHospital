@@ -162,7 +162,7 @@ if (isset($_POST['create_report'])) {
         
         // Handle file upload
         if (isset($_FILES['report_file']) && $_FILES['report_file']['error'] == 0) {
-            $target_dir = "../documents/reports/";
+            $target_dir = "documents/reports/";
             if (!file_exists($target_dir)) {
                 mkdir($target_dir, 0777, true);
             }
@@ -178,7 +178,7 @@ if (isset($_POST['create_report'])) {
         
         if ($conn->query($sql)) {
             $_SESSION['success'] = "Report #$report_no created successfully!";
-            header("Location: lab_reports.php");
+            header("Location: lab_report.php");
             exit();
         } else {
             $_SESSION['error'] = "Error creating report: " . $conn->error;
@@ -186,7 +186,7 @@ if (isset($_POST['create_report'])) {
     } else {
         $_SESSION['error'] = "Please fill all required fields";
     }
-    header("Location: lab_reports.php");
+    header("Location: lab_report.php");
     exit();
 }
 
@@ -247,6 +247,71 @@ if (isset($_GET['delete_report'])) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* Simple Action Buttons */
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    color: white !important;
+}
+
+.action-btn i {
+    font-size: 12px;
+    color: white !important;
+}
+
+.action-btn span {
+    font-size: 11px;
+}
+
+.action-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.action-btn:active {
+    transform: translateY(0px);
+}
+
+/* View Button - Blue */
+.view-btn {
+    background: #3b82f6;
+}
+.view-btn:hover {
+    background: #2563eb;
+}
+
+/* Print Button - Purple */
+.print-btn {
+    background: #8b5cf6;
+}
+.print-btn:hover {
+    background: #7c3aed;
+}
+
+/* Download Button - Green */
+.download-btn {
+    background: #22c55e;
+}
+.download-btn:hover {
+    background: #16a34a;
+}
+
+/* Delete Button - Red */
+.delete-btn {
+    background: #ef4444;
+}
+.delete-btn:hover {
+    background: #dc2626;
+}
         * { font-family: 'Inter', sans-serif; }
         body { background: #f8fafc; }
         .main-content { width: 100%; margin-left: 260px; padding: 20px 28px; min-height: 100vh; }
@@ -403,37 +468,37 @@ if (isset($_GET['delete_report'])) {
                                                         <br><span class="text-xs text-blue-600">Corrected</span>
                                                     <?php endif; ?>
                                                 </td>
-                                                <td class="actions-cell">
-                                                    <div class="flex items-center gap-1 flex-wrap">
-                                                        <!-- View Report -->
-                                                        <a href="?view_report=<?php echo $report['report_id']; ?>" 
-                                                           class="btn-info btn-sm" title="View Report">
-                                                            <i class="fas fa-eye"></i>
-                                                        </a>
-                                                        
-                                                        <!-- Print Report -->
-                                                        <a href="print_report.php?id=<?php echo $report['report_id']; ?>" 
-                                                           target="_blank" class="btn-warning btn-sm" title="Print Report">
-                                                            <i class="fas fa-print"></i>
-                                                        </a>
-                                                        
-                                                        <!-- Download Report -->
-                                                        <?php if ($report['report_file']): ?>
-                                                            <a href="../documents/reports/<?php echo $report['report_file']; ?>" 
-                                                               download class="btn-success btn-sm" title="Download Report">
-                                                                <i class="fas fa-download"></i>
-                                                            </a>
-                                                        <?php endif; ?>
-                                                        
-                                                      
-                                                        
-                                                        <!-- Patient History -->
-                                                      
-                                                        
-                                                        <!-- Delete Report -->
-                                                        
-                                                    </div>
-                                                </td>
+                                               <td class="actions-cell">
+    <div class="flex items-center gap-1 flex-wrap">
+        <!-- View Report -->
+        <a href="?view_report=<?php echo $report['report_id']; ?>" 
+           class="action-btn view-btn" title="View Report">
+            <i class="fas fa-eye"></i>
+          
+        </a>
+        
+        <!-- Print Report -->
+        <?php if (!empty($report['report_file'])): ?>
+            <a href="print_report.php?id=<?php echo $report['report_id']; ?>" 
+               target="_blank" class="action-btn print-btn">
+                <i class="fas fa-print"></i>
+               
+            </a>
+        <?php endif; ?>
+        
+        <!-- Download Report -->
+        <?php if ($report['report_file']): ?>
+            <a href="../documents/reports/<?php echo $report['report_file']; ?>" 
+               download class="action-btn download-btn" title="Download Report">
+                <i class="fas fa-download"></i>
+              
+            </a>
+        <?php endif; ?>
+        
+        <!-- Delete Report -->
+       
+    </div>
+</td>
                                             </tr>
                                         <?php endforeach; ?>
                                     </tbody>
@@ -539,10 +604,11 @@ if (isset($_GET['delete_report'])) {
 
                                 <?php if ($report_details['report_file']): ?>
                                 <div class="mt-3">
-                                    <a href="../documents/reports/<?php echo $report_details['report_file']; ?>" 
-                                       target="_blank" class="btn-info btn-sm">
-                                        <i class="fas fa-file"></i> View Attached File
-                                    </a>
+                                    <a href="/UltraHospital-main/documents/reports/<?php echo $report_details['report_file']; ?>"
+   target="_blank"
+   class="btn-info btn-sm">
+    <i class="fas fa-file"></i> View Attached File
+</a>
                                 </div>
                                 <?php endif; ?>
 

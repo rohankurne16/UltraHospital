@@ -391,6 +391,7 @@ if (isset($_GET['delete_report'])) {
     .card-header h3 { font-size: 16px; font-weight: 600; color: #0f172a; }
     .card-body { padding: 20px 24px; }
     
+    /* Base Button Styles */
     .btn-primary { background: #3b82f6; color: white; padding: 8px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; border: none; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
     .btn-primary:hover { background: #2563eb; }
     .btn-success { background: #22c55e; color: white; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
@@ -405,6 +406,188 @@ if (isset($_GET['delete_report'])) {
     .btn-outline:hover { background: #f3f4f6; }
     .btn-sm { padding: 4px 10px; font-size: 11px; }
     
+    /* ===== MODERN ACTION BUTTONS ===== */
+    .action-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 6px 14px;
+        border: none;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        text-decoration: none;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+        color: white !important;
+    }
+
+    .action-btn i {
+        font-size: 13px;
+        transition: transform 0.2s ease;
+        color: white !important;
+    }
+
+    .action-btn span {
+        display: inline-block;
+    }
+
+    .action-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        color: white !important;
+    }
+
+    .action-btn:hover i {
+        transform: scale(1.1);
+        color: white !important;
+    }
+
+    .action-btn:active {
+        transform: translateY(0px);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    /* View Button */
+    .view-btn {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    }
+    .view-btn:hover {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+    }
+
+    /* Edit Button */
+    .edit-btn {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    }
+    .edit-btn:hover {
+        background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+    }
+
+    /* Delete Button */
+    .delete-btn {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    }
+    .delete-btn:hover {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+    }
+
+    /* Download Button */
+    .download-btn {
+        background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    }
+    .download-btn:hover {
+        background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+        box-shadow: 0 4px 15px rgba(34, 197, 94, 0.4);
+    }
+
+    /* Print Button */
+    .print-btn {
+        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+        color: white;
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        border: none;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        text-decoration: none;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    }
+    .print-btn:hover {
+        background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+        color: white !important;
+    }
+    .print-btn i {
+        color: white !important;
+    }
+
+    /* Shine effect on buttons */
+    .action-btn::before, .print-btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+        transition: left 0.6s ease;
+    }
+
+    .action-btn:hover::before, .print-btn:hover::before {
+        left: 100%;
+    }
+
+    /* Button with icon only (on mobile) */
+    @media (max-width: 640px) {
+        .action-btn span {
+            display: none;
+        }
+        .action-btn {
+            padding: 8px 10px;
+            border-radius: 50%;
+            width: 34px;
+            height: 34px;
+            justify-content: center;
+        }
+        .action-btn i {
+            font-size: 14px;
+            margin: 0;
+        }
+        .print-btn span {
+            display: none;
+        }
+        .print-btn {
+            padding: 8px 10px;
+            border-radius: 50%;
+            width: 34px;
+            height: 34px;
+            justify-content: center;
+        }
+        .print-btn i {
+            font-size: 14px;
+            margin: 0;
+        }
+    }
+
+    /* Tooltip effect */
+    .action-btn::after, .print-btn::after {
+        content: attr(title);
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%) scale(0.8);
+        background: #1f2937;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 400;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: all 0.2s ease;
+        z-index: 10;
+    }
+
+    .action-btn:hover::after, .print-btn:hover::after {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+    }
+
+    /* Table Styles */
     .table-container { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     thead { background: #f9fafb; }
@@ -473,13 +656,9 @@ if (isset($_GET['delete_report'])) {
         border-color: #d1d5db;
     }
     
-    /* Print button style */
-    .print-btn { background: #8b5cf6; color: white; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
-    .print-btn:hover { background: #7c3aed; }
-    
     /* Doctor name display */
     .doctor-name { font-weight: 500; color: #1e40af; }
-    </style>
+</style>
 </head>
 <body>
 
@@ -502,9 +681,7 @@ if (isset($_GET['delete_report'])) {
                             <p class="text-gray-500 mt-1">View, edit, and manage your generated reports</p>
                         </div>
                     </div>
-                    <a href="dashboard.php" class="btn-primary">
-                        <i class="fas fa-arrow-left"></i> Back to Dashboard
-                    </a>
+                    
                 </div>
 
                 <!-- Alerts -->
@@ -567,43 +744,49 @@ if (isset($_GET['delete_report'])) {
                                                     <span class="status-badge <?php echo $status_class; ?>"><?php echo htmlspecialchars($report['report_status'] ?? 'Pending'); ?></span>
                                                 </td>
                                                 <td class="actions-cell">
-                                                    <div class="flex items-center gap-1 flex-wrap">
-                                                        <!-- View Button -->
-                                                        <button onclick="viewReport(<?php echo $report['report_id']; ?>)" 
-                                                                class="btn-info btn-sm" title="View Report">
-                                                            <i class="fas fa-eye"></i>
-                                                        </button>
-                                                        
-                                                        <!-- Edit Button -->
-                                                        <button onclick="editReport(<?php echo $report['report_id']; ?>)" 
-                                                                class="btn-warning btn-sm" title="Edit Report">
-                                                            <i class="fas fa-edit"></i>
-                                                        </button>
-                                                        
-                                                        <!-- Delete Button -->
-                                                        <button onclick="deleteReport(<?php echo $report['report_id']; ?>, '<?php echo htmlspecialchars($report['report_no']); ?>')" 
-                                                                class="btn-danger btn-sm" title="Delete Report">
-                                                            <i class="fas fa-trash"></i>
-                                                        </button>
-                                                        
-                                                        <!-- Download Button -->
-                                                        <?php if (!empty($report['report_file'])): ?>
-                                                            <a href="download_report.php?file=<?php echo urlencode($report['report_file']); ?>"
-   class="btn-success btn-sm"
-   title="Download Report">
-    <i class="fas fa-download"></i>
-</a>
-                                                        <?php endif; ?>
-                                                        
-                                                        <!-- Print Button -->
-                                                        <?php if (!empty($report['order_id'])): ?>
-                                                            <a href="print_report.php?order_id=<?php echo $report['order_id']; ?>"
+                                                   <div class="flex items-center gap-2 flex-wrap">
+    <!-- View Button -->
+    <button onclick="viewReport(<?php echo $report['report_id']; ?>)" 
+            class="action-btn view-btn" 
+            title="View Report">
+        <i class="fas fa-eye"></i>
+       
+    </button>
+    
+    <!-- Edit Button -->
+    <button onclick="editReport(<?php echo $report['report_id']; ?>)" 
+            class="action-btn edit-btn" 
+            title="Edit Report">
+        <i class="fas fa-edit"></i>
+       
+    </button>
+    
+    <!-- Delete Button -->
+    <button onclick="deleteReport(<?php echo $report['report_id']; ?>, '<?php echo htmlspecialchars($report['report_no']); ?>')" 
+            class="action-btn delete-btn" 
+            title="Delete Report">
+        <i class="fas fa-trash"></i>
+       
+    </button>
+    
+    <!-- Download Button -->
+    <?php if (!empty($report['report_file'])): ?>
+        <a href="download_report.php?file=<?php echo urlencode($report['report_file']); ?>"
+           class="action-btn download-btn"
+           title="Download Report">
+            <i class="fas fa-download"></i>
+           
+        </a>
+    <?php endif; ?>
+    
+    <!-- Print Button -->
+  <a href="print_report.php?file=<?php echo urlencode($report['report_file']); ?>"
    target="_blank"
-   class="print-btn btn-sm">
-    <i class="fas fa-print" style="color:white"></i>
+   class="action-btn print-btn"
+   title="Print Report">
+    <i class="fas fa-print"></i>
 </a>
-                                                        <?php endif; ?>
-                                                    </div>
+</div>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>

@@ -5,6 +5,16 @@ include "../config/send_registration_email.php";
 
 $hid = $_SESSION["hospital_id"];
 
+// Fetch hospital name for title
+$hospital_name = '';
+if ($hid) {
+    $query = "SELECT hospital_name FROM hospital_master WHERE hospital_id = $hid";
+    $result = mysqli_query($conn, $query);
+    if ($result && $row = mysqli_fetch_assoc($result)) {
+        $hospital_name = $row['hospital_name'];
+    }
+}
+
 // Initialize variables
 $message = "";
 $message_type = "";
@@ -141,7 +151,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add Staff - <?php echo $hospital['hospital_name'] ?></title> 
+    <title>Add Staff - <?php echo htmlspecialchars($hospital_name ?: 'Hospital'); ?></title> 
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -149,51 +159,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         body { font-family: 'Inter', sans-serif; }
-        
-        /* Sidebar and Layout */
-        #sidebar-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100vh;
-            z-index: 50;
-            transition: transform 0.3s ease;
-            background: white;
-        }
-
-        @media (max-width: 1279px) {
-            #sidebar-container {
-                transform: translateX(-100%);
-                box-shadow: 4px 0 10px rgba(0,0,0,0.1);
-            }
-            #sidebar-container.active {
-                transform: translateX(0);
-            }
-            #main-content {
-                margin-left: 0 !important;
-            }
-            .sidebar-overlay {
-                display: none;
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0,0,0,0.5);
-                z-index: 40;
-            }
-            .sidebar-overlay.active {
-                display: block;
-            }
-        }
-
-        @media (min-width: 1280px) {
-            #sidebar-container {
-                transform: translateX(0);
-                width: 256px;
-            }
-        }
-
+       
         #mobile-toggle {
             display: flex;
             align-items: center;
@@ -206,7 +172,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
             color: #374151;
             cursor: pointer;
         }
-
+        #main-content {
+            margin-left: 250px; 
+            padding: 1.5rem; 
+            min-height: 100vh;
+            margin-top: 70px; /* Adjust to match your header height */
+        }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
@@ -352,15 +323,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
         }
     </style>
 </head>
-<body class="bg-gray-50 text-gray-900">
-    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+<body>
+    
 
     <div class="flex min-h-screen flex-col bg-gray-50 ">
         <!-- Header -->
         <?php include 'header.php'; ?>
 
         <div class="flex flex-1 items-start">
-            <?php include 'Sidebar.php'; ?>
+            <?php include 'sidebar.php'; ?> <!-- corrected case -->
 
             <!-- Main Content Area -->
             <main id="main-content" class="flex-1 overflow-x-hidden duration-300 p-4 xl:p-8 xl:ml-64 w-full">
@@ -638,35 +609,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
     <script>
         lucide.createIcons();
 
-        // Sidebar Toggle Logic
-        document.addEventListener('DOMContentLoaded', function() {
-            const mobileToggle = document.getElementById('mobile-toggle');
-            const sidebarContainer = document.getElementById('sidebar-container');
-            const sidebarOverlay = document.getElementById('sidebar-overlay');
-            
-            function openSidebar() {
-                sidebarContainer.classList.add('active');
-                sidebarOverlay.classList.add('active');
-                document.body.style.overflow = 'hidden';
-            }
-
-            function closeSidebar() {
-                sidebarContainer.classList.remove('active');
-                sidebarOverlay.classList.remove('active');
-                document.body.style.overflow = '';
-            }
-
-            if (mobileToggle) mobileToggle.addEventListener('click', openSidebar);
-            if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeSidebar);
-
-            document.addEventListener('click', function(e) {
-                const closeBtn = e.target.closest('.lucide-x') || e.target.closest('.fa-xmark') || e.target.closest('#sidebar-close');
-                if (closeBtn && window.innerWidth < 1280) {
-                    closeSidebar();
-                }
-            });
-        });
-
+       
         // ============================================================
         // VALIDATION LOGIC
         // ============================================================

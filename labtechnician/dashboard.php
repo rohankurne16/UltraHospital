@@ -150,14 +150,17 @@ $rejected_orders = $result_rejected ? $result_rejected->fetch_assoc()['total'] :
 $orders = [];
 
 // 🔽 IMPROVED: Better doctor fetching with multiple fallbacks
-$sql_orders = "SELECT o.*, p.patient_name, p.mobile as patient_mobile, p.gender, 
-               d.doctor_name, d.department, d.qualification,
-               s.name as staff_doctor_name
+$sql_orders = "SELECT o.*, 
+               p.patient_name,
+               d.doctor_name,
+               lr.report_id
                FROM lab_orders o
-               LEFT JOIN patients p ON o.patient_id = p.patient_id AND (p.delete_flag = 0 OR p.delete_flag IS NULL)
-               LEFT JOIN doctor d ON o.doctor_id = d.doctor_id AND (d.delete_flag = 0 OR d.delete_flag IS NULL)
-               LEFT JOIN staff s ON o.doctor_id = s.staff_id AND s.role = 'Doctor' AND (s.delete_flag = 0 OR s.delete_flag IS NULL)
-               WHERE o.technician_id = $user_id AND o.delete_flag = 0
+               LEFT JOIN patients p ON o.patient_id = p.patient_id
+               LEFT JOIN doctor d ON o.doctor_id = d.doctor_id
+               LEFT JOIN lab_reports lr ON o.order_id = lr.order_id
+               WHERE o.technician_id = $user_id
+               AND o.delete_flag = 0
+               GROUP BY o.order_id
                ORDER BY o.order_id DESC";
 
 $result_orders = $conn->query($sql_orders);
@@ -840,12 +843,30 @@ if (isset($_POST['generate_report'])) {
             
             <!-- Generate Report -->
             <?php if ($order['order_status'] == 'Completed'): ?>
-                <button onclick="event.stopPropagation(); openReportModal(<?php echo $order['order_id']; ?>)" 
-                        class="btn-success btn-sm" title="Generate Report">
-                    <i class="fas fa-file-alt"></i>
-                </button>
-             
-            <?php endif; ?>
+
+    <?php if (empty($order['report_id'])) { ?>
+
+        <button onclick="openReportModal(<?php echo $order['order_id']; ?>)"
+                class="btn-success btn-sm">
+            <i class="fas fa-file-alt"></i> Generate Report
+        </button>
+
+    <?php } else { ?>
+
+        <span style="
+            display:inline-block;
+            padding:6px 12px;
+            background:#dcfce7;
+            color:#166534;
+            border-radius:6px;
+            font-size:12px;
+            font-weight:600;">
+            <i class="fas fa-check-circle"></i> Report Generated
+        </span>
+
+    <?php } ?>
+
+<?php endif; ?>
         </div>
     </td>
 </tr>
@@ -923,61 +944,82 @@ if (isset($_POST['generate_report'])) {
 
                 <!-- ========== COMPLETED TAB ========== -->
                 <div id="tab-completed" class="tab-content">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3><i class="fas fa-check-circle mr-2 text-green-500"></i> Completed Orders</h3>
-                        </div>
-                        <div class="card-body">
-                            <?php 
-                            $completed_list = array_filter($orders, function($o) {
-                                return $o['order_status'] == 'Completed';
-                            });
-                            if (!empty($completed_list)): 
-                            ?>
-                                <div class="table-container">
-                                    <table>
-                                        <thead>
-                                            <tr>
-                                                <th>#</th>
-                                                <th>Order No</th>
-                                                <th>Patient</th>
-                                                <th>Doctor</th>
-                                                <th>Tests</th>
-                                                <th class="text-center">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php $counter = 1; ?>
-                                            <?php foreach ($completed_list as $order): ?>
-                                                <tr>
-                                                    <td><?php echo $counter++; ?></td>
-                                                    <td><span class="test-code-badge"><?php echo htmlspecialchars($order['order_no']); ?></span></td>
-                                                    <td><?php echo htmlspecialchars($order['patient_name'] ?? 'N/A'); ?></td>
-                                       <td><?php echo htmlspecialchars($order['doctor_display'] ?? 'N/A'); ?></td>
-                                                    <td><span class="badge-count"><?php echo $order['test_count']; ?> tests</span></td>
-                                                    <td class="actions-cell">
-                                                        <div class="flex items-center gap-1 flex-wrap">
-                                                            <button onclick="openReportModal(<?php echo $order['order_id']; ?>)" 
-                                                                    class="btn-success btn-sm">
-                                                                <i class="fas fa-file-alt"></i> Generate Report
-                                                            </button>
-                                                            
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            <?php else: ?>
-                                <div class="empty-state">
-                                    <i class="fas fa-check-circle"></i>
-                                    <p class="text-lg font-medium text-gray-700">No completed orders yet</p>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
+    <div class="card">
+        <div class="card-header">
+            <h3><i class="fas fa-check-circle mr-2 text-green-500"></i> Completed Orders</h3>
+        </div>
+        <div class="card-body">
+            <?php 
+            $completed_list = array_filter($orders, function($o) {
+                return $o['order_status'] == 'Completed';
+            });
+            if (!empty($completed_list)): 
+            ?>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Order No</th>
+                                <th>Patient</th>
+                                <th>Doctor</th>
+                                <th>Tests</th>
+                                <th class="text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php $counter = 1; ?>
+                            <?php foreach ($completed_list as $order): ?>
+                                <tr class="cursor-pointer hover:bg-gray-50 transition-colors" onclick="viewOrder(<?php echo $order['order_id']; ?>)">
+                                    <td><?php echo $counter++; ?></td>
+                                    <td><span class="test-code-badge"><?php echo htmlspecialchars($order['order_no']); ?></span></td>
+                                    <td><?php echo htmlspecialchars($order['patient_name'] ?? 'N/A'); ?></td>
+                                    <td><?php echo htmlspecialchars($order['doctor_display'] ?? 'N/A'); ?></td>
+                                    <td><span class="badge-count"><?php echo $order['test_count']; ?> tests</span></td>
+                                    <td class="actions-cell">
+                                        <div class="flex items-center gap-1 flex-wrap">
+                                            <?php if (empty($order['report_id'])) { ?>
+                                                <button onclick="event.stopPropagation(); openReportModal(<?php echo $order['order_id']; ?>)"
+                                                        class="btn-success btn-sm">
+                                                    <i class="fas fa-file-alt"></i> Generate Report
+                                                </button>
+                                            <?php } else { ?>
+                                                <!-- View Report Button -->
+                                              
+                                                
+                                                <!-- Download Report Button -->
+                                              
+                                                
+                                                <!-- Print Report Button -->
+                                          
+                                                
+                                              <span style="
+            display:inline-block;
+            padding:6px 12px;
+            background:#dcfce7;
+            color:#166534;
+            border-radius:6px;
+            font-size:12px;
+            font-weight:600;">
+            <i class="fas fa-check-circle"></i> Report Generated
+        </span>
+                                            <?php } ?>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
                 </div>
+            <?php else: ?>
+                <div class="empty-state">
+                    <i class="fas fa-check-circle"></i>
+                    <p class="text-lg font-medium text-gray-700">No completed orders yet</p>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
             </main>
         </div>
     </div>

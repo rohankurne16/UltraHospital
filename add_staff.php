@@ -2,6 +2,12 @@
 session_start();
 include "config/hospital.php";
 require_once "config/send_registration_email.php";
+require_once 'config/subscription_limits.php';
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    unset($_SESSION['form_data']);
+}
+
 $message = "";
 $messageType = "";
 $image_path = "";
@@ -24,7 +30,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit'])) {
     if (empty($name) || empty($email) || empty($password) || empty($selectrole)) {
         $message = "Please fill all required fields.";
         $messageType = "error";
-} elseif (!preg_match("/^[A-Za-z\s'-]+$/", $name)) {
+    } elseif (!preg_match("/^[A-Za-z\s'-]+$/", $name)) {
         $message = "Invalid Name. Only letters, spaces, hyphens, and apostrophes are allowed.";
         $messageType = "error";
     } elseif (!empty($mobile) && !preg_match('/^[0-9]{10}$/', $mobile)) {
@@ -57,70 +63,78 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit'])) {
             $message = "Email already exists.";
             $messageType = "error";
         } else {
-            // Upload Image
-            if (isset($_FILES['staff_image']) && $_FILES['staff_image']['error'] == 0 && !empty($_FILES['staff_image']['name'])) {
-                $folder = "documents/staff/images/";
-                if (!file_exists($folder)) {
-                    mkdir($folder, 0777, true);
-                }
+            // ============================================================
+            // NEW: Check subscription limit for staff
+            // ============================================================
+            if (!checkResourceLimit($hid, 'staff')) {
+                $message = getLimitMessage('staff');
+                $messageType = "error";
+            } else {
+                // Upload Image
+                if (isset($_FILES['staff_image']) && $_FILES['staff_image']['error'] == 0 && !empty($_FILES['staff_image']['name'])) {
+                    $folder = "documents/staff/images/";
+                    if (!file_exists($folder)) {
+                        mkdir($folder, 0777, true);
+                    }
 
-                $image_name = time() . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($_FILES['staff_image']['name']));
-                $ext = strtolower(pathinfo($image_name, PATHINFO_EXTENSION));
-                $allowed = array("jpg", "jpeg", "png", "gif");
+                    $image_name = time() . "_" . preg_replace("/[^a-zA-Z0-9.]/", "_", basename($_FILES['staff_image']['name']));
+                    $ext = strtolower(pathinfo($image_name, PATHINFO_EXTENSION));
+                    $allowed = array("jpg", "jpeg", "png", "gif");
 
-                if (in_array($ext, $allowed)) {
-                    if (move_uploaded_file($_FILES['staff_image']['tmp_name'], $folder . $image_name)) {
-                        $image_path = $image_name;
+                    if (in_array($ext, $allowed)) {
+                        if (move_uploaded_file($_FILES['staff_image']['tmp_name'], $folder . $image_name)) {
+                            $image_path = $image_name;
+                        } else {
+                            $message = "Failed to upload image.";
+                            $messageType = "error";
+                        }
                     } else {
-                        $message = "Failed to upload image.";
+                        $message = "Only JPG, JPEG, PNG, GIF allowed.";
                         $messageType = "error";
                     }
-                } else {
-                    $message = "Only JPG, JPEG, PNG, GIF allowed.";
-                    $messageType = "error";
                 }
-            }
 
-            if ($messageType != "error") {
-                mysqli_begin_transaction($conn);
+                if ($messageType != "error") {
+                    mysqli_begin_transaction($conn);
 
-                try {
-                    $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+                    try {
+                        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
-                    $register_sql = "INSERT INTO register (name, email, password, role, created_by, modified_by, hospital_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
-                    $stmt_reg = $conn->prepare($register_sql);
-                    $admin_user = "Admin";
-                    $stmt_reg->bind_param("ssssssi", $name, $email, $hashed_password, $selectrole, $admin_user, $admin_user, $hid);
-                    
-                    if (!$stmt_reg->execute()) {
-                        throw new Exception($stmt_reg->error);
+                        $register_sql = "INSERT INTO register (name, email, password, role, created_by, modified_by, hospital_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
+                        $stmt_reg = $conn->prepare($register_sql);
+                        $admin_user = "Admin";
+                        $stmt_reg->bind_param("ssssssi", $name, $email, $hashed_password, $selectrole, $admin_user, $admin_user, $hid);
+                        
+                        if (!$stmt_reg->execute()) {
+                            throw new Exception($stmt_reg->error);
+                        }
+
+                        $register_id = $conn->insert_id;
+
+                        $staff_sql = "INSERT INTO staff(register_id, name, mobile, email, role, address, status, profile_image, hospital_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                        $stmt_staff = $conn->prepare($staff_sql);
+                        $stmt_staff->bind_param("isssssssi", $register_id, $name, $mobile, $email, $selectrole, $address, $status, $image_path, $hid);
+
+                        if (!$stmt_staff->execute()) {
+                            throw new Exception($stmt_staff->error);
+                        }
+
+                        mysqli_commit($conn);
+                        unset($_SESSION['form_data']);
+
+                        sendRegistrationEmail($conn, $hid, $name, $email, $password);
+
+                        echo "<script>
+                        alert('Staff Added Successfully');
+                        window.location='staff.php';
+                        </script>";
+                        exit();
+
+                    } catch (Exception $e) {
+                        mysqli_rollback($conn);
+                        $message = "Database error: " . $e->getMessage();
+                        $messageType = "error";
                     }
-
-                    $register_id = $conn->insert_id;
-
-                    $staff_sql = "INSERT INTO staff(register_id, name, mobile, email, role, address, status, profile_image, hospital_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                    $stmt_staff = $conn->prepare($staff_sql);
-                    $stmt_staff->bind_param("isssssssi", $register_id, $name, $mobile, $email, $selectrole, $address, $status, $image_path, $hid);
-
-                    if (!$stmt_staff->execute()) {
-                        throw new Exception($stmt_staff->error);
-                    }
-
-                    mysqli_commit($conn);
-                    unset($_SESSION['form_data']);
-
-                    sendRegistrationEmail($conn, $hid, $name, $email, $password);
-
-                    echo "<script>
-                    alert('Staff Added Successfully');
-                    window.location='staff.php';
-                    </script>";
-                    exit();
-
-                } catch (Exception $e) {
-                    mysqli_rollback($conn);
-                    $message = "Database error: " . $e->getMessage();
-                    $messageType = "error";
                 }
             }
         }
@@ -128,10 +142,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit'])) {
 }
 
 $form_data = $_SESSION['form_data'] ?? [];
-$staff_roles = array("Receptionist", "Nurse", "Ward_boy", "Lab Technician");
-
+$staff_roles_query = "SELECT role_name FROM roles 
+                      WHERE delete_flag = 0 
+                        AND role_slug NOT IN ('superadmin', 'admin', 'doctor', 'patient') 
+                      ORDER BY role_name ";
+$staff_roles_result = mysqli_query($conn, $staff_roles_query);
+$staff_roles = [];
+if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
+    while ($row = mysqli_fetch_assoc($staff_roles_result)) {
+        $staff_roles[] = $row['role_name'];
+    }
+}
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -396,6 +418,7 @@ $staff_roles = array("Receptionist", "Nurse", "Ward_boy", "Lab Technician");
         
         <main class="main-content w-full">
             <div class="form-container">
+                
                 <div class="flex items-center gap-4 mb-6 md:mb-8">
                     
                     <a href="staff.php" class="back-btn">

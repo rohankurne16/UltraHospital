@@ -1,5 +1,17 @@
 <?php
-$file = $_GET['file'];
+include "config/hospital.php";
+
+$id = intval($_GET['id']);
+
+$sql = "SELECT report_file
+        FROM lab_reports
+        WHERE report_id = $id
+        LIMIT 1";
+
+$result = mysqli_query($conn, $sql);
+$row = mysqli_fetch_assoc($result);
+
+$file = "documents/reports/" . $row['report_file'];
 ?>
 
 <!DOCTYPE html>
@@ -12,23 +24,16 @@ $file = $_GET['file'];
             text-align:center;
             background:#fff;
         }
-
         img{
             max-width:100%;
             height:auto;
-        }
-
-        @media print{
-            body{
-                margin:0;
-            }
         }
     </style>
 </head>
 
 <body onload="window.print()">
 
-<img src="../documents/reports/<?php echo htmlspecialchars($file); ?>">
+<img src="<?php echo $file; ?>">
 
 </body>
 </html>

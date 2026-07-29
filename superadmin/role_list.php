@@ -100,11 +100,11 @@ $error_msg_display = isset($error_msg) ? $error_msg : (isset($_GET['error']) ? $
         .brand-text p { font-size: 0.65rem; color: #94a3b8; margin: 0; }
         
         .main-content {
-            margin-left: 250px;
-            padding: 1.5rem;
-            min-height: 100vh;
-            transition: margin-left 0.3s ease;
-        }
+    margin-left: 250px; 
+    padding: 1.5rem; 
+    min-height: 100vh;
+    margin-top: 70px; /* Adjust to match your header height */
+}
         .main-content.collapsed { margin-left: 70px; }
         
         .content-card {

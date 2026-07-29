@@ -6,8 +6,11 @@ $page_subtitle = 'Manage all users and assign roles';
 
 $theme = $_SESSION['theme'] ?? 'light';
 
-// Get all roles for dropdown
-$roles_query = "SELECT role_id, role_name FROM roles WHERE delete_flag = 0 ORDER BY role_name";
+// Get all roles for dropdown (excluding Super Admin)
+$roles_query = "SELECT role_id, role_name FROM roles 
+                WHERE delete_flag = 0 
+                AND role_slug != 'superadmin'
+                ORDER BY role_name";
 $roles_result = mysqli_query($conn, $roles_query);
 
 // Get all hospitals for filter
@@ -28,7 +31,8 @@ if (isset($_POST['update_role']) && isset($_POST['user_id']) && isset($_POST['ro
     $role_query = "SELECT role_name
                    FROM roles
                    WHERE role_id = $role_id
-                   AND (delete_flag = 0 OR delete_flag IS NULL)";
+                   AND (delete_flag = 0 OR delete_flag IS NULL)
+                   AND role_slug != 'superadmin'";
 
     $role_result = mysqli_query($conn, $role_query);
 
@@ -115,6 +119,7 @@ $result = mysqli_query($conn, $query);
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        /* ... (your existing styles, unchanged) ... */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; transition: all 0.3s ease; }
         body.light { background: #f1f5f9; }
@@ -413,7 +418,10 @@ $result = mysqli_query($conn, $query);
                                             <select name="role_id" class="role-select" style="padding:0.3rem 0.5rem;border-radius:8px;font-size:0.8rem;background:<?php echo $theme == 'dark' ? '#1e1e1e' : '#f8fafc'; ?>;border:1px solid <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>;color:<?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>;">
                                                 <option value="">Select Role</option>
                                                 <?php 
-                                                    $role_query = "SELECT role_id, role_name FROM roles WHERE delete_flag = 0 ORDER BY role_name";
+                                                    $role_query = "SELECT role_id, role_name FROM roles 
+                                                                   WHERE delete_flag = 0 
+                                                                   AND role_slug != 'superadmin'
+                                                                   ORDER BY role_name";
                                                     $role_result = mysqli_query($conn, $role_query);
                                                     while($role = mysqli_fetch_assoc($role_result)):
                                                 ?>

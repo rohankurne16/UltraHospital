@@ -514,6 +514,155 @@ unset($_SESSION['form_data']);
             color: #1e40af;
             margin-top: 4px;
         }
+        /* Simple Action Buttons */
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    color: white !important;
+}
+
+.action-btn i {
+    font-size: 12px;
+    color: white !important;
+}
+
+.action-btn span {
+    font-size: 11px;
+}
+
+.action-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.action-btn:active {
+    transform: translateY(0px);
+}
+
+/* Edit Button - Yellow/Orange */
+.edit-btn {
+    background: #f59e0b;
+}
+.edit-btn:hover {
+    background: #d97706;
+}
+
+/* Activate Button - Green */
+.activate-btn {
+    background: #22c55e;
+}
+.activate-btn:hover {
+    background: #16a34a;
+}
+
+/* Deactivate Button - Red */
+.deactivate-btn {
+    background: #ef4444;
+}
+.deactivate-btn:hover {
+    background: #dc2626;
+}
+
+/* Delete Button - Red */
+.delete-btn {
+    background: #ef4444;
+}
+.delete-btn:hover {
+    background: #dc2626;
+}
+
+/* View Button - Blue (if needed) */
+.view-btn {
+    background: #3b82f6;
+}
+.view-btn:hover {
+    background: #2563eb;
+}
+
+/* Print Button - Purple (if needed) */
+.print-btn {
+    background: #8b5cf6;
+}
+.print-btn:hover {
+    background: #7c3aed;
+}
+
+/* Download Button - Green (if needed) */
+.download-btn {
+    background: #22c55e;
+}
+.download-btn:hover {
+    background: #16a34a;
+}/* Toggle Button */
+.toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    border: none;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    color: white !important;
+    min-width: 80px;
+    justify-content: center;
+}
+
+.toggle-btn i {
+    font-size: 16px;
+    color: white !important;
+    transition: transform 0.3s ease;
+}
+
+.toggle-btn span {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.toggle-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 3px 12px rgba(0,0,0,0.2);
+}
+
+.toggle-btn:active {
+    transform: scale(0.95);
+}
+
+/* Toggle ON - Active/Green */
+.toggle-on {
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+}
+.toggle-on:hover {
+    background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+    box-shadow: 0 3px 12px rgba(34, 197, 94, 0.4);
+}
+
+/* Toggle OFF - Inactive/Red */
+.toggle-off {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+.toggle-off:hover {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    box-shadow: 0 3px 12px rgba(239, 68, 68, 0.4);
+}
+
+/* Toggle Icon Animation */
+.toggle-btn:hover i {
+    transform: rotate(20deg);
+}
     </style>
 </head>
 <body>
@@ -630,30 +779,39 @@ unset($_SESSION['form_data']);
                                     <?php endif; ?>
                                 </td>
                                 <td class="actions-cell">
-                                    <div class="flex items-center gap-1 flex-wrap">
-                                        <!-- Edit Button -->
-                                        <a href="?edit_test=<?php echo $test['test_id']; ?>" 
-                                           class="btn-warning btn-sm" 
-                                           title="Edit Test">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                        
-                                        <!-- Toggle Status Button -->
-                                        <a href="?toggle_status=<?php echo $test['test_id']; ?>" 
-                                           class="<?php echo ($test['status'] == 'Active') ? 'btn-danger' : 'btn-success'; ?> btn-sm" 
-                                           title="<?php echo ($test['status'] == 'Active') ? 'Deactivate' : 'Activate'; ?>"
-                                           onclick="return confirm('Are you sure you want to change status?');">
-                                            <i class="fas <?php echo ($test['status'] == 'Active') ? 'fa-pause' : 'fa-play'; ?>"></i>
-                                        </a>
-                                        
-                                        <!-- Delete Button -->
-                                        <a href="?delete_test=<?php echo $test['test_id']; ?>" 
-                                           class="btn-danger btn-sm" 
-                                           title="Delete Test"
-                                           onclick="return confirm('Are you sure you want to delete this test permanently?');">
-                                            <i class="fas fa-trash"></i>
-                                        </a>
-                                    </div>
+                                   <div class="flex items-center gap-2">
+
+    <!-- Edit -->
+    <a href="?edit_test=<?php echo $test['test_id']; ?>"
+       class="action-btn edit-btn"
+       title="Edit Test">
+       
+        <span>Edit</span>
+    </a>
+
+    <!-- Status Toggle -->
+    <a href="?toggle_status=<?php echo $test['test_id']; ?>"
+       class="action-btn <?php echo ($test['status'] == 'Active') ? 'toggle-off' : 'toggle-on'; ?>"
+       title="<?php echo ($test['status'] == 'Active') ? 'Deactivate Test' : 'Activate Test'; ?>"
+       onclick="return confirm('Are you sure you want to change this test status?');">
+
+       
+
+        <span>
+            <?php echo ($test['status'] == 'Active') ? 'Deactivate' : 'Activate'; ?>
+        </span>
+    </a>
+
+    <!-- Delete -->
+    <a href="?delete_test=<?php echo $test['test_id']; ?>"
+       class="action-btn delete-btn"
+       title="Delete Test"
+       onclick="return confirm('Are you sure you want to permanently delete this test?');">
+     
+        <span>Delete</span>
+    </a>
+
+</div>
                                 </td>
                             </tr>
                         <?php endwhile; ?>

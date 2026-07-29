@@ -79,7 +79,7 @@ function sendRegistrationEmail(
 
         // Encrypt Hospital ID (uses the global encryptId if defined)
         $encryptedHospitalId = urlencode(encryptId($hospital_id));
-        $loginLink = "http://localhost/Ultra_Hospital/UltraHospital-main/index.php?hid=" . $encryptedHospitalId;
+        $loginLink = "http://localhost/UltraHospital-main/index.php?hid=" . $encryptedHospitalId;
 
         $body = $template['body'];
         $body = str_replace("{message}", $message, $body);

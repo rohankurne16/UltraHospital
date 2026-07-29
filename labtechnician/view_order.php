@@ -20,14 +20,25 @@ if ($order_id == 0) {
 }
 
 // ========== GET ORDER DETAILS ==========
-$sql_order = "SELECT o.*, p.patient_name, p.mobile, p.gender, p.age, p.address, 
-               d.doctor_name, d.department, d.qualification,
-               CONCAT(s.name, ' (', s.role, ')') as technician_name
-               FROM lab_orders o
-               LEFT JOIN patients p ON o.patient_id = p.patient_id
-               LEFT JOIN doctor d ON o.doctor_id = d.doctor_id
-               LEFT JOIN staff s ON o.technician_id = s.staff_id
-               WHERE o.order_id = $order_id AND o.delete_flag = 0";
+$sql_order = "SELECT
+o.*,
+p.patient_name,
+p.mobile AS patient_mobile,
+p.gender,
+p.age,
+p.address,
+d.doctor_name,
+d.department,
+d.qualification,
+CONCAT(s.name,' (',s.role,')') AS technician_name
+FROM lab_orders o
+LEFT JOIN patients p
+ON o.patient_id=p.patient_id
+LEFT JOIN doctor d ON o.doctor_id = d.register_id
+LEFT JOIN staff s
+ON o.technician_id=s.staff_id
+WHERE o.order_id='$order_id'
+AND o.delete_flag=0";
 
 $result_order = $conn->query($sql_order);
 
@@ -37,6 +48,7 @@ if (!$result_order || $result_order->num_rows == 0) {
 }
 
 $order = $result_order->fetch_assoc();
+
 
 // ========== GET TEST DETAILS ==========
 $sql_tests = "SELECT od.*, t.test_name, t.test_code, t.normal_range, t.unit, t.price,
@@ -202,7 +214,9 @@ function getStatusClass($status) {
                             </div>
                             <div class="info-item">
                                 <div class="info-label">Patient Mobile</div>
-                                <div class="info-value"><?php echo htmlspecialchars($order['mobile'] ?? 'N/A'); ?></div>
+                                <div class="info-value">
+    <?php echo htmlspecialchars($order['patient_mobile'] ?? 'N/A'); ?>
+</div>
                             </div>
                             <div class="info-item">
                                 <div class="info-label">Gender</div>

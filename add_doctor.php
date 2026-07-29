@@ -2,6 +2,7 @@
 session_start();
 include "config/hospital.php";
 include "config/send_registration_email.php";
+require_once 'config/subscription_limits.php';
 
 $hid=$_SESSION["hospital_id"];
 
@@ -91,45 +92,53 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
 
     // Only proceed if no error or image upload success
     if (empty($message) || $message_type != "error") {
-        $conn->begin_transaction();
-
-        try {
-            $stmt_reg = $conn->prepare("INSERT INTO register (name, email, password, role, created_by, modified_by, hospital_id) VALUES (?, ?, ?, 'doctor', 'Admin', 'Admin', ?)");
-            $stmt_reg->bind_param("sssi", $doctor_name, $email, $password, $hid);
-            
-            if ($stmt_reg->execute()) {
-                $register_id = $conn->insert_id;
-
-                $stmt_doc = $conn->prepare("INSERT INTO doctor (register_id, doctor_name, doctor_image, mobile, email, department, qualification, specialization, experience, consultation_fee, timing, address, status, hospital_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt_doc->bind_param("issssssssisssi", $register_id, $doctor_name, $doctor_image, $mobile, $email, $department, $qualification, $specialization, $experience, $consultation_fee, $timing, $address, $status, $hid);
-                
-                if ($stmt_doc->execute()) {
-                    $conn->commit();
-
-                    $mailSent = sendRegistrationEmail(
-                        $conn,
-                        $hid,
-                        $doctor_name,
-                        $email,
-                        $password
-                    );
-
-                    if (!$mailSent) {
-                        error_log("Doctor registration email could not be sent to: " . $email);
-                    }
-
-                    header("Location: doctors.php?msg=Doctor added");
-                    exit();
-                } else {
-                    throw new Exception("Unable to Add Doctor details.");
-                }
-            } else {
-                throw new Exception("Unable to Register user.");
-            }
-        } catch (Exception $e) {
-            $conn->rollback();
-            $message = $e->getMessage();
+        // ============================================================
+        // NEW: Check subscription limit for doctors
+        // ============================================================
+        if (!checkResourceLimit($hid, 'doctor')) {
+            $message = getLimitMessage('doctor');
             $message_type = "error";
+        } else {
+            $conn->begin_transaction();
+
+            try {
+                $stmt_reg = $conn->prepare("INSERT INTO register (name, email, password, role, created_by, modified_by, hospital_id) VALUES (?, ?, ?, 'doctor', 'Admin', 'Admin', ?)");
+                $stmt_reg->bind_param("sssi", $doctor_name, $email, $password, $hid);
+                
+                if ($stmt_reg->execute()) {
+                    $register_id = $conn->insert_id;
+
+                    $stmt_doc = $conn->prepare("INSERT INTO doctor (register_id, doctor_name, doctor_image, mobile, email, department, qualification, specialization, experience, consultation_fee, timing, address, status, hospital_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    $stmt_doc->bind_param("issssssssisssi", $register_id, $doctor_name, $doctor_image, $mobile, $email, $department, $qualification, $specialization, $experience, $consultation_fee, $timing, $address, $status, $hid);
+                    
+                    if ($stmt_doc->execute()) {
+                        $conn->commit();
+
+                        $mailSent = sendRegistrationEmail(
+                            $conn,
+                            $hid,
+                            $doctor_name,
+                            $email,
+                            $password
+                        );
+
+                        if (!$mailSent) {
+                            error_log("Doctor registration email could not be sent to: " . $email);
+                        }
+
+                        header("Location: doctors.php?msg=Doctor added");
+                        exit();
+                    } else {
+                        throw new Exception("Unable to Add Doctor details.");
+                    }
+                } else {
+                    throw new Exception("Unable to Register user.");
+                }
+            } catch (Exception $e) {
+                $conn->rollback();
+                $message = $e->getMessage();
+                $message_type = "error";
+            }
         }
     }
 }

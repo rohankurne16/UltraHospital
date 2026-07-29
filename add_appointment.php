@@ -490,10 +490,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                 <input type="text" id="appointment_no" name="appointment_no" value="<?php echo htmlspecialchars($appointment_no); ?>" required>
                             </div>
                             <div class="form-group">
-                                <label for="opd_ipd_type">OPD / IPD <span class="required">*</span></label>
+                                <label for="opd_ipd_type">Type<span class="required">*</span></label>
                                 <select id="opd_ipd_type" name="opd_ipd_type" required onchange="toggleSections();">
                                     <option value="OPD" <?php echo ($form_data['opd_ipd_type'] ?? '') == 'OPD' ? 'selected' : ''; ?>>OPD</option>
-                                    <option value="IPD" <?php echo ($form_data['opd_ipd_type'] ?? '') == 'IPD' ? 'selected' : ''; ?>>IPD</option>
+                                    
                                 </select>
                             </div>
                             <div class="form-group">

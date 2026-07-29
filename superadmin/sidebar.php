@@ -524,7 +524,10 @@ $profile_image = $_SESSION['profile_image'] ?? '';
         </a>
             
             
-           
+           <div class="sidebar-label">Profile</div>
+<a href="profile.php" class="sidebar-item">
+    <i class="fas fa-user"></i><span> Profile</span>
+</a>
 
             <!-- ============================================================
             LOGOUT
