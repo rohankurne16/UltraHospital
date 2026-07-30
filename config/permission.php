@@ -550,12 +550,8 @@ if (empty($permission_names) && !$is_super_admin && isset($_SESSION['id'])) {
             $profile = 'pharmacy/update_profile.php';
             break;
 
-        case 'staff':
-            $profile = 'staff/update_profile.php';
-            break;
-
         case 'receptionist':
-            $profile = 'staff/reception_profile.php';
+            $profile = 'reception_profile.php';
             break;
     }
 
@@ -715,4 +711,5 @@ if (!function_exists('updateHospitalLimits')) {
         return mysqli_query($conn, $update);
     }
 }
+
 ?>

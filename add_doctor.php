@@ -20,6 +20,25 @@ $department_query = mysqli_query($conn, "
     ORDER BY department_name ASC
 ");
 
+// ============================================================
+// FETCH DOCTOR ROLE DETAILS (for register table)
+// ============================================================
+$doctor_role_id = 0;
+$doctor_role_name = 'Doctor'; // fallback
+
+$role_query = "SELECT role_id, role_name FROM roles 
+               WHERE role_slug = 'doctor' 
+               AND (delete_flag = 0 OR delete_flag IS NULL) 
+               LIMIT 1";
+$role_result = mysqli_query($conn, $role_query);
+if ($role_result && $row = mysqli_fetch_assoc($role_result)) {
+    $doctor_role_id = (int)$row['role_id'];
+    $doctor_role_name = $row['role_name'];
+} else {
+    // Log error but continue with fallback
+    error_log("Doctor role not found in roles table. Using fallback values.");
+}
+
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
     $doctor_name = $_POST['doctor_name'];
     $mobile = $_POST['mobile'];
@@ -102,8 +121,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
             $conn->begin_transaction();
 
             try {
-                $stmt_reg = $conn->prepare("INSERT INTO register (name, email, password, role, created_by, modified_by, hospital_id) VALUES (?, ?, ?, 'doctor', 'Admin', 'Admin', ?)");
-                $stmt_reg->bind_param("sssi", $doctor_name, $email, $password, $hid);
+                // --------------------------------------------------------------
+                // UPDATED: Insert into register with role_id and role
+                // --------------------------------------------------------------
+                $stmt_reg = $conn->prepare("INSERT INTO register (name, email, password, role_id, role, created_by, modified_by, hospital_id) VALUES (?, ?, ?, ?, ?, 'Admin', 'Admin', ?)");
+                $stmt_reg->bind_param("sssisi", $doctor_name, $email, $password, $doctor_role_id, $doctor_role_name, $hid);
                 
                 if ($stmt_reg->execute()) {
                     $register_id = $conn->insert_id;
@@ -156,51 +178,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
+        /* (your existing styles – unchanged) */
         body { font-family: 'Inter', sans-serif; }
         
-        /* Sidebar and Layout */
-        #sidebar-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100vh;
-            z-index: 50;
-            transition: transform 0.3s ease;
-            background: white;
-        }
-
-        @media (max-width: 1279px) {
-            #sidebar-container {
-                transform: translateX(-100%);
-                box-shadow: 4px 0 10px rgba(0,0,0,0.1);
-            }
-            #sidebar-container.active {
-                transform: translateX(0);
-            }
-            #main-content {
-                margin-left: 0 !important;
-            }
-            .sidebar-overlay {
-                display: none;
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0,0,0,0.5);
-                z-index: 40;
-            }
-            .sidebar-overlay.active {
-                display: block;
-            }
-        }
-
-        @media (min-width: 1280px) {
-            #sidebar-container {
-                transform: translateX(0);
-                width: 256px;
-            }
-        }
+      
 
         #mobile-toggle {
             display: flex;
@@ -347,7 +328,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
     </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
-    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+   
 
     <div class="flex min-h-screen flex-col bg-gray-50 ">
         <!-- Header -->
@@ -711,37 +692,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
     <script>
         lucide.createIcons();
 
-        // Sidebar Toggle Logic
-        document.addEventListener('DOMContentLoaded', function() {
-            const mobileToggle = document.getElementById('mobile-toggle');
-            const sidebarContainer = document.getElementById('sidebar-container');
-            const sidebarOverlay = document.getElementById('sidebar-overlay');
-            
-            function openSidebar() {
-                sidebarContainer.classList.add('active');
-                sidebarOverlay.classList.add('active');
-                document.body.style.overflow = 'hidden';
-            }
-
-            function closeSidebar() {
-                sidebarContainer.classList.remove('active');
-                sidebarOverlay.classList.remove('active');
-                document.body.style.overflow = '';
-            }
-
-            if (mobileToggle) mobileToggle.addEventListener('click', openSidebar);
-            if (sidebarOverlay) sidebarOverlay.addEventListener('click', closeSidebar);
-
-            document.addEventListener('click', function(e) {
-                const closeBtn = e.target.closest('.lucide-x') || e.target.closest('.fa-xmark') || e.target.closest('#sidebar-close');
-                if (closeBtn && window.innerWidth < 1280) {
-                    closeSidebar();
-                }
-            });
-        });
-
         // ============================================================
-        // VALIDATION LOGIC
+        // VALIDATION LOGIC (unchanged)
         // ============================================================
         document.addEventListener('DOMContentLoaded', function() {
             // Define validation patterns

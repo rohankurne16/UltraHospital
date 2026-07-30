@@ -589,11 +589,18 @@ if (!function_exists('getDashboardUrl')) {
         <div class="sidebar-footer">
             <div class="user-avatar">
                 <?php if ($profile_image): ?>
+                     <?php if($role=='admin'){ ?>
                     <img src="<?php echo $profile_image; ?>" alt="User">
+                <?php   }
+                   else{ ?>
+                     <img src="../<?php echo $profile_image; ?>" alt="User">
+                 <?php  } ?>
+                   
                 <?php else: ?>
                     <?php echo strtoupper(substr($user_name, 0, 1)); ?>
                 <?php endif; ?>
             </div>
+            
             <div class="user-info">
                 <p class="user-name"><?php echo htmlspecialchars($user_name); ?></p>
                 <p class="user-role"><?php echo htmlspecialchars($user_role); ?></p>

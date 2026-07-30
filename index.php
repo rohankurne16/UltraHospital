@@ -344,12 +344,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 header("Location: staff/pharmacist_dashboard.php");
                 exit();
 
-            case 'staff':
-                header("Location: staff/dashboard.php");
-                exit();
+          
 
             case 'receptionist':
-                header("Location: staff/reception_dashboard.php");
+                header("Location: receptionist/dashboard_receptionist.php");
                 exit();
 
             default:

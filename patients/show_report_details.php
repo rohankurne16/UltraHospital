@@ -59,7 +59,7 @@
                 <div class="max-w-4xl mx-auto">
                     
                     <div class="flex items-center justify-between mb-8 no-print">
-                        <a href="show_lab_reports.php" class="text-gray-500 hover:text-gray-700 dark:text-neutral-400 dark:hover:text-neutral-200 flex items-center gap-2 transition-colors">
+                        <a href="lab_report.php" class="text-gray-500 hover:text-gray-700 dark:text-neutral-400 dark:hover:text-neutral-200 flex items-center gap-2 transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                             Back to Reports
                         </a>

@@ -7,7 +7,8 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-
+  $role= $_SESSION['role'];
+                
 // ============================================================
 // FIX: Include required config files
 // ============================================================
@@ -465,6 +466,7 @@ if (!isset($_SESSION['profile_image']) || empty($_SESSION['profile_image'])) {
                 // Get profile image from session
                 $profile_image = $_SESSION['profile_image'] ?? '';
                 $user_name = $_SESSION['name'] ?? 'User';
+         
                 ?>
                 <?php if (!empty($profile_image) && file_exists($profile_image)): ?>
                 <div class="avatar">
@@ -486,9 +488,19 @@ if (!isset($_SESSION['profile_image']) || empty($_SESSION['profile_image'])) {
                     </div>
                 </div>
                 <div class="dropdown-divider"></div>
-                <a href="update_adminprofile.php" class="dropdown-item">
-                    <i class="fas fa-user"></i> My Profile
-                </a>
+                <?php if($role=='Patient' || $role=='patient'){ ?>
+
+                    <a href="profile.php" class="dropdown-item">
+                          <i class="fas fa-user"></i> My Profile
+                    </a>
+                      
+              <?php  }else{ ?>
+                    <a href="update_adminprofile.php" class="dropdown-item">
+                             <i class="fas fa-user"></i> My Profile
+                    </a>
+                <?php    } ?>
+               
+                
                
                 <?php if (hasPermission('system-settings') || strtolower($role_name) == 'super admin'): ?>
                 <div class="dropdown-divider"></div>

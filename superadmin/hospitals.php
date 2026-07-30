@@ -188,14 +188,14 @@ $theme = $_SESSION['theme'] ?? 'light';
             transition: all 0.3s ease; 
             border: 1px solid <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>;
             background: <?php echo $theme == 'dark' ? '#2a2a2a' :  '#3b82f6' ?>;
-            color: <?php echo $theme == 'dark' ? '#d1d5db' : '#475569'; ?>;
+            color: #ffffff;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
         }
         .btn-back:hover { 
-            background: <?php echo $theme == 'dark' ? '#3a3a3a' : '#e2e8f0'; ?>; 
+           
             transform: translateY(-2px);
         }
         

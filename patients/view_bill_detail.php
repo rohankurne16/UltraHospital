@@ -47,10 +47,10 @@
 <body class="bg-gray-50 dark:bg-[#131212] text-neutral-900 dark:text-neutral-100">
 
     <div class="flex min-h-screen flex-col">
-         <div class="no-print"><?php include('header.php') ?></div>
+         <div class="no-print"><?php include('../header.php') ?></div>
         
         <div class="flex flex-1 items-start">
-            <div class="no-print"><?php include('Sidebar.php') ?></div>
+            <div class="no-print"><?php include('../Sidebar.php') ?></div>
             <main class="flex-1 overflow-auto duration-300 p-4 xl:p-6 xl:ml-64 w-full">
                 <div class="max-w-4xl mx-auto">
                     

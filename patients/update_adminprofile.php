@@ -113,10 +113,10 @@ if ($_SERVER['REQUEST_METHOD'] == "GET") {
 <body class="bg-gray-50 dark:bg-[#131212] text-neutral-900 dark:text-neutral-100">
 
     <div class="flex min-h-screen flex-col">
-        <?php include 'header.php'; ?>
+        <?php include '../header.php'; ?>
         
         <div class="flex flex-1 items-start">
-            <?php include 'Sidebar.php'; ?>
+            <?php include '../Sidebar.php'; ?>
             
             
             <main class="flex-1 overflow-auto duration-300 p-4 xl:p-6 xl:ml-64 w-full">
@@ -156,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] == "GET") {
 
                     <?php if ($patient): ?>
 
-                    <form action="update_profile.php" method="POST" enctype="multipart/form-data" class="space-y-6">
+                    <form action="update_adminprofile.php" method="POST" enctype="multipart/form-data" class="space-y-6">
                         <input type="hidden" name="newpatient_id" value="<?php echo $patient['patient_id']; ?>">
 
                         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -168,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] == "GET") {
                                     <div class="flex flex-col items-center text-center">
                                         <div class="relative group mb-4">
                                             <div class="size-32 rounded-full overflow-hidden border-4 border-gray-50 dark:border-neutral-800 shadow-md">
-                                                <img id="preview-image" src="<?php echo $patient['patient_image'] ?  $patient['patient_image'] : 'https://ui-avatars.com/api/?name=' . urlencode($patient['patient_name']) . '&background=random'; ?>" class="w-full h-full object-cover" alt="Patient">
+                                                <img id="preview-image" src="../<?php echo $patient['patient_image'] ?  $patient['patient_image'] : 'https://ui-avatars.com/api/?name=' . urlencode($patient['patient_name']) . '&background=random'; ?>" class="w-full h-full object-cover" alt="Patient">
                                             </div>
                                             <label for="newpatient_image" class="absolute bottom-0 right-0 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full cursor-pointer shadow-lg transition-all">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-camera"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>

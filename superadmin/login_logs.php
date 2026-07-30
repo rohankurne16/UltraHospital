@@ -60,9 +60,9 @@ $total_logs = $count_row['total'];
         /* ============================================
            MAIN CONTENT
            ============================================ */
-        .main-content {
+       .main-content {
             margin-left: 250px;
-            padding: 1.5rem;
+            padding: 4.5rem;
             min-height: 100vh;
             transition: margin-left 0.3s ease;
         }
@@ -114,6 +114,10 @@ $total_logs = $count_row['total'];
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
         }
         .btn-primary:hover {
             transform: translateY(-2px);
@@ -219,6 +223,28 @@ $total_logs = $count_row['total'];
             align-items: center;
             gap: 0.75rem;
         }
+
+        /* ============================================
+           PAGE HEADER (same as audit logs)
+           ============================================ */
+        .page-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            margin-top: 2rem; /* Pushed down under header */
+            flex-wrap: wrap;
+        }
+        .page-header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin: 0;
+            color: <?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>;
+        }
+        .page-header p {
+            color: <?php echo $theme == 'dark' ? '#9ca3af' : '#64748b'; ?>;
+            margin: 0.25rem 0 0 0;
+        }
         
         @media (max-width: 768px) {
             .main-content {
@@ -242,18 +268,27 @@ $total_logs = $count_row['total'];
 </head>
 <body class="<?php echo $theme; ?>">
 
-<!-- Include Sidebar -->
+<!-- Top Navigation -->
 <?php include 'header.php'; ?>
 
+<!-- Sidebar -->
+<?php include 'sidebar.php'; ?>
+
 <!-- Main Content -->
-<div class="main-content" id="mainContent">
-    <!-- Include Header -->
-    <?php include 'sidebar.php'; ?>
-    <a href="dashboard.php" class="btn btn-primary" style="margin-bottom:2%;">
-    <i class="fas fa-arrow-left"></i> Back
-</a>
+<div class="main-content">
+    <!-- Page Header with Back Button -->
+    <div class="page-header">
+        <a href="dashboard.php" class="btn-primary" style="white-space: nowrap;">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+        <div>
+            <h1><?php echo $page_title; ?></h1>
+            <p><?php echo $page_subtitle; ?></p>
+        </div>
+    </div>
+
     <!-- Filters -->
-    <div class="content-card" style=" margin-top: 3%;margin-bottom: 1.5rem;">
+    <div class="content-card" style="margin-bottom: 1.5rem;">
         <form method="GET" style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;">
             <div style="flex: 1; min-width: 180px;">
                 <input type="text" name="search" placeholder="Search by user or IP..." value="<?php echo htmlspecialchars($search); ?>" class="form-control">
@@ -409,7 +444,13 @@ $total_logs = $count_row['total'];
                                     <?php echo date('d M Y h:i A', strtotime($row['login_time'])); ?>
                                 </td>
                                 <td style="color: <?php echo $theme == 'dark' ? '#d1d5db' : '#475569'; ?>; font-size: 0.8rem;">
-                                    <?php echo $row['logout_time'] ? date('d M Y h:i A', strtotime($row['logout_time'])) : '<span style="color:#94a3b8;">-</span>'; ?>
+                                    <?php 
+                                    if ($row['logout_time']) {
+                                        echo date('d M Y h:i A', strtotime($row['logout_time']));
+                                    } else {
+                                        echo '<span style="color:#94a3b8;">Not logged out</span>';
+                                    }
+                                    ?>
                                 </td>
                                 <td>
                                     <span style="font-weight: 600; color: <?php echo $duration == 'Active' ? '#22c55e' : ($theme == 'dark' ? '#d1d5db' : '#475569'); ?>;">
@@ -437,7 +478,6 @@ $total_logs = $count_row['total'];
         </div>
     </div>
 </div>
-
 
 </body>
 </html>

@@ -145,7 +145,7 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Appointments";
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($page_title); ?></title>
     <?php if (!empty($hospital['hospital_logo'])): ?>
-    <link rel="icon" type="image/png" href="../<?php echo htmlspecialchars($hospital['hospital_logo']); ?>">
+    <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($hospital['hospital_logo']); ?>">
     <?php endif; ?>
 
     <script src="https://cdn.tailwindcss.com"></script>

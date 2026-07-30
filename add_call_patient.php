@@ -4,6 +4,24 @@ session_start();
 include "config/hospital.php";
 require_once "config/send_registration_email.php";
 
+// ============================================================
+// FETCH PATIENT ROLE DETAILS (for register table)
+// ============================================================
+$patient_role_id = 0;
+$patient_role_name = 'Patient'; // fallback
+
+$role_query = "SELECT role_id, role_name FROM roles 
+               WHERE role_slug = 'patient' 
+               AND (delete_flag = 0 OR delete_flag IS NULL) 
+               LIMIT 1";
+$role_result = mysqli_query($conn, $role_query);
+if ($role_result && $row = mysqli_fetch_assoc($role_result)) {
+    $patient_role_id = (int)$row['role_id'];
+    $patient_role_name = $row['role_name'];
+} else {
+    error_log("Patient role not found in roles table. Using fallback values.");
+}
+
 if(isset($_SESSION["hospital_id"])){
     $hid=$_SESSION["hospital_id"];
 }
@@ -93,7 +111,11 @@ if (isset($_POST['email'])) {
             $messageType = "error";
         } else {
 
-            $register = "INSERT INTO register(name, email, password, role, created_by, modified_by, hospital_id) VALUES('$patient_name','$email','$password','patient','Admin','Admin','$hid')";
+            // ============================================================
+            // UPDATED: Insert into register with role_id and role
+            // ============================================================
+            $register = "INSERT INTO register(name, email, password, role_id, role, created_by, modified_by, hospital_id) 
+                         VALUES('$patient_name','$email','$password','$patient_role_id','$patient_role_name','Admin','Admin','$hid')";
 
             if($conn->query($register)){
                 $register_id = $conn->insert_id;

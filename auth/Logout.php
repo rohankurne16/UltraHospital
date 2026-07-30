@@ -7,6 +7,30 @@ if (session_status() === PHP_SESSION_NONE) {
 include_once '../config/hospital.php';
 include_once '../config/permission.php';
 
+// ============================================================
+// ADDED: Update logout_time in login_logs
+// ============================================================
+if (isset($_SESSION['id'])) {
+    $register_id = $_SESSION['id'];
+
+    // Use login_id stored during login (most accurate)
+    if (isset($_SESSION['login_id'])) {
+        $login_id = intval($_SESSION['login_id']);
+        $update = "UPDATE login_logs SET logout_time = NOW() WHERE login_id = $login_id";
+        mysqli_query($conn, $update);
+    } else {
+        // Fallback: update the latest active login for this user
+        $update = "UPDATE login_logs 
+                   SET logout_time = NOW() 
+                   WHERE register_id = '$register_id' 
+                     AND logout_time IS NULL 
+                   ORDER BY login_time DESC 
+                   LIMIT 1";
+        mysqli_query($conn, $update);
+    }
+}
+// ============================================================
+
 // Log logout if function exists
 if (isset($_SESSION['id']) && function_exists('logAudit')) {
     logAudit('Logout', 'User logged out');

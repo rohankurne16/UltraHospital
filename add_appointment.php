@@ -482,7 +482,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                
 
                 <div class="form-card">
-                    <form action="appointments.php" method="POST" id="appointmentForm" enctype="multipart/form-data">
+                    <form action="add_appointment.php" method="POST" id="appointmentForm" enctype="multipart/form-data">
                         <div class="section-title">1. Basic Appointment Details</div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                             <div class="form-group">

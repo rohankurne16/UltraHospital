@@ -221,7 +221,7 @@ if (isset($_POST['upload_corrected'])) {
     } else {
         $_SESSION['error'] = "Please select a file to upload";
     }
-    header("Location: lab_reports.php");
+    header("Location: lab_report.php");
     exit();
 }
 
@@ -232,7 +232,7 @@ if (isset($_GET['delete_report'])) {
         $conn->query("DELETE FROM lab_reports WHERE report_id = $report_id AND hospital_id = $hid");
         $_SESSION['success'] = "Report deleted successfully!";
     }
-    header("Location: lab_reports.php");
+    header("Location: lab_report.php");
     exit();
 }
 ?>

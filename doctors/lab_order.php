@@ -212,11 +212,11 @@ if ($result_doctor && $result_doctor->num_rows > 0) {
 } else {
     die("Doctor not found!");
 }
-            
+            $document_category = $_POST['document_category'];
             $sql_order = "INSERT INTO lab_orders (order_no, patient_id, doctor_id, technician_id, hospital_id, 
-                        order_date, total_amount, clinical_notes, order_status, created_by) 
+                        order_date, document_category ,total_amount, clinical_notes, order_status, created_by) 
                         VALUES ('$order_no', $patient_id, $user_id, " . ($technician_id > 0 ? $technician_id : "NULL") . ", $hid, 
-                        '$order_date', $total_amount, '$clinical_notes', '$order_status', $user_id)";
+                        '$order_date','$document_category', $total_amount, '$clinical_notes', '$order_status', $user_id)";
             
             if ($conn->query($sql_order)) {
                 $order_id = $conn->insert_id;
@@ -553,6 +553,21 @@ if (isset($_GET['search_patient'])) {
                                               rows="3"></textarea>
                                 </div>
                             </div>
+<!-- ==================== DOCUMENT CATEGORY (NEW) ==================== -->
+<div class="form-group">
+    <label>Document Category <span class="required">*</span></label>
+    <div class="category-select-wrapper">
+        <select class="form-select" id="documentCategorySelect" name="document_category" required>
+            <option value="">-- Select Document Category --</option>
+            <option value="Pre-Operation"> Pre-Operation</option>
+            <option value="Operation-Theater" > Operation-Theater</option>
+            <option value="Post-Operation">Post-Operation</option>
+        </select>
+    </div>
+</div>
+<!-- ========== DOCUMENT CATEGORY END ========== -->
+
+<!-- Test Selection - Category Wise (Existing - No Change) -->
 
                             <!-- Test Selection - Category Wise -->
                             <div class="form-group">

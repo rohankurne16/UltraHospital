@@ -962,6 +962,17 @@ body.dark .radio-option .radio-custom::after {
     <?php endif; ?>
 
     <div class="content-card">
+        <!-- ===== ADDED PAGE TITLE ===== -->
+        <div class="page-header" style="margin-bottom: 1.5rem;">
+            <h1 class="text-2xl font-bold" style="color: <?php echo $theme == 'dark' ? '#f1f5f9' : '#1e293b'; ?>;">
+                <?php echo $page_title; ?>
+            </h1>
+            <p style="color: <?php echo $theme == 'dark' ? '#94a3b8' : '#475569'; ?>; margin-top: 0.25rem;">
+                <?php echo $page_subtitle; ?>
+            </p>
+        </div>
+        <!-- ===== END ADDED TITLE ===== -->
+
         <form method="POST" id="wizardForm" enctype="multipart/form-data" novalidate>
             <!-- Wizard Progress -->
             <div class="wizard-container">
@@ -1304,6 +1315,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const submitBtn = document.getElementById('submitBtn');
     const reviewContainer = document.getElementById('reviewContainer');
 
+    // Flag to prevent scroll on initial load
+    let initialLoad = true;
+
     // Enhanced validation function for all fields
     function validateField(input) {
         const errorText = input.parentElement.querySelector('.error-text');
@@ -1599,7 +1613,10 @@ document.addEventListener('DOMContentLoaded', function() {
             generateReview();
         }
 
-        document.querySelector('.content-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Only scroll on subsequent steps, not on initial load
+        if (!initialLoad) {
+            document.querySelector('.content-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     }
 
     function generateReview() {
@@ -1735,6 +1752,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize wizard
     updateWizard(1);
+    // After initial render, mark that we are no longer on initial load
+    initialLoad = false;
 });
 </script>
 </body>

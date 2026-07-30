@@ -149,10 +149,11 @@ $error_msg_display = isset($error_msg) ? $error_msg : (isset($_GET['error']) ? $
             cursor: pointer;
             transition: all 0.3s ease;
             border: 1px solid <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>;
-            background: <?php echo $theme == 'dark' ? '#2a2a2a' : '#f1f5f9'; ?>;
-            color: <?php echo $theme == 'dark' ? '#d1d5db' : '#475569'; ?>;
+            background: linear-gradient(135deg, #2563eb, #2563eb);
+            color:#ffffff;
             text-decoration: none;
             display: inline-flex;
+           
             align-items: center;
             gap: 0.5rem;
         }
@@ -242,22 +243,7 @@ $error_msg_display = isset($error_msg) ? $error_msg : (isset($_GET['error']) ? $
         .empty-state i { font-size: 3rem; display: block; margin-bottom: 1rem; color: #2a2a2a; }
         .action-buttons { display: flex; gap: 0.3rem; flex-wrap: wrap; }
         
-        .success-msg {
-            background: rgba(34, 197, 94, 0.1);
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            color: #22c55e;
-            padding: 1rem;
-            border-radius: 10px;
-            margin-bottom: 1rem;
-        }
-        .error-msg {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-            color: #ef4444;
-            padding: 1rem;
-            border-radius: 10px;
-            margin-bottom: 1rem;
-        }
+        
         
         /* Page Header with Add Button */
         .page-header {
@@ -346,23 +332,11 @@ $error_msg_display = isset($error_msg) ? $error_msg : (isset($_GET['error']) ? $
     <!-- Header -->
     <?php include 'header.php'; ?>
 
-    <a href="dashboard.php" class="btn btn-secondary" style="margin-bottom:2%;display:inline-flex;align-items:center;gap:0.5rem;padding:0.6rem 1.2rem;border-radius:8px;background:#f1f5f9;color:#1e293b;border:1px solid #e2e8f0;text-decoration:none;">
+    <a href="dashboard.php" class="btn btn-secondary" style="margin-bottom:2%;display:inline-flex;align-items:center;gap:0.5rem;padding:0.6rem 1.2rem;border-radius:8px;background:#2563eb;color:#ffffff;border:1px solid #e2e8f0;text-decoration:none;">
         <i class="fas fa-arrow-left"></i> Back
     </a>
 
-    <!-- Status Messages -->
-    <?php if ($add_success): ?>
-        <div class="success-msg"><i class="fas fa-check-circle mr-2"></i> Role created successfully!</div>
-    <?php endif; ?>
-    <?php if (isset($_GET['updated'])): ?>
-        <div class="success-msg"><i class="fas fa-check-circle mr-2"></i> Role updated successfully!</div>
-    <?php endif; ?>
-    <?php if (isset($_GET['deleted'])): ?>
-        <div class="success-msg"><i class="fas fa-check-circle mr-2"></i> Role deleted successfully!</div>
-    <?php endif; ?>
-    <?php if (isset($error_msg_display) && !empty($error_msg_display)): ?>
-        <div class="error-msg"><i class="fas fa-exclamation-circle mr-2"></i> <?php echo $error_msg_display; ?></div>
-    <?php endif; ?>
+   
     <?php if (isset($_GET['error'])): 
         $error_msg = '';
         if ($_GET['error'] == 'system_role') $error_msg = 'System roles cannot be deleted.';

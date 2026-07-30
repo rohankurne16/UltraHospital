@@ -336,46 +336,60 @@ if (isset($_POST['save_result'])) {
 }
 
 // ========== GENERATE REPORT ==========
+// ========== GENERATE REPORT ==========
+// ========== GENERATE REPORT ==========
+// ========== GENERATE REPORT ==========
+// ========== GENERATE REPORT ==========
 if (isset($_POST['generate_report'])) {
     $order_id = intval($_POST['order_id'] ?? 0);
     $report_date = $_POST['report_date'] ?? date('Y-m-d');
     $report_remarks = trim($_POST['report_remarks'] ?? '');
+    $results = $_POST['result'] ?? [];
+    $document_category = $_POST['document_category'] ?? ''; // NEW: Get document category
     
-    if ($order_id > 0) {
-        // Order डिटेल्स मिळवा
-        $order_data = $conn->query("SELECT patient_id, doctor_id FROM lab_orders WHERE order_id = $order_id");
+    if ($order_id > 0 && !empty($results)) {
+        // Get order details
+        $order_data = $conn->query("SELECT patient_id, doctor_id, created_by, document_category FROM lab_orders WHERE order_id = $order_id");
         if ($order_data && $order_data->num_rows > 0) {
             $order = $order_data->fetch_assoc();
             $patient_id = $order['patient_id'];
             $doctor_id = $order['doctor_id'];
             
-            // ========== GET ALL TESTS FOR THIS ORDER ==========
-            $tests_sql = "SELECT od.detail_id, od.test_id, t.test_name, t.test_code 
-                          FROM lab_order_details od
-                          LEFT JOIN lab_tests t ON od.test_id = t.test_id
-                          WHERE od.order_id = $order_id AND od.delete_flag = 0";
-            $tests_result = $conn->query($tests_sql);
+            // ========== FIX: Use document_category from order ==========
+            $doc_category = !empty($document_category) ? $document_category : ($order['document_category'] ?? 'Post-Operation');
             
-            $uploaded_files = [];
+            // ========== FIX: Ensure doctor_id is valid ==========
+            $check_doctor = $conn->query("SELECT doctor_id FROM doctor WHERE doctor_id = $doctor_id AND (delete_flag = 0 OR delete_flag IS NULL)");
+            if (!$check_doctor || $check_doctor->num_rows == 0) {
+                $created_by = $order['created_by'];
+                $doc = $conn->query("SELECT doctor_id FROM doctor WHERE register_id = $created_by AND (delete_flag = 0 OR delete_flag IS NULL)");
+                if ($doc && $doc->num_rows > 0) {
+                    $doctor_id = $doc->fetch_assoc()['doctor_id'];
+                } else {
+                    $doctor_id = 0;
+                }
+            }
+            
             $all_success = true;
             $error_messages = [];
+            $saved_count = 0;
             
-            if ($tests_result && $tests_result->num_rows > 0) {
-                $test_count = 0;
-                while ($test_row = $tests_result->fetch_assoc()) {
-                    $test_count++;
-                    $detail_id = $test_row['detail_id'];
-                    $test_name = $test_row['test_name'] ?? 'Test ' . $test_count;
-                    $test_code = $test_row['test_code'] ?? 'T' . str_pad($test_count, 3, '0', STR_PAD_LEFT);
-                    
-                    // ========== GENERATE UNIQUE REPORT NUMBER FOR EACH TEST ==========
+            // Process each test result
+            foreach ($results as $result) {
+                $detail_id = intval($result['order_detail_id'] ?? 0);
+                $result_value = trim($result['result_value'] ?? '');
+                $normal_range = trim($result['normal_range'] ?? '');
+                $unit = trim($result['unit'] ?? '');
+                $remarks = trim($result['remarks'] ?? '');
+                $test_name = trim($result['test_name'] ?? ''); // NEW: Get test name
+                
+                if ($detail_id > 0 && !empty($result_value)) {
+                    // Generate unique report number
                     $prefix = "RPT";
                     $date = date("Ymd");
-                    
-                    // Add detail_id to make it unique
                     $report_no = $prefix . $date . str_pad($detail_id, 4, '0', STR_PAD_LEFT);
                     
-                    // Check if this report_no already exists
+                    // Check if report_no already exists
                     $check_sql = "SELECT report_no FROM lab_reports WHERE report_no = '$report_no'";
                     $check_result = $conn->query($check_sql);
                     $counter = 1;
@@ -386,78 +400,132 @@ if (isset($_POST['generate_report'])) {
                         $counter++;
                     }
                     
-                    // ========== HANDLE FILE UPLOAD FOR EACH TEST ==========
-                    $report_file = '';
-                    $file_key = 'report_file_' . $detail_id;
+                    // =============================================
+                    // SAVE TO lab_test_results TABLE
+                    // =============================================
+                    $check_result_sql = "SELECT result_id FROM lab_test_results WHERE order_detail_id = $detail_id";
+                    $check_result_result = $conn->query($check_result_sql);
                     
-                    if (isset($_FILES[$file_key]) && $_FILES[$file_key]['error'] == 0) {
-                        $target_dir = "../documents/reports/";
-                        if (!file_exists($target_dir)) {
-                            mkdir($target_dir, 0777, true);
-                        }
+                    if ($check_result_result && $check_result_result->num_rows > 0) {
+                        $sql_result = "UPDATE lab_test_results SET 
+                                       result_value = '$result_value',
+                                       remarks = '$remarks',
+                                       report_status = 'Completed',
+                                       updated_at = NOW()
+                                       WHERE order_detail_id = $detail_id";
+                    } else {
+                        $sql_result = "INSERT INTO lab_test_results 
+                                       (order_detail_id, result_value, normal_range, unit, remarks, entered_by, report_status, created_at) 
+                                       VALUES 
+                                       ($detail_id, '$result_value', '$normal_range', '$unit', '$remarks', $user_id, 'Completed', NOW())";
+                    }
+                    
+                    if ($conn->query($sql_result)) {
+                        // =============================================
+                        // SAVE TO lab_reports TABLE
+                        // =============================================
+                        $final_remarks = $report_remarks ? $report_remarks . " (Result: $result_value)" : "Result: $result_value";
                         
-                        $file_ext = strtolower(pathinfo($_FILES[$file_key]['name'], PATHINFO_EXTENSION));
-                        $allowed_ext = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'xls', 'xlsx'];
+                        $sql_report = "INSERT INTO lab_reports 
+                                       (order_id, detail_id, patient_id, doctor_id, technician_id, 
+                                        report_no, report_date, report_file, report_status, remarks, hospital_id) 
+                                       VALUES 
+                                       ($order_id, $detail_id, $patient_id, $doctor_id, $user_id, 
+                                        '$report_no', '$report_date', '', 'Completed', 
+                                        '$final_remarks', $hid)";
                         
-                        if (in_array($file_ext, $allowed_ext)) {
-                            $file_name = $report_no . '_' . time() . '.' . $file_ext;
-                            if (move_uploaded_file($_FILES[$file_key]['tmp_name'], $target_dir . $file_name)) {
-                                $report_file = $file_name;
-                            } else {
-                                $all_success = false;
-                                $error_messages[] = "Failed to upload file for test: $test_name";
+                        if ($conn->query($sql_report)) {
+                            $saved_count++;
+                            
+                            // =============================================
+                            // ========== NEW: SAVE TO DOCUMENT UPLOAD TABLE ==========
+                            // =============================================
+                            // Document name = Test name
+                            $document_name = !empty($test_name) ? $test_name : 'Report_' . $report_no;
+                            $document_type = 'Lab Result';
+                            $document_sub_category = 'Lab';
+                            
+                            // Generate PDF file name
+                            $pdf_file_name = $report_no . '_' . preg_replace('/[^a-zA-Z0-9]/', '_', $document_name) . '.pdf';
+                            
+                            // Create a simple PDF or text file (or use existing report)
+                            // For now, we'll create a text file with report data
+                            $upload_dir = "../documents/upload/documents/";
+                            if (!file_exists($upload_dir)) {
+                                mkdir($upload_dir, 0777, true);
                             }
+                            
+                            // Create report content
+                            $report_content = "========================================\n";
+                            $report_content .= "LAB REPORT\n";
+                            $report_content .= "========================================\n\n";
+                            $report_content .= "Report No: $report_no\n";
+                            $report_content .= "Date: $report_date\n";
+                            $report_content .= "Patient ID: $patient_id\n";
+                            $report_content .= "Test: $document_name\n";
+                            $report_content .= "Result: $result_value\n";
+                            $report_content .= "Normal Range: $normal_range\n";
+                            $report_content .= "Unit: $unit\n";
+                            $report_content .= "Remarks: $remarks\n";
+                            $report_content .= "========================================\n";
+                            
+                            // Save as text file (can be converted to PDF later)
+                            $file_path = $upload_dir . $pdf_file_name;
+                            file_put_contents($file_path, $report_content);
+                            
+                            $file_size = filesize($file_path);
+                            
+                            // Insert into document_upload table
+                            $sql_doc = "INSERT INTO document_upload 
+                                        (patient_id, document_name, document_type, document_category, 
+                                         document_sub_category, upload_file, file_size, uploaded_by, 
+                                         note, document_tags, document_date, created_at) 
+                                        VALUES 
+                                        ($patient_id, '$document_name', '$document_type', '$doc_category', 
+                                         '$document_sub_category', '$pdf_file_name', $file_size, $user_id, 
+                                         'Generated from lab report: $report_no', 'lab_report, $report_no', '$report_date', NOW())";
+                            
+                            if ($conn->query($sql_doc)) {
+                                // Document uploaded successfully
+                            } else {
+                                $error_messages[] = "Failed to save document: " . $conn->error;
+                            }
+                            
                         } else {
                             $all_success = false;
-                            $error_messages[] = "Invalid file format for test: $test_name. Allowed: PDF, DOC, DOCX, JPG, PNG";
+                            $error_messages[] = "Failed to save report for test ID $detail_id: " . $conn->error;
                         }
-                    }
-                    
-                    // ========== SAVE TO DATABASE ==========
-                    $remarks = $report_remarks ? $report_remarks . " (Test: $test_name)" : "Test: $test_name";
-                    
-                    $sql_insert = "INSERT INTO lab_reports 
-                                   (order_id, detail_id, patient_id, doctor_id, technician_id, 
-                                    report_no, report_date, report_file, report_status, remarks, hospital_id) 
-                                   VALUES 
-                                   ($order_id, $detail_id, $patient_id, $doctor_id, $user_id, 
-                                    '$report_no', '$report_date', '$report_file', 'Completed', 
-                                    '$remarks', $hid)";
-                    
-                    if (!$conn->query($sql_insert)) {
+                    } else {
                         $all_success = false;
-                        $error_messages[] = "Database error for test: $test_name - " . $conn->error;
-                    } else {
-                        $uploaded_files[] = $report_file;
+                        $error_messages[] = "Failed to save result for test ID $detail_id: " . $conn->error;
                     }
                 }
-                
-                // ========== FINAL MESSAGE ==========
-                if ($all_success) {
-                    $uploaded_count = count(array_filter($uploaded_files));
-                    $total_tests = $tests_result->num_rows;
-                    
-                    if ($uploaded_count == $total_tests) {
-                        $_SESSION['success'] = "Reports generated successfully! All $total_tests test documents uploaded.";
-                    } elseif ($uploaded_count > 0) {
-                        $_SESSION['success'] = "Reports generated! $uploaded_count out of $total_tests documents uploaded.";
-                    } else {
-                        $_SESSION['success'] = "Reports generated! No documents uploaded.";
-                    }
-                } else {
-                    $_SESSION['error'] = "Some errors occurred: " . implode("; ", $error_messages);
-                    if (!empty($uploaded_files)) {
-                        $_SESSION['error'] .= " (Some files uploaded successfully)";
-                    }
-                }
-                
-            } else {
-                $_SESSION['error'] = "No tests found for this order!";
             }
+            
+            // Check if all tests are completed
+            $check_all = $conn->query("SELECT COUNT(*) as total FROM lab_order_details od 
+                                      LEFT JOIN lab_test_results r ON od.detail_id = r.order_detail_id
+                                      WHERE od.order_id = $order_id AND (r.result_id IS NULL OR r.result_id = 0)");
+            if ($check_all && $check_all->fetch_assoc()['total'] == 0) {
+                $conn->query("UPDATE lab_orders SET order_status = 'Completed' WHERE order_id = $order_id");
+            }
+            
+            // Final message
+            if ($all_success && $saved_count > 0) {
+                $_SESSION['success'] = "Report generated successfully! $saved_count test(s) saved. Documents uploaded to patient records.";
+            } elseif ($saved_count > 0) {
+                $_SESSION['success'] = "Report generated with warnings: $saved_count test(s) saved. " . implode("; ", $error_messages);
+            } else {
+                $_SESSION['error'] = "Failed to generate report: " . implode("; ", $error_messages);
+            }
+            
         } else {
             $_SESSION['error'] = "Order not found!";
         }
+    } else {
+        $_SESSION['error'] = "No test results provided! Please enter results for all tests.";
     }
+    
     header("Location: dashboard.php");
     exit();
 }
@@ -1068,21 +1136,37 @@ if (isset($_POST['generate_report'])) {
 
     <!-- ========== GENERATE REPORT MODAL ========== -->
     <!-- ========== GENERATE REPORT MODAL ========== -->
+<!-- ========== GENERATE REPORT MODAL ========== -->
 <div class="modal" id="reportModal">
     <div class="modal-content" style="max-width: 900px;">
         <div class="modal-header">
-            <h2><i class="fas fa-file-alt mr-2 text-green-500"></i> Generate Report with Test Documents</h2>
+            <h2><i class="fas fa-file-alt mr-2 text-green-500"></i> Generate Report</h2>
             <button class="modal-close" onclick="closeModal('reportModal')">&times;</button>
         </div>
-        <form method="POST" action="dashboard.php" enctype="multipart/form-data">
+        <form method="POST" action="dashboard.php">
             <input type="hidden" name="order_id" id="report_order_id">
 
             <!-- Test Count Info -->
             <div class="bg-blue-50 p-3 rounded-lg mb-4">
                 <p class="text-sm text-blue-700">
                     <i class="fas fa-info-circle mr-1"></i> 
-                    Upload a document for each test below. 
+                    Enter results for each test below. 
                     <strong id="testCountDisplay">0</strong> test(s) found.
+                </p>
+            </div>
+
+            <!-- Document Category Selection (NEW) -->
+            <div class="form-group">
+                <label>Document Category <span class="required">*</span></label>
+                <select class="form-select" name="document_category" required>
+                    <option value="">-- Select Document Category --</option>
+                    <option value="Pre-Operation" style="color: #3b82f6; font-weight: 600;">🔬 Pre-Operation</option>
+                    <option value="Operation-Theater" style="color: #f59e0b; font-weight: 600;">🏥 Operation-Theater</option>
+                    <option value="Post-Operation" style="color: #10b981; font-weight: 600;">💊 Post-Operation</option>
+                </select>
+                <p class="info-text mt-1">
+                    <i class="fas fa-info-circle"></i> 
+                    Selected category will be used for document upload
                 </p>
             </div>
 
@@ -1092,9 +1176,9 @@ if (isset($_POST['generate_report'])) {
                 <input type="date" class="form-input" name="report_date" value="<?php echo date('Y-m-d'); ?>">
             </div>
 
-            <!-- Dynamic Test File Uploads -->
+            <!-- Dynamic Test Result Entries -->
             <div id="testUploadContainer" class="mb-4">
-                <h4 class="font-semibold text-gray-700 mb-2">Upload Documents for Each Test</h4>
+                <h4 class="font-semibold text-gray-700 mb-2">Enter Results for Each Test</h4>
                 <div id="testUploadList" class="space-y-3">
                     <!-- Will be populated by JavaScript -->
                     <div class="text-gray-500 text-center py-4">
@@ -1113,131 +1197,198 @@ if (isset($_POST['generate_report'])) {
             <div class="modal-footer">
                 <button type="button" class="btn-outline" onclick="closeModal('reportModal')">Cancel</button>
                 <button type="submit" name="generate_report" class="btn-success">
-                    <i class="fas fa-save"></i> Generate Report
+                    <i class="fas fa-save"></i> Generate Report & Upload
                 </button>
             </div>
         </form>
     </div>
 </div>
 
-    <script>
-        // ========== TAB SWITCHING ==========
-        function switchTab(tab) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-            document.getElementById('tab-' + tab).classList.add('active');
-            document.querySelector('.tab-btn[onclick="switchTab(\'' + tab + '\')"]').classList.add('active');
-        }
+   <script>
+    // ========== TAB SWITCHING ==========
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-' + tab).classList.add('active');
+        document.querySelector('.tab-btn[onclick="switchTab(\'' + tab + '\')"]').classList.add('active');
+    }
 
-        // ========== OPEN RESULT MODAL ==========
-        function openResultModal(detailId, orderId, normalRange, unit) {
-            document.getElementById('result_detail_id').value = detailId;
-            document.getElementById('result_order_id').value = orderId;
-            document.getElementById('result_normal_range').value = normalRange || '';
-            document.getElementById('result_unit').value = unit || '';
-            document.getElementById('resultModal').classList.add('show');
-        }
+    // ========== OPEN RESULT MODAL ==========
+    function openResultModal(detailId, orderId, normalRange, unit) {
+        document.getElementById('result_detail_id').value = detailId;
+        document.getElementById('result_order_id').value = orderId;
+        document.getElementById('result_normal_range').value = normalRange || '';
+        document.getElementById('result_unit').value = unit || '';
+        document.getElementById('resultModal').classList.add('show');
+    }
 
-        // ========== OPEN REPORT MODAL WITH TESTS ==========
-        function openReportModal(orderId) {
-            document.getElementById('report_order_id').value = orderId;
-            document.getElementById('reportModal').classList.add('show');
-            
-            // Load tests for this order
-            loadTestsForReport(orderId);
-        }
+    // ========== OPEN REPORT MODAL WITH TESTS ==========
+    function openReportModal(orderId) {
+        document.getElementById('report_order_id').value = orderId;
+        document.getElementById('reportModal').classList.add('show');
+        
+        // Load tests for this order
+        loadTestsForReport(orderId);
+    }
 
-        // ========== LOAD TESTS FOR REPORT ==========
-        function loadTestsForReport(orderId) {
-            var container = document.getElementById('testUploadList');
-            container.innerHTML = '<div class="text-gray-500 text-center py-4"><i class="fas fa-spinner fa-spin mr-2"></i> Loading tests...</div>';
-            
-            var xhr = new XMLHttpRequest();
-            xhr.open('GET', 'get_order_tests.php?order_id=' + orderId, true);
-            xhr.onload = function() {
-                if (this.status == 200) {
-                    try {
-                        var data = JSON.parse(this.responseText);
-                        if (data.tests && data.tests.length > 0) {
-                            var html = '';
-                            data.tests.forEach(function(test, index) {
-                                html += `
-                                    <div class="test-upload-item flex items-center gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
-                                        <div class="test-number flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold text-sm">
+    // ========== LOAD TESTS FOR REPORT - WITH RESULT FIELDS ==========
+    // ========== LOAD TESTS FOR REPORT - WITH AUTO-FILLED RANGE & UNIT ==========
+// ========== LOAD TESTS FOR REPORT - WITH AUTO-FILLED RANGE & UNIT ==========
+function loadTestsForReport(orderId) {
+    var container = document.getElementById('testUploadList');
+    container.innerHTML = '<div class="text-gray-500 text-center py-4"><i class="fas fa-spinner fa-spin mr-2"></i> Loading tests...</div>';
+    
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', 'get_order_tests.php?order_id=' + orderId, true);
+    xhr.onload = function() {
+        if (this.status == 200) {
+            try {
+                var data = JSON.parse(this.responseText);
+                if (data.tests && data.tests.length > 0) {
+                    var html = '';
+                    data.tests.forEach(function(test, index) {
+                        html += `
+                            <div class="test-result-item border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                                <!-- Test Header -->
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="flex items-center gap-3">
+                                        <span class="test-number w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold text-sm">
                                             ${index + 1}
-                                        </div>
-                                        <div class="flex-1 min-w-[150px]">
+                                        </span>
+                                        <div>
                                             <div class="font-medium text-gray-800">${test.test_name || 'Test ' + (index + 1)}</div>
                                             <div class="text-xs text-gray-500">Code: ${test.test_code || 'N/A'}</div>
                                         </div>
-                                        <div class="flex-1 file-input-wrapper">
-                                            <input type="file" 
-                                                   name="report_file_${test.detail_id}" 
-                                                   id="file_${test.detail_id}"
-                                                   class="form-input text-sm" 
-                                                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx"
-                                                   ${index === 0 ? 'required' : ''}>
-                                            <div class="text-xs text-gray-400 mt-1">PDF, DOC, JPG, PNG allowed</div>
-                                        </div>
                                     </div>
-                                `;
-                            });
-                            container.innerHTML = html;
-                            document.getElementById('testCountDisplay').textContent = data.tests.length;
-                        } else {
-                            container.innerHTML = '<div class="text-yellow-600 text-center py-4"><i class="fas fa-exclamation-triangle mr-2"></i> No tests found for this order</div>';
-                            document.getElementById('testCountDisplay').textContent = '0';
-                        }
-                    } catch(e) {
-                        console.error('Error parsing JSON:', e);
-                        container.innerHTML = '<div class="text-red-500 text-center py-4"><i class="fas fa-exclamation-circle mr-2"></i> Error loading tests</div>';
-                        document.getElementById('testCountDisplay').textContent = '?';
-                    }
+                                    <span class="text-xs text-gray-400">Detail ID: ${test.detail_id}</span>
+                                </div>
+                                
+                                <!-- Hidden fields for detail_id, normal_range, unit (removed test_id) -->
+                                <input type="hidden" name="result[${index}][order_detail_id]" value="${test.detail_id}">
+                                <input type="hidden" name="result[${index}][normal_range]" value="${test.normal_range || ''}">
+                                <input type="hidden" name="result[${index}][unit]" value="${test.unit || ''}">
+                                
+                                <!-- Read-only Normal Range & Unit Display -->
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div>
+                                        <label class="text-xs font-medium text-gray-700">Normal Range</label>
+                                        <input type="text" 
+                                               class="form-input w-full text-sm bg-gray-100 cursor-not-allowed" 
+                                               value="${test.normal_range || 'N/A'}" 
+                                               readonly
+                                               style="background-color: #f3f4f6; cursor: not-allowed;">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="text-xs font-medium text-gray-700">Unit</label>
+                                        <input type="text" 
+                                               class="form-input w-full text-sm bg-gray-100 cursor-not-allowed" 
+                                               value="${test.unit || 'N/A'}" 
+                                               readonly
+                                               style="background-color: #f3f4f6; cursor: not-allowed;">
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="text-xs font-medium text-gray-700">Result Value <span class="text-red-500">*</span></label>
+                                        <input type="text" 
+                                               class="form-input w-full text-sm" 
+                                               name="result[${index}][result_value]" 
+                                               placeholder="Enter test result" 
+                                               required>
+                                    </div>
+                                </div>
+                                
+                                <!-- Remarks Field - Full Width -->
+                                <div class="mt-3">
+                                    <label class="text-xs font-medium text-gray-700">Remarks</label>
+                                    <input type="text" 
+                                           class="form-input w-full text-sm" 
+                                           name="result[${index}][remarks]" 
+                                           placeholder="e.g. Normal, High, Low, or any comments">
+                                </div>
+                            </div>
+                        `;
+                    });
+                    container.innerHTML = html;
+                    document.getElementById('testCountDisplay').textContent = data.tests.length;
                 } else {
-                    container.innerHTML = '<div class="text-red-500 text-center py-4"><i class="fas fa-exclamation-circle mr-2"></i> Failed to load tests</div>';
-                    document.getElementById('testCountDisplay').textContent = '?';
+                    container.innerHTML = '<div class="text-yellow-600 text-center py-4"><i class="fas fa-exclamation-triangle mr-2"></i> No tests found for this order</div>';
+                    document.getElementById('testCountDisplay').textContent = '0';
                 }
-            };
-            xhr.onerror = function() {
-                container.innerHTML = '<div class="text-red-500 text-center py-4"><i class="fas fa-exclamation-circle mr-2"></i> Network error loading tests</div>';
+            } catch(e) {
+                console.error('Error parsing JSON:', e);
+                container.innerHTML = '<div class="text-red-500 text-center py-4"><i class="fas fa-exclamation-circle mr-2"></i> Error loading tests</div>';
                 document.getElementById('testCountDisplay').textContent = '?';
-            };
-            xhr.send();
-        }
-
-        // ========== CLOSE MODAL ==========
-        function closeModal(id) {
-            document.getElementById(id).classList.remove('show');
-        }
-
-        // ========== AUTO SUBMIT FOR DROPDOWN ==========
-        document.querySelectorAll('form[onchange]').forEach(function(form) {
-            form.addEventListener('change', function() {
-                this.submit();
-            });
-        });
-
-        // ========== CLOSE MODAL ON ESC ==========
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                document.querySelectorAll('.modal.show').forEach(function(el) {
-                    el.classList.remove('show');
-                });
             }
-        });
-
-        // ========== CLICK OUTSIDE MODAL ==========
-        document.addEventListener('click', function(e) {
-            if (e.target.classList.contains('modal')) {
-                e.target.classList.remove('show');
-            }
-        });
-        // ========== VIEW ORDER ==========
-function viewOrder(orderId) {
-    if (orderId) {
-        window.location.href = 'view_order.php?order_id=' + orderId;
-    }
+        } else {
+            container.innerHTML = '<div class="text-red-500 text-center py-4"><i class="fas fa-exclamation-circle mr-2"></i> Failed to load tests</div>';
+            document.getElementById('testCountDisplay').textContent = '?';
+        }
+    };
+    xhr.onerror = function() {
+        container.innerHTML = '<div class="text-red-500 text-center py-4"><i class="fas fa-exclamation-circle mr-2"></i> Network error loading tests</div>';
+        document.getElementById('testCountDisplay').textContent = '?';
+    };
+    xhr.send();
 }
-    </script>
+
+    // ========== CLOSE MODAL ==========
+    function closeModal(id) {
+        document.getElementById(id).classList.remove('show');
+    }
+
+    // ========== AUTO SUBMIT FOR DROPDOWN ==========
+    document.querySelectorAll('form[onchange]').forEach(function(form) {
+        form.addEventListener('change', function() {
+            this.submit();
+        });
+    });
+
+    // ========== CLOSE MODAL ON ESC ==========
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal.show').forEach(function(el) {
+                el.classList.remove('show');
+            });
+        }
+    });
+
+    // ========== CLICK OUTSIDE MODAL ==========
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('modal')) {
+            e.target.classList.remove('show');
+        }
+    });
+
+    // ========== VIEW ORDER ==========
+    function viewOrder(orderId) {
+        if (orderId) {
+            window.location.href = 'view_order.php?order_id=' + orderId;
+        }
+    }
+
+    // ========== OPTIONAL: VALIDATE BEFORE SUBMIT ==========
+    document.addEventListener('DOMContentLoaded', function() {
+        var reportForm = document.querySelector('#reportModal form');
+        if (reportForm) {
+            reportForm.addEventListener('submit', function(e) {
+                var resultInputs = this.querySelectorAll('input[name*="[result_value]"]');
+                var emptyFound = false;
+                resultInputs.forEach(function(input) {
+                    if (input.value.trim() === '') {
+                        input.style.borderColor = 'red';
+                        emptyFound = true;
+                    } else {
+                        input.style.borderColor = '';
+                    }
+                });
+                if (emptyFound) {
+                    e.preventDefault();
+                    alert('Please enter result values for all tests before generating the report.');
+                }
+            });
+        }
+    });
+</script>
 </body>
 </html>

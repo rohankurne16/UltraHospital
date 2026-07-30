@@ -7,7 +7,7 @@ $cancle_appointment="update appointments set status='Cancelled' where appointmen
 $result=$conn->query($cancle_appointment);
 if($result===true){
     echo "<script>alert('Appointment Cancelled Successfully') </script>";
-    header("Location: dashboard.php");
+    header("Location: appointments.php");
 }
 
 

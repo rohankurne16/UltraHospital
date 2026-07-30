@@ -4,7 +4,30 @@ session_start();
 include "config/hospital.php";
 require_once "config/send_registration_email.php";
 
-$hid=$_SESSION["hospital_id"];
+if(isset($_SESSION["hospital_id"])){
+    $hid=$_SESSION["hospital_id"];
+}
+else{
+    header("Location:index.php");
+}
+
+// ============================================================
+// FETCH PATIENT ROLE DETAILS (for register table)
+// ============================================================
+$patient_role_id = 0;
+$patient_role_name = 'Patient'; // fallback
+
+$role_query = "SELECT role_id, role_name FROM roles 
+               WHERE role_slug = 'patient' 
+               AND (delete_flag = 0 OR delete_flag IS NULL) 
+               LIMIT 1";
+$role_result = mysqli_query($conn, $role_query);
+if ($role_result && $row = mysqli_fetch_assoc($role_result)) {
+    $patient_role_id = (int)$row['role_id'];
+    $patient_role_name = $row['role_name'];
+} else {
+    error_log("Patient role not found in roles table. Using fallback values.");
+}
 
 $image_path = "";
 $message = "";
@@ -32,6 +55,7 @@ if (isset($_POST['email'])) {
     $allergy = $_POST['allergy'];
     $email = $_POST['email'];
     $mobile = $_POST['mobile'];
+    $call_hospital = $_POST['caller_hospital'];
     $status = 'Active';
     $doctor_id = isset($_POST['doctor_id']) && $_POST['doctor_id'] != '' ? $_POST['doctor_id'] : NULL;
     $password = $_POST['password'];
@@ -87,7 +111,11 @@ if (isset($_POST['email'])) {
             $messageType = "error";
         } else {
 
-            $register = "INSERT INTO register(name, email, password, role, created_by, modified_by, hospital_id) VALUES('$patient_name','$email','$password','patient','Admin','Admin','$hid')";
+            // ============================================================
+            // UPDATED: Insert into register with role_id and role
+            // ============================================================
+            $register = "INSERT INTO register(name, email, password, role_id, role, created_by, modified_by, hospital_id) 
+                         VALUES('$patient_name','$email','$password','$patient_role_id','$patient_role_name','Admin','Admin','$hid')";
 
             if($conn->query($register)){
                 $register_id = $conn->insert_id;
@@ -110,7 +138,7 @@ if (isset($_POST['email'])) {
                     }
                 }
                 
-                $insert = "INSERT INTO patients(register_id, doctor_id, patient_name, date_of_birth, age, blood_group, gender, address, emergency_contact, medical_history, allergy, email, mobile, status, patient_image, delete_flag, hospital_id,patient_admission_type) VALUES('$register_id', " . ($doctor_id ? "'$doctor_id'" : "NULL") . ", '$patient_name','$dob','$age','$blood_group','$gender','$address','$emergency_contact','$medical_history','$allergy','$email','$mobile','$status','$image_path',0,'$hid','OPD')";
+                $insert = "INSERT INTO patients(register_id, doctor_id, patient_name, date_of_birth, age, blood_group, gender, address, emergency_contact, medical_history, allergy, email, mobile, status, patient_image, delete_flag, hospital_id,call_source,patient_admission_type) VALUES('$register_id', " . ($doctor_id ? "'$doctor_id'" : "NULL") . ", '$patient_name','$dob','$age','$blood_group','$gender','$address','$emergency_contact','$medical_history','$allergy','$email','$mobile','$status','$image_path',0,'$hid','$call_hospital','Call')";
 
                 if ($conn->query($insert) === true) {
                     $patient_id = $conn->insert_id;
@@ -183,7 +211,7 @@ if (isset($_POST['email'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $hospital['hospital_name'] ?> - Add OPD Patient</title>
+    <title><?php echo $hospital['hospital_name'] ?> - Add Call Patient</title>
     <link rel="icon" type="image/png" href="<?php echo $hospital['hospital_logo'] ?>">
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -343,7 +371,7 @@ if (isset($_POST['email'])) {
                             <i data-lucide="arrow-left" class="w-5 h-5"></i>
                         </a>
                         <div>
-                            <h1 class="text-2xl font-bold text-gray-900">Add OPD Patient</h1>
+                            <h1 class="text-2xl font-bold text-gray-900">Add Call Patient</h1>
                             <p class="text-gray-500 text-sm">Complete the following forms to register a new patient in the system.</p>
                         </div>
                     </div>
@@ -364,7 +392,7 @@ if (isset($_POST['email'])) {
                         </button>
                     </div>
 
-                    <form action="add_patient.php" method="POST" enctype="multipart/form-data" id="patientForm" novalidate>
+                    <form action="add_call_patient.php" method="POST" enctype="multipart/form-data" id="patientForm" novalidate>
 
                         <div class="bg-white rounded-xl border shadow-sm p-6 md:p-8">
 
@@ -393,10 +421,10 @@ if (isset($_POST['email'])) {
                                     </div>
                                     
                                     <div class="space-y-2 field-group">
-                                        <label class="text-sm font-medium" for="doctor_id">Doctor<span class="text-red-500">*</span></label>
+                                        <label class="text-sm font-medium" for="doctor_id">Doctor <span class="text-red-500">*</span></label>
                                         <select id="doctor_id" name="doctor_id"
                                             class="w-full h-10 px-3 rounded-md border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-sm" required>
-                                            <option value="">Select Doctor (Optional)</option>
+                                            <option value="">Select Doctor</option>
                                             <?php foreach($doctors as $doctor): ?>
                                                 <option value="<?php echo $doctor['doctor_id']; ?>">
                                                     <?php echo htmlspecialchars($doctor['doctor_name']); ?> - <?php echo htmlspecialchars($doctor['department']); ?>
@@ -618,6 +646,13 @@ if (isset($_POST['email'])) {
                                             <input type="file" name="patient_image" accept="image/*">
                                             <p id="image_file_name" class="mt-2 text-sm text-green-600"></p>
                                         </div>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="text-sm font-medium">Hospital Name</label>
+                                        <input type="text"
+                                            name="caller_hospital"
+                                            placeholder="Enter hospital from where the call came"
+                                            class="w-full h-10 px-3 rounded-md border border-gray-300">
                                     </div>
                                 </div>
                             </div>
@@ -917,6 +952,7 @@ if (isset($_POST['email'])) {
             // Form submission validation
             document.getElementById('patientForm').addEventListener('submit', function(e) {
                 let isValid = true;
+
                 const doctor = document.getElementById('doctor_id');
 
                 if (doctor.value === '') {

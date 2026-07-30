@@ -27,8 +27,8 @@
     }
 
     $doc = $result->fetch_assoc();
-    $file_path = "../uploads/documents/" . $doc['upload_file'];
-    $file_ext = strtolower(pathinfo($doc['upload_file'], PATHINFO_EXTENSION));
+    $file_path = "../" . $doc['upload_file'];
+$file_ext = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
 ?>
 
 <!DOCTYPE html>
@@ -48,10 +48,10 @@
 <body class="bg-gray-50 dark:bg-[#131212] text-neutral-900 dark:text-neutral-100">
 
     <div class="flex min-h-screen flex-col">
-         <?php include('header.php') ?>
+         <?php include('../header.php') ?>
         
         <div class="flex flex-1 items-start">
-            <?php include('Sidebar.php') ?>
+            <?php include('../Sidebar.php') ?>
             <main class="flex-1 overflow-auto duration-300 p-4 xl:p-6 xl:ml-64 w-full">
                 <div class="max-w-5xl mx-auto">
                     
@@ -65,7 +65,7 @@
                                 <p class="text-gray-500 text-sm"><?php echo $doc['document_type']; ?> • Uploaded on <?php echo date('F d, Y', strtotime($doc['document_date'])); ?></p>
                             </div>
                         </div>
-                        <a href="<?php echo $doc['upload_file'];; ?>" download class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-all shadow-md shadow-blue-500/20">
+                      <a href="<?php echo $file_path; ?>" download class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-all shadow-md shadow-blue-500/20">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
                             Download File
                         </a>
@@ -89,9 +89,9 @@
 
                         <div class="flex-1 p-6 flex items-center justify-center bg-gray-100 dark:bg-neutral-950">
                             <?php if (in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])): ?>
-                                <img src="<?php echo $doc['upload_file']; ?>" alt="Document Preview" class="max-w-full max-h-[800px] shadow-2xl rounded-lg">
+                                <img src="<?php echo $file_path; ?>" alt="Document Preview" class="max-w-full max-h-[800px] shadow-2xl rounded-lg"> alt="Document Preview" class="max-w-full max-h-[800px] shadow-2xl rounded-lg">
                             <?php elseif ($file_ext === 'pdf'): ?>
-                                <iframe src="<?php echo $doc['upload_file']; ?>" class="w-full h-[800px] border-none rounded-lg shadow-inner"></iframe>
+                                <iframe src="<?php echo $file_path; ?>" class="w-full h-[800px] border-none rounded-lg shadow-inner"></iframe>
                             <?php else: ?>
                                 <div class="text-center p-12">
                                     <div class="size-24 rounded-full bg-white dark:bg-neutral-900 flex items-center justify-center mx-auto mb-6 shadow-sm">
@@ -99,7 +99,7 @@
                                     </div>
                                     <h3 class="text-xl font-bold mb-2">Preview Not Available</h3>
                                     <p class="text-gray-500 mb-8">This file type (.<?php echo $file_ext; ?>) cannot be previewed in the browser.</p>
-                                    <a href="<?php echo $doc['upload_file']; ?>" download class="inline-flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all">
+                                       <a href="../<?php echo $doc['upload_file']; ?>" download class="inline-flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all">
                                         Download to View
                                     </a>
                                 </div>

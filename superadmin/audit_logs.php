@@ -117,8 +117,6 @@ if (function_exists('logAudit')) {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; background: #f1f5f9; }
 
-       
-
         /* Main Content */
         .main-content {
             margin-left: 250px;
@@ -134,49 +132,6 @@ if (function_exists('logAudit')) {
                 padding: 1rem;
                 width: 100%;
             }
-        }
-
-        /* Top Header */
-        .top-header {
-            background: #ffffff;
-            border-bottom: 1px solid #e2e8f0;
-            padding: 0.75rem 1.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            min-height: 64px;
-        }
-
-        .top-header .header-left { display: flex; align-items: center; gap: 1rem; }
-        .top-header .header-right { display: flex; align-items: center; gap: 1rem; }
-        .top-header .user-avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #3b82f6, #2563eb);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: 700;
-            font-size: 0.8rem;
-        }
-
-        .mobile-toggle {
-            display: none;
-            padding: 0.5rem 0.75rem;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 1.25rem;
-        }
-        .mobile-toggle:hover { background: #f8fafc; }
-        @media (max-width: 1279px) {
-            .mobile-toggle { display: inline-flex; align-items: center; justify-content: center; }
         }
 
         /* Card */
@@ -390,13 +345,35 @@ if (function_exists('logAudit')) {
             table { font-size: 0.8rem; }
             th, td { padding: 0.75rem; }
         }
+
+        /* Page header with back button */
+        .page-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+                margin-top: 5rem; /* Added top margin to push down */
+            flex-wrap: wrap;
+        }
+        .page-header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0;
+        }
+        .page-header p {
+            color: #64748b;
+            margin: 0.25rem 0 0 0;
+        }
     </style>
 </head>
 <body>
 
+<!-- Top Navigation -->
+<?php include 'header.php'; ?>
 
-    <?php include 'sidebar.php'; ?>
-
+<!-- Sidebar -->
+<?php include 'sidebar.php'; ?>
 
 <!-- ============================================================
 MAIN WRAPPER
@@ -405,32 +382,17 @@ MAIN WRAPPER
     <main class="main-content" id="mainContent">
         
         <!-- ============================================================
-        TOP HEADER
+        PAGE HEADER WITH BACK BUTTON (LEFT SIDE)
         ============================================================ -->
-        <div class="top-header">
-            <div class="header-left">
-                <button class="mobile-toggle" id="mobileToggle">
-                    <i class="fas fa-bars"></i>
-                </button>
-                <div>
-                    <h1 style="font-size:1.25rem; font-weight:700; color:#1e293b;">Audit Logs</h1>
-                    <p style="font-size:0.875rem; color:#64748b;">Track all user activities and system changes</p>
-                </div>
-            </div>
-            <div class="header-right">
-                <span style="font-size:0.875rem; color:#64748b;"><?php echo date('M d, Y'); ?></span>
-                <div class="user-avatar">
-                    <?php echo strtoupper(substr($user_name, 0, 2)); ?>
-                </div>
+        <div class="page-header">
+            <a href="dashboard.php" class="btn btn-primary" style="white-space:nowrap;">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+            <div>
+                <h1>Audit Logs</h1>
+                <p>Track all user activities and system changes</p>
             </div>
         </div>
-
-        <!-- ============================================================
-        BACK BUTTON
-        ============================================================ -->
-        <a href="dashboard.php" class="btn btn-primary" style="margin-bottom:1.5rem;">
-            <i class="fas fa-arrow-left"></i> Back to Dashboard
-        </a>
 
         <!-- ============================================================
         FILTERS
@@ -617,8 +579,6 @@ MAIN WRAPPER
 
     </main>
 </div>
-
-
 
 </body>
 </html>

@@ -14,6 +14,21 @@ $image_path = "";
 
 $hid = $_SESSION["hospital_id"];
 
+// ============================================================
+// FETCH STAFF ROLES (for dropdown and validation)
+// ============================================================
+$staff_roles_query = "SELECT role_id, role_name FROM roles 
+                      WHERE delete_flag = 0 
+                        AND role_slug NOT IN ('superadmin', 'admin', 'doctor', 'patient') 
+                      ORDER BY role_name";
+$staff_roles_result = mysqli_query($conn, $staff_roles_query);
+$staff_roles = [];
+if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
+    while ($row = mysqli_fetch_assoc($staff_roles_result)) {
+        $staff_roles[$row['role_id']] = $row['role_name'];
+    }
+}
+
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit'])) {
 
     $_SESSION['form_data'] = $_POST;
@@ -21,13 +36,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit'])) {
     $name       = mysqli_real_escape_string($conn, $_POST['name']);
     $mobile     = mysqli_real_escape_string($conn, $_POST['mobile']);
     $email      = mysqli_real_escape_string($conn, $_POST['email']);
-    $selectrole = mysqli_real_escape_string($conn, $_POST['selectrole']);
+    $role_id    = isset($_POST['selectrole']) ? (int)$_POST['selectrole'] : 0;
     $password   = $_POST['password'];
     $address    = mysqli_real_escape_string($conn, $_POST['address']);
     $status     = mysqli_real_escape_string($conn, $_POST['status']);
 
     // Server-side Validation with Regex
-    if (empty($name) || empty($email) || empty($password) || empty($selectrole)) {
+    if (empty($name) || empty($email) || empty($password) || empty($role_id)) {
         $message = "Please fill all required fields.";
         $messageType = "error";
     } elseif (!preg_match("/^[A-Za-z\s'-]+$/", $name)) {
@@ -39,7 +54,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit'])) {
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $message = "Invalid Email Address.";
         $messageType = "error";
-    } elseif (!in_array($selectrole, ["Receptionist", "Nurse", "Ward_boy", "Lab Technician"])) {
+    } elseif (!array_key_exists($role_id, $staff_roles)) {
         $message = "Invalid Role selected.";
         $messageType = "error";
     } elseif (!preg_match('/^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$/', $password)) {
@@ -53,18 +68,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit'])) {
         $messageType = "error";
     } else {
         // Check email in register table
-        $check_sql = "SELECT * FROM register WHERE email=?";
-        $stmt = $conn->prepare($check_sql);
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        if ($result->num_rows > 0) {
+        $check_sql = "SELECT * FROM register WHERE email='$email'";
+        $check_result = mysqli_query($conn, $check_sql);
+        if (mysqli_num_rows($check_result) > 0) {
             $message = "Email already exists.";
             $messageType = "error";
         } else {
             // ============================================================
-            // NEW: Check subscription limit for staff
+            // Check subscription limit for staff
             // ============================================================
             if (!checkResourceLimit($hid, 'staff')) {
                 $message = getLimitMessage('staff');
@@ -99,24 +110,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit'])) {
 
                     try {
                         $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+                        $role_name = mysqli_real_escape_string($conn, $staff_roles[$role_id]);
 
-                        $register_sql = "INSERT INTO register (name, email, password, role, created_by, modified_by, hospital_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
-                        $stmt_reg = $conn->prepare($register_sql);
-                        $admin_user = "Admin";
-                        $stmt_reg->bind_param("ssssssi", $name, $email, $hashed_password, $selectrole, $admin_user, $admin_user, $hid);
+                        // ============================================================
+                        // UPDATED: Insert into register with role_id and role (simple query)
+                        // ============================================================
+                        $register_sql = "INSERT INTO register (name, email, password, role_id, role, created_by, modified_by, hospital_id) 
+                                         VALUES ('$name', '$email', '$hashed_password', '$role_id', '$role_name', 'Admin', 'Admin', '$hid')";
                         
-                        if (!$stmt_reg->execute()) {
-                            throw new Exception($stmt_reg->error);
+                        if (!mysqli_query($conn, $register_sql)) {
+                            throw new Exception(mysqli_error($conn));
                         }
 
-                        $register_id = $conn->insert_id;
+                        $register_id = mysqli_insert_id($conn);
 
-                        $staff_sql = "INSERT INTO staff(register_id, name, mobile, email, role, address, status, profile_image, hospital_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-                        $stmt_staff = $conn->prepare($staff_sql);
-                        $stmt_staff->bind_param("isssssssi", $register_id, $name, $mobile, $email, $selectrole, $address, $status, $image_path, $hid);
+                        // Insert into staff table (role stored as text)
+                        $staff_sql = "INSERT INTO staff(register_id, name, mobile, email, role, address, status, profile_image, hospital_id) 
+                                      VALUES ('$register_id', '$name', '$mobile', '$email', '$role_name', '$address', '$status', '$image_path', '$hid')";
 
-                        if (!$stmt_staff->execute()) {
-                            throw new Exception($stmt_staff->error);
+                        if (!mysqli_query($conn, $staff_sql)) {
+                            throw new Exception(mysqli_error($conn));
                         }
 
                         mysqli_commit($conn);
@@ -142,17 +155,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit'])) {
 }
 
 $form_data = $_SESSION['form_data'] ?? [];
-$staff_roles_query = "SELECT role_name FROM roles 
-                      WHERE delete_flag = 0 
-                        AND role_slug NOT IN ('superadmin', 'admin', 'doctor', 'patient') 
-                      ORDER BY role_name ";
-$staff_roles_result = mysqli_query($conn, $staff_roles_query);
-$staff_roles = [];
-if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
-    while ($row = mysqli_fetch_assoc($staff_roles_result)) {
-        $staff_roles[] = $row['role_name'];
-    }
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -166,9 +168,8 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
+        /* (All CSS remains exactly as before – unchanged) */
         body { font-family: 'Inter', sans-serif; background: #f8fafc; color: #1e293b; }
-        
-        /* Sidebar and Layout */
         #sidebar-container {
             position: fixed;
             top: 0;
@@ -178,8 +179,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
             transition: transform 0.3s ease;
             background: white;
         }
-
-        /* Mobile Sidebar behavior */
         @media (max-width: 1279px) {
             #sidebar-container {
                 transform: translateX(-100%);
@@ -205,15 +204,12 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                 display: block;
             }
         }
-
-        /* Desktop Sidebar behavior */
         @media (min-width: 1280px) {
             #sidebar-container {
                 transform: translateX(0);
                 width: 260px;
             }
         }
-
         .main-content { 
             padding: 16px; 
             min-height: 100vh; 
@@ -225,7 +221,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                 padding: 32px;
             }
         }
-
         .form-container { width: 100%; margin: 0 auto; max-width: 1000px; }
         .form-card { background: white; border-radius: 20px; border: 1px solid #e5e7eb; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
         .form-card .header { padding: 20px; border-bottom: 1px solid #e5e7eb; background: #f8fafc; display: flex; align-items: center; gap: 12px; }
@@ -238,23 +233,18 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
             .form-card .header h3 { font-size: 20px; }
         }
         .form-card .header .subtitle { font-size: 12px; color: #64748b; font-weight: 400; }
-        
         .form-card .body { padding: 20px; }
         @media (min-width: 768px) {
             .form-card .body { padding: 32px 40px; }
         }
-
         .form-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
         @media (min-width: 768px) {
             .form-grid { grid-template-columns: 1fr 1fr; gap: 24px; }
         }
         .full-width { grid-column: 1 / -1; }
-        
-        /* Validation Styles */
         .field-group { position: relative; }
         .field-group label { font-weight: 600; font-size: 13px; color: #334155; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
         .field-group label i { color: #3b82f6; width: 16px; }
-        
         .input-wrapper { position: relative; }
         .input-wrapper .input-icon {
             position: absolute;
@@ -268,7 +258,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
         }
         .input-wrapper .input-icon.valid { color: #22c55e; opacity: 1; }
         .input-wrapper .input-icon.invalid { color: #ef4444; opacity: 1; }
-        
         .field-group input, .field-group select, .field-group textarea { 
             padding: 12px 16px; 
             border-radius: 12px; 
@@ -284,7 +273,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
             box-shadow: 0 0 0 4px rgba(59,130,246,0.1); 
             background: #fff; 
         }
-        
         .field-group input.error, .field-group textarea.error { 
             border-color: #ef4444 !important; 
             background-color: #fef2f2 !important; 
@@ -293,7 +281,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
             border-color: #22c55e !important; 
             background-color: #f0fdf4 !important; 
         }
-        
         .validation-message {
             font-size: 11px;
             margin-top: 4px;
@@ -305,14 +292,12 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
         .validation-message.show { display: flex; }
         .validation-message.error { color: #ef4444; }
         .validation-message.success { color: #22c55e; }
-        
         .validation-hint {
             font-size: 10px;
             color: #94a3b8;
             margin-top: 4px;
             display: block;
         }
-        
         .password-strength {
             height: 4px;
             border-radius: 2px;
@@ -331,7 +316,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
         .password-strength .strength-bar.fair { width: 50%; background: #f59e0b; }
         .password-strength .strength-bar.good { width: 75%; background: #3b82f6; }
         .password-strength .strength-bar.strong { width: 100%; background: #22c55e; }
-        
         .strength-text {
             font-size: 10px;
             font-weight: 600;
@@ -339,7 +323,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
             letter-spacing: 0.5px;
             margin-top: 4px;
         }
-        
         .password-requirements {
             font-size: 10px;
             color: #6b7280;
@@ -356,7 +339,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
         .password-requirements .req-item .req-icon { font-size: 10px; }
         .password-requirements .req-item.met { color: #22c55e; }
         .password-requirements .req-item.unmet { color: #9ca3af; }
-        
         .image-upload-container { display: flex; flex-direction: column; align-items: center; margin-bottom: 24px; }
         .image-preview-wrapper { position: relative; width: 100px; height: 100px; border-radius: 50%; border: 4px solid #fff; box-shadow: 0 8px 24px rgba(0,0,0,0.1); overflow: hidden; background: #f1f5f9; cursor: pointer; transition: 0.3s; }
         @media (min-width: 768px) {
@@ -366,16 +348,13 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
         .image-preview { width: 100%; height: 100%; object-fit: cover; }
         .camera-overlay { position: absolute; bottom: 0; left: 0; right: 0; height: 35px; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; color: #fff; transition: 0.3s; opacity: 0; }
         .image-preview-wrapper:hover .camera-overlay { opacity: 1; }
-        
         .btn-primary { background: #3b82f6; color: #fff; padding: 12px 24px; border-radius: 12px; font-weight: 600; transition: 0.2s; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; }
         @media (min-width: 768px) {
             .btn-primary { width: auto; padding: 12px 32px; }
         }
         .btn-primary:hover { background: #2563eb; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,235,0.2); }
-        
         .back-btn { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid #e5e7eb; border-radius: 8px; background: white; color: #374151; transition: all 0.2s ease; text-decoration: none; flex-shrink: 0; }
         .back-btn:hover { background: #f3f4f6; border-color: #d1d5db; }
-        
         #mobile-toggle {
             display: flex;
             align-items: center;
@@ -388,11 +367,9 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
             color: #374151;
             cursor: pointer;
         }
-
         .alert { padding: 16px; border-radius: 12px; margin-bottom: 24px; font-weight: 500; display: flex; align-items: center; gap: 12px; font-size: 14px; }
         .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
         .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
-        
         .step-nav { display: flex; border-bottom: 1px solid #e5e7eb; margin-bottom: 24px; gap: 16px; overflow-x: auto; }
         @media (min-width: 768px) {
             .step-nav { gap: 24px; margin-bottom: 32px; }
@@ -402,7 +379,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
             .step-btn { font-size: 14px; }
         }
         .step-btn.active { color: #3b82f6; border-color: #3b82f6; }
-        
         .form-section { display: none; }
         .form-section.active { display: block; }
     </style>
@@ -537,9 +513,9 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                                         <label><i class="fas fa-user-tag"></i> Role <span class="text-red-500">*</span></label>
                                         <select name="selectrole" id="selectrole" required>
                                             <option value="">Select Role</option>
-                                            <?php foreach ($staff_roles as $role_option): ?>
-                                                <option value="<?php echo $role_option; ?>" <?php echo (isset($form_data['selectrole']) && $form_data['selectrole'] == $role_option) ? 'selected' : ''; ?>>
-                                                    <?php echo $role_option; ?>
+                                            <?php foreach ($staff_roles as $role_id => $role_name): ?>
+                                                <option value="<?php echo $role_id; ?>" <?php echo (isset($form_data['selectrole']) && (int)$form_data['selectrole'] == $role_id) ? 'selected' : ''; ?>>
+                                                    <?php echo $role_name; ?>
                                                 </option>
                                             <?php endforeach; ?>
                                         </select>
@@ -640,7 +616,7 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
     </div>
 
     <script>
-        // Sidebar Toggle Logic
+        // (All JavaScript remains exactly as before – unchanged)
         document.addEventListener('DOMContentLoaded', function() {
             const mobileToggle = document.getElementById('mobile-toggle');
             const sidebarContainer = document.getElementById('sidebar-container');
@@ -693,11 +669,7 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
             reader.readAsDataURL(file);
         }
 
-        // ============================================================
-        // VALIDATION LOGIC
-        // ============================================================
         document.addEventListener('DOMContentLoaded', function() {
-            // Define validation patterns
             const patterns = {
                 name: /^[A-Za-z\s\-\'\\]+$/,
                 email: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
@@ -706,7 +678,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                 address: /^[A-Za-z0-9\s\-\.,#\/]*$/
             };
 
-            // Get all fields that need validation
             const fields = {
                 name: { pattern: patterns.name, required: true },
                 email: { pattern: patterns.email, required: true },
@@ -715,7 +686,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                 address: { pattern: patterns.address, required: false }
             };
 
-            // Function to validate a single field
             function validateField(fieldId) {
                 const input = document.getElementById(fieldId);
                 if (!input) return true;
@@ -729,7 +699,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                 const successMsg = document.getElementById(fieldId + '_success');
                 const icon = document.getElementById(fieldId + '_icon');
 
-                // Reset states
                 input.classList.remove('error', 'success');
                 if (errorMsg) errorMsg.classList.remove('show');
                 if (successMsg) successMsg.classList.remove('show');
@@ -737,7 +706,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                     icon.classList.remove('valid', 'invalid');
                 }
 
-                // Check if empty and required
                 if (isRequired && value === '') {
                     input.classList.add('error');
                     if (errorMsg) errorMsg.classList.add('show');
@@ -745,7 +713,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                     return false;
                 }
 
-                // If optional and empty, it's valid
                 if (!isRequired && value === '') {
                     input.classList.add('success');
                     if (successMsg) successMsg.classList.add('show');
@@ -753,7 +720,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                     return true;
                 }
 
-                // Test against pattern
                 if (pattern && !pattern.test(value)) {
                     input.classList.add('error');
                     if (errorMsg) errorMsg.classList.add('show');
@@ -761,21 +727,18 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                     return false;
                 }
 
-                // All validations passed
                 input.classList.add('success');
                 if (successMsg) successMsg.classList.add('show');
                 if (icon) icon.classList.add('valid');
                 return true;
             }
 
-            // Mobile number validation - exactly 10 digits
             function validateMobile(input) {
                 const value = input.value.trim();
                 const errorMsg = document.getElementById('mobile_error');
                 const successMsg = document.getElementById('mobile_success');
                 const icon = document.getElementById('mobile_icon');
                 
-                // Reset states
                 input.classList.remove('error', 'success');
                 if (errorMsg) errorMsg.classList.remove('show');
                 if (successMsg) successMsg.classList.remove('show');
@@ -783,7 +746,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                     icon.classList.remove('valid', 'invalid');
                 }
                 
-                // If empty, it's optional
                 if (value === '') {
                     input.classList.add('success');
                     if (successMsg) successMsg.classList.add('show');
@@ -791,7 +753,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                     return true;
                 }
                 
-                // Check if exactly 10 digits
                 const mobileRegex = /^[0-9]{10}$/;
                 if (!mobileRegex.test(value)) {
                     input.classList.add('error');
@@ -809,14 +770,12 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                     return false;
                 }
                 
-                // Valid
                 input.classList.add('success');
                 if (successMsg) successMsg.classList.add('show');
                 if (icon) icon.classList.add('valid');
                 return true;
             }
 
-            // Password strength checker
             function checkPasswordStrength(password) {
                 const strengthBar = document.getElementById('strengthBar');
                 const strengthText = document.getElementById('strengthText');
@@ -830,21 +789,18 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                     special: /[@$!%*?&]/.test(password)
                 };
 
-                // Update requirement indicators
                 document.getElementById('reqLength').className = `req-item ${checks.length ? 'met' : 'unmet'}`;
                 document.getElementById('reqUpper').className = `req-item ${checks.upper ? 'met' : 'unmet'}`;
                 document.getElementById('reqLower').className = `req-item ${checks.lower ? 'met' : 'unmet'}`;
                 document.getElementById('reqNumber').className = `req-item ${checks.number ? 'met' : 'unmet'}`;
                 document.getElementById('reqSpecial').className = `req-item ${checks.special ? 'met' : 'unmet'}`;
 
-                // Calculate score
                 if (checks.length) score++;
                 if (checks.upper) score++;
                 if (checks.lower) score++;
                 if (checks.number) score++;
                 if (checks.special) score++;
 
-                // Update strength bar
                 if (password.length === 0) {
                     strengthBar.className = 'strength-bar';
                     strengthText.textContent = 'Weak';
@@ -871,28 +827,34 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                 }
             }
 
-            // Attach event listeners for real-time validation
             Object.keys(fields).forEach(fieldId => {
                 const input = document.getElementById(fieldId);
                 if (!input) return;
 
-                // Validate on blur
                 input.addEventListener('blur', function() {
-                    validateField(fieldId);
+                    if (fieldId === 'mobile') {
+                        validateMobile(this);
+                    } else {
+                        validateField(fieldId);
+                    }
                 });
 
-                // Validate on input for better UX
                 input.addEventListener('input', function() {
-                    validateField(fieldId);
-                    
-                    // Special handling for password
-                    if (fieldId === 'password') {
+                    if (fieldId === 'mobile') {
+                        this.value = this.value.replace(/[^0-9]/g, '');
+                        if (this.value.length > 10) {
+                            this.value = this.value.slice(0, 10);
+                        }
+                        validateMobile(this);
+                    } else if (fieldId === 'password') {
                         checkPasswordStrength(this.value);
+                        validateField(fieldId);
+                    } else {
+                        validateField(fieldId);
                     }
                 });
             });
 
-            // Special handling for password field
             const passwordInput = document.getElementById('password');
             if (passwordInput) {
                 passwordInput.addEventListener('input', function() {
@@ -901,18 +863,13 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                 });
             }
 
-            // Mobile number specific validation
             const mobileInput = document.getElementById('mobile');
             if (mobileInput) {
                 mobileInput.addEventListener('input', function() {
-                    // Remove non-digits
                     this.value = this.value.replace(/[^0-9]/g, '');
-                    
-                    // Limit to 10 characters
                     if (this.value.length > 10) {
                         this.value = this.value.slice(0, 10);
                     }
-                    
                     validateMobile(this);
                 });
                 
@@ -931,11 +888,9 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                 });
             }
 
-            // Form submission validation
             document.getElementById('staffForm').addEventListener('submit', function(e) {
                 let isValid = true;
 
-                // Validate all fields
                 Object.keys(fields).forEach(fieldId => {
                     if (fieldId === 'mobile') {
                         if (!validateMobile(document.getElementById('mobile'))) {
@@ -948,7 +903,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
 
                 if (!isValid) {
                     e.preventDefault();
-                    // Scroll to first error
                     const firstError = document.querySelector('.field-group input.error, .field-group textarea.error');
                     if (firstError) {
                         firstError.focus();
@@ -957,7 +911,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                 }
             });
 
-            // Reset form - clear validation states
             document.querySelector('button[type="reset"]')?.addEventListener('click', function(e) {
                 setTimeout(() => {
                     document.querySelectorAll('.field-group input, .field-group textarea').forEach(input => {
@@ -969,7 +922,6 @@ if ($staff_roles_result && mysqli_num_rows($staff_roles_result) > 0) {
                     document.querySelectorAll('.input-icon').forEach(icon => {
                         icon.classList.remove('valid', 'invalid');
                     });
-                    // Reset password strength
                     const strengthBar = document.getElementById('strengthBar');
                     const strengthText = document.getElementById('strengthText');
                     if (strengthBar) strengthBar.className = 'strength-bar';

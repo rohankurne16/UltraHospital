@@ -426,14 +426,15 @@ $profile_image = $_SESSION['profile_image'] ?? '';
         ============================================================ -->
         <div class="sidebar-header">
             <a class="sidebar-brand" href="dashboard.php">
-                <span class="brand-icon">
-                    <i class="fas fa-crown"></i>
-                </span>
-                <div class="brand-name">
-                    <?php echo htmlspecialchars($hospital_name); ?>
-                    <small>Super Admin Panel</small>
-                </div>
-            </a>
+    <div class="brand-logo">
+        <img src="images/superadmin.jpg" alt="Super Admin Logo" width="45" height="45" style="border-radius:50%;">
+    </div>
+
+    <div class="brand-name">
+        <span>Ultra Hospital</span>
+        <small>Super Admin Panel</small>
+    </div>
+</a>
             <button class="sidebar-close" id="sidebar-close">
                 <i class="fas fa-times"></i>
             </button>
@@ -569,72 +570,106 @@ MOBILE OVERLAY
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
 <!-- ============================================================
-JAVASCRIPT
+JAVASCRIPT – SMART HIGHLIGHT + MOBILE TOGGLE (NO AJAX)
 ============================================================ -->
 <script>
-/**
- * Toggle sidebar function
- */
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar-container');
-    const overlay = document.getElementById('sidebarOverlay');
-    if (sidebar && overlay) {
-        sidebar.classList.toggle('active');
-        overlay.classList.toggle('active');
-        document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
-    }
-}
+(function() {
+    'use strict';
 
-/**
- * Close sidebar function
- */
-function closeSidebar() {
-    const sidebar = document.getElementById('sidebar-container');
-    const overlay = document.getElementById('sidebarOverlay');
-    if (sidebar && overlay) {
-        sidebar.classList.remove('active');
-        overlay.classList.remove('active');
-        document.body.style.overflow = '';
-    }
-}
+    // ---- CONFIG ----
+    // Map URL patterns to the selector of the sidebar item that should be active.
+    // The pattern can be a string (exact match) or a RegExp.
+    const routeMap = [
+        { pattern: /dashboard\.php/, selector: 'a[href="dashboard.php"]' },
+        { pattern: /hospitals?\.php/i, selector: 'a[href="hospitals.php"]' }, // matches hospitals.php, add_hospital.php, edit_hospital.php, etc.
+        { pattern: /users?\.php/i, selector: 'a[href="users.php"]' },
+        { pattern: /doctors?\.php/i, selector: 'a[href="doctors.php"]' },
+        { pattern: /staff\.php/i, selector: 'a[href="staff.php"]' },
+        { pattern: /departments?\.php/i, selector: 'a[href="departments.php"]' },
+        { pattern: /subscriptions?\.php/i, selector: 'a[href="#"]' }, // adjust if you have a real page
+        { pattern: /role_list\.php/i, selector: 'a[href="role_list.php"]' },
+        { pattern: /permissions?\.php/i, selector: 'a[href="permissions.php"]' },
+        { pattern: /audit_logs\.php/i, selector: 'a[href="audit_logs.php"]' },
+        { pattern: /login_logs\.php/i, selector: 'a[href="login_logs.php"]' },
+        { pattern: /profile\.php/i, selector: 'a[href="profile.php"]' }
+    ];
 
-// Close button
-document.getElementById('sidebar-close')?.addEventListener('click', closeSidebar);
-
-// Overlay click
-document.getElementById('sidebarOverlay')?.addEventListener('click', closeSidebar);
-
-// Escape key
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        closeSidebar();
-    }
-});
-
-// Auto-close on resize to desktop
-window.addEventListener('resize', function() {
-    if (window.innerWidth > 1279) {
-        closeSidebar();
-    }
-});
-
-// Highlight current page
-document.addEventListener('DOMContentLoaded', function() {
-    const currentPage = window.location.pathname.split('/').pop();
-    document.querySelectorAll('.sidebar-item').forEach(function(item) {
-        const href = item.getAttribute('href');
-        if (href && href === currentPage) {
-            item.classList.add('active');
-        }
-    });
-    
-    // Close sidebar when clicking a link on mobile
-    document.querySelectorAll('.sidebar-item').forEach(function(item) {
-        item.addEventListener('click', function() {
-            if (window.innerWidth <= 1279) {
-                setTimeout(closeSidebar, 200);
-            }
+    // ---- HIGHLIGHT SIDEBAR ITEM BASED ON CURRENT URL ----
+    function highlightSidebar() {
+        // Remove all active classes from sidebar items
+        document.querySelectorAll('.sidebar-item').forEach(function(el) {
+            el.classList.remove('active');
         });
+
+        const currentPath = window.location.pathname + window.location.search;
+        let matched = false;
+
+        // Try to match using the routeMap
+        for (let route of routeMap) {
+            if (route.pattern.test(currentPath) || route.pattern.test(window.location.pathname)) {
+                const target = document.querySelector(route.selector);
+                if (target) {
+                    target.classList.add('active');
+                    matched = true;
+                    break;
+                }
+            }
+        }
+
+        // If no match, fallback to the PHP-generated active class (kept as backup)
+        if (!matched) {
+            const filename = currentPath.split('/').pop().split('?')[0];
+            document.querySelectorAll('.sidebar-item').forEach(function(el) {
+                const href = el.getAttribute('href');
+                if (href && href === filename) {
+                    el.classList.add('active');
+                }
+            });
+        }
+    }
+
+    // ---- CLOSE SIDEBAR FUNCTION ----
+    function closeSidebar() {
+        const sidebar = document.getElementById('sidebar-container');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (sidebar && overlay) {
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    }
+
+    // ---- TOGGLE SIDEBAR (for mobile) ----
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar-container');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (sidebar && overlay) {
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+            document.body.style.overflow = sidebar.classList.contains('active') ? 'hidden' : '';
+        }
+    }
+
+    // ---- INITIAL HIGHLIGHT ON PAGE LOAD ----
+    document.addEventListener('DOMContentLoaded', function() {
+        highlightSidebar();
     });
-});
+
+    // Also call highlight after a small delay in case of dynamic content
+    setTimeout(highlightSidebar, 100);
+
+    // ---- BIND CLOSE BUTTON AND OVERLAY ----
+    document.getElementById('sidebar-close')?.addEventListener('click', closeSidebar);
+    document.getElementById('sidebarOverlay')?.addEventListener('click', closeSidebar);
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeSidebar();
+    });
+    window.addEventListener('resize', function() {
+        if (window.innerWidth > 1279) closeSidebar();
+    });
+
+    // ---- EXPOSE TOGGLE FOR MOBILE BUTTON (if you have one) ----
+    window.toggleSidebar = toggleSidebar;
+
+})();
 </script>
