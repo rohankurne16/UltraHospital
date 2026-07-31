@@ -40,6 +40,7 @@ $hospital_phone = $hospital_data["phone"] ?? "";
 $hospital_email = $hospital_data["email"] ?? "";
 
 // ========== VIEW REPORT DETAILS (AJAX) - MUST BE FIRST ==========
+// ========== VIEW REPORT DETAILS (AJAX) - WITH HOSPITAL DATA ==========
 if (isset($_GET['view_report']) && isset($_GET['report_id'])) {
     // Clear any previous output
     ob_clean();
@@ -83,10 +84,15 @@ if (isset($_GET['view_report']) && isset($_GET['report_id'])) {
             }
         }
         
-        // Add hospital data
+        // Add hospital data - Full address with city, state, pincode
+        $full_address = $hospital_address;
+        if (!empty($hospital_city)) $full_address .= ", " . $hospital_city;
+        if (!empty($hospital_state)) $full_address .= ", " . $hospital_state;
+        if (!empty($hospital_pincode)) $full_address .= " - " . $hospital_pincode;
+        
         $report_detail['hospital_name'] = $hospital_name;
         $report_detail['hospital_logo'] = $hospital_logo;
-        $report_detail['hospital_address'] = $hospital_address;
+        $report_detail['hospital_address'] = $full_address;
         $report_detail['hospital_phone'] = $hospital_phone;
         $report_detail['hospital_email'] = $hospital_email;
         $report_detail['test_results'] = $test_results;
@@ -781,14 +787,30 @@ if (isset($_GET['view_file']) && isset($_GET['report_id'])) {
             </div>
             <div class="modal-footer">
                 <button class="btn-secondary" onclick="closeModal('viewModal')">Close</button>
-                <button onclick="window.print()" class="btn-primary">
-                    <i class="fas fa-print"></i> Print Report
-                </button>
+                <button onclick="printModalReport()" class="btn-primary">
+    <i class="fas fa-print"></i> Print Report
+</button>
             </div>
         </div>
     </div>
 
     <script>
+        // ============================================================
+// ========== PRINT MODAL REPORT ==========
+// ============================================================
+let currentReportOrderId = null;
+
+function printModalReport() {
+    if (!currentReportOrderId) {
+        alert('Report is not loaded yet.');
+        return;
+    }
+
+    window.open(
+        'print_report.php?order_id=' + encodeURIComponent(currentReportOrderId),
+        '_blank'
+    );
+}
         let currentFilter = 'all';
         const serverToday = '<?php echo date('Y-m-d'); ?>';
 
@@ -847,209 +869,216 @@ if (isset($_GET['view_file']) && isset($_GET['report_id'])) {
         }
 
         // ========== VIEW REPORT - STANDARD FORMAT ==========
-        function viewReport(reportId) {
-            const modal = document.getElementById('viewModal');
-            const content = document.getElementById('viewReportContent');
+       // ========== VIEW REPORT - STANDARD FORMAT (EXACT SAME AS TECHNICIAN) ==========
+function viewReport(reportId) {
+    const modal = document.getElementById('viewModal');
+    const content = document.getElementById('viewReportContent');
+    
+    modal.classList.add('show');
+    content.innerHTML = `
+        <div class="text-center py-8">
+            <i class="fas fa-spinner fa-spin text-2xl"></i>
+            <p class="mt-2 text-gray-500">Loading report details...</p>
+        </div>
+    `;
+    
+    const url = window.location.pathname + '?view_report=1&report_id=' + reportId;
+    
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network error: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data.success) {
+                content.innerHTML = `
+                    <div class="text-center py-8 text-red-500">
+                        <i class="fas fa-exclamation-circle text-2xl"></i>
+                        <p class="mt-2">${data.error || 'Report not found'}</p>
+                    </div>
+                `;
+                return;
+            }
             
-            modal.classList.add('show');
-            content.innerHTML = `
-                <div class="text-center py-8">
-                    <i class="fas fa-spinner fa-spin text-2xl"></i>
-                    <p class="mt-2 text-gray-500">Loading report details...</p>
-                </div>
-            `;
+            const report = data.report;
             
-            // Use the current page URL for the AJAX request
-            const url = window.location.pathname + '?view_report=1&report_id=' + reportId;
+            currentReportOrderId = report.order_id;
             
-            fetch(url)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok: ' + response.status);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (!data.success) {
-                        content.innerHTML = `
-                            <div class="text-center py-8 text-red-500">
-                                <i class="fas fa-exclamation-circle text-2xl"></i>
-                                <p class="mt-2">${data.error || 'Report not found'}</p>
-                            </div>
-                        `;
-                        return;
-                    }
-                    
-                    const report = data.report;
-                    
-                    // Format dates
-                    let reportDate = report.report_date || 'N/A';
-                    if (reportDate !== 'N/A' && reportDate !== '0000-00-00') {
-                        let d = new Date(reportDate);
-                        reportDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-                    }
-                    
-                    let orderDate = report.order_date || 'N/A';
-                    if (orderDate !== 'N/A' && orderDate !== '0000-00-00') {
-                        let d = new Date(orderDate);
-                        orderDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-                    }
-                    
-                    let dob = report.date_of_birth || 'N/A';
-                    if (dob !== 'N/A' && dob !== '0000-00-00') {
-                        let d = new Date(dob);
-                        dob = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-                    }
-                    
-                    let doctorName = report.doctor_name || 'Not Assigned';
-                    let statusClass = (report.report_status || 'pending').toLowerCase();
-                    
-                    // Hospital info
-                    let hospitalLogo = report.hospital_logo || '../documents/hospital/logo.png';
-                    let hospitalName = report.hospital_name || 'Hospital';
-                    let hospitalAddress = report.hospital_address || '';
-                    let hospitalPhone = report.hospital_phone || '';
-                    let hospitalEmail = report.hospital_email || '';
-                    
-                    let logoHtml = '';
-                    if (hospitalLogo) {
-                        logoHtml = `<img src="${hospitalLogo}" alt="Hospital Logo" style="max-height:70px; max-width:120px; object-fit:contain; margin-bottom:5px;">`;
-                    }
-                    
-                    // Build test results table
-                    let testRows = '';
-                    if (report.test_results && report.test_results.length > 0) {
-                        report.test_results.forEach((test, index) => {
-                            testRows += `
-                                <tr>
-                                    <td>${index + 1}</td>
-                                    <td><strong>${test.test_name || 'N/A'}</strong><br>
-                                        <span style="font-size:11px;color:#6b7280;">Code: ${test.test_code || 'N/A'}</span>
-                                    </td>
-                                    <td>
-                                        <span class="report-result-highlight">${test.result_value || 'Not entered'}</span>
-                                    </td>
-                                    <td>${test.normal_range || test.test_normal_range || 'N/A'}</td>
-                                    <td>${test.unit || 'N/A'}</td>
-                                    <td>${test.result_remarks || '-'}</td>
-                                </tr>
-                            `;
-                        });
-                    } else {
-                        testRows = `
-                            <tr>
-                                <td colspan="6" style="text-align:center;color:#6b7280;">No test results available</td>
-                            </tr>
-                        `;
-                    }
-                    
-                    let html = `
-                        <div class="report-container" id="reportPrintArea">
-                            <!-- Report Header with Logo -->
-                            <div class="report-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-                                <div style="flex:1; text-align:left;">
-                                    ${logoHtml}
-                                </div>
-                                <div style="flex:2; text-align:center;">
-                                    <h2 style="font-size:22px; font-weight:700; color:#0f172a; margin:0;">${hospitalName}</h2>
-                                    <p style="color:#6b7280; font-size:13px; margin:4px 0 0 0;">${hospitalAddress}</p>
-                                    ${hospitalPhone ? `<p style="color:#6b7280; font-size:12px; margin:2px 0;">Phone: ${hospitalPhone}</p>` : ''}
-                                    ${hospitalEmail ? `<p style="color:#6b7280; font-size:12px; margin:0;">Email: ${hospitalEmail}</p>` : ''}
-                                </div>
-                                <div style="flex:1;"></div>
-                            </div>
-                            
-                            <div class="report-title">Laboratory Test Report</div>
-                            
-                            <!-- Patient & Report Info -->
-                            <div class="report-info-grid">
-                                <div class="report-info-item">
-                                    <span class="report-info-label">Report No:</span>
-                                    <span class="report-info-value"><strong>${report.report_no || 'N/A'}</strong></span>
-                                </div>
-                                <div class="report-info-item">
-                                    <span class="report-info-label">Order No:</span>
-                                    <span class="report-info-value">${report.order_no || 'N/A'}</span>
-                                </div>
-                                <div class="report-info-item">
-                                    <span class="report-info-label">Patient Name:</span>
-                                    <span class="report-info-value"><strong>${report.patient_name || 'N/A'}</strong></span>
-                                </div>
-                                <div class="report-info-item">
-                                    <span class="report-info-label">Gender:</span>
-                                    <span class="report-info-value">${report.gender || 'N/A'}</span>
-                                </div>
-                                <div class="report-info-item">
-                                    <span class="report-info-label">Date of Birth:</span>
-                                    <span class="report-info-value">${dob}</span>
-                                </div>
-                                <div class="report-info-item">
-                                    <span class="report-info-label">Mobile:</span>
-                                    <span class="report-info-value">${report.mobile || 'N/A'}</span>
-                                </div>
-                                <div class="report-info-item">
-                                    <span class="report-info-label">Referring Doctor:</span>
-                                    <span class="report-info-value" style="font-weight:500;color:#1e40af;">${doctorName}</span>
-                                </div>
-                                <div class="report-info-item">
-                                    <span class="report-info-label">Report Date:</span>
-                                    <span class="report-info-value"><strong>${reportDate}</strong></span>
-                                </div>
-                                <div class="report-info-item">
-                                    <span class="report-info-label">Order Date:</span>
-                                    <span class="report-info-value">${orderDate}</span>
-                                </div>
-                                <div class="report-info-item">
-                                    <span class="report-info-label">Status:</span>
-                                    <span class="report-info-value">
-                                        <span class="report-status-badge ${statusClass}">${report.report_status || 'Pending'}</span>
-                                    </span>
-                                </div>
-                            </div>
-                            
-                            <!-- Test Results Table -->
-                            <table class="report-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width:50px;">#</th>
-                                        <th>Test Name</th>
-                                        <th style="width:120px;">Result</th>
-                                        <th style="width:130px;">Normal Range</th>
-                                        <th style="width:80px;">Unit</th>
-                                        <th>Remarks</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${testRows}
-                                </tbody>
-                            </table>
-                            
-                            <!-- Footer -->
-                            <div class="report-footer">
-                                <div>
-                                    <div><strong>Technician:</strong> ${report.technician_name || 'N/A'}</div>
-                                    <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Generated on: ${new Date().toLocaleString('en-IN')}</div>
-                                </div>
-                                <div class="report-signature">
-                                    <div class="line"></div>
-                                    <span style="font-size:12px;color:#6b7280;">Authorized Signature</span>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    content.innerHTML = html;
-                })
-                .catch((error) => {
-                    console.error('Error:', error);
-                    content.innerHTML = `
-                        <div class="text-center py-8 text-red-500">
-                            <i class="fas fa-exclamation-circle text-2xl"></i>
-                            <p class="mt-2">Error loading report details. Please try again.</p>
-                            <p class="text-xs text-gray-400 mt-1">${error.message}</p>
-                        </div>
+            // Format dates
+            let reportDate = report.report_date || 'N/A';
+            if (reportDate !== 'N/A' && reportDate !== '0000-00-00') {
+                let d = new Date(reportDate);
+                reportDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            }
+            
+            let orderDate = report.order_date || 'N/A';
+            if (orderDate !== 'N/A' && orderDate !== '0000-00-00') {
+                let d = new Date(orderDate);
+                orderDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            }
+            
+            let dob = report.date_of_birth || 'N/A';
+            if (dob !== 'N/A' && dob !== '0000-00-00') {
+                let d = new Date(dob);
+                dob = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+            }
+            
+            let doctorName = report.doctor_name || 'Not Assigned';
+            if (doctorName !== 'Not Assigned') {
+                doctorName = doctorName.replace(/^Dr\.?\s*/i, '');
+                doctorName = 'Dr. ' + doctorName;
+            }
+            
+            let statusClass = (report.report_status || 'pending').toLowerCase();
+            
+            // Hospital info
+            let hospitalLogo = report.hospital_logo || '../documents/hospital/logo.png';
+            let hospitalName = report.hospital_name || 'Hospital';
+            let hospitalAddress = report.hospital_address || '';
+            let hospitalPhone = report.hospital_phone || '';
+            let hospitalEmail = report.hospital_email || '';
+            
+            let logoHtml = '';
+            if (hospitalLogo) {
+                logoHtml = `<img src="${hospitalLogo}" alt="Hospital Logo" style="max-height:70px; max-width:120px; object-fit:contain; margin-bottom:5px;">`;
+            }
+            
+            // Build test results table
+            let testRows = '';
+            if (report.test_results && report.test_results.length > 0) {
+                report.test_results.forEach((test, index) => {
+                    testRows += `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td><strong>${test.test_name || 'N/A'}</strong><br>
+                                <span style="font-size:11px;color:#6b7280;">Code: ${test.test_code || 'N/A'}</span>
+                            </td>
+                            <td>
+                                <span class="report-result-highlight">${test.result_value || 'Not entered'}</span>
+                            </td>
+                            <td>${test.normal_range || test.test_normal_range || 'N/A'}</td>
+                            <td>${test.unit || 'N/A'}</td>
+                            <td>${test.result_remarks || '-'}</td>
+                        </tr>
                     `;
                 });
-        }
+            } else {
+                testRows = `
+                    <tr>
+                        <td colspan="6" style="text-align:center;color:#6b7280;">No test results available</td>
+                    </tr>
+                `;
+            }
+            
+            let html = `
+                <div class="report-container" id="reportPrintArea">
+                    <!-- Report Header with Logo -->
+                    <div class="report-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+                        <div style="flex:1; text-align:left;">
+                            ${logoHtml}
+                        </div>
+                        <div style="flex:2; text-align:center;">
+                            <h2 style="font-size:22px; font-weight:700; color:#0f172a; margin:0;">${hospitalName}</h2>
+                            <p style="color:#6b7280; font-size:13px; margin:4px 0 0 0;">${hospitalAddress}</p>
+                            ${hospitalPhone ? `<p style="color:#6b7280; font-size:12px; margin:2px 0;">Phone: ${hospitalPhone}</p>` : ''}
+                            ${hospitalEmail ? `<p style="color:#6b7280; font-size:12px; margin:0;">Email: ${hospitalEmail}</p>` : ''}
+                        </div>
+                        <div style="flex:1;"></div>
+                    </div>
+                    
+                    <div class="report-title">Laboratory Test Report</div>
+                    
+                    <!-- Patient & Report Info -->
+                    <div class="report-info-grid">
+                        <div class="report-info-item">
+                            <span class="report-info-label">Report No:</span>
+                            <span class="report-info-value"><strong>${report.report_no || 'N/A'}</strong></span>
+                        </div>
+                        <div class="report-info-item">
+                            <span class="report-info-label">Order No:</span>
+                            <span class="report-info-value">${report.order_no || 'N/A'}</span>
+                        </div>
+                        <div class="report-info-item">
+                            <span class="report-info-label">Patient Name:</span>
+                            <span class="report-info-value"><strong>${report.patient_name || 'N/A'}</strong></span>
+                        </div>
+                        <div class="report-info-item">
+                            <span class="report-info-label">Gender:</span>
+                            <span class="report-info-value">${report.gender || 'N/A'}</span>
+                        </div>
+                        <div class="report-info-item">
+                            <span class="report-info-label">Date of Birth:</span>
+                            <span class="report-info-value">${dob}</span>
+                        </div>
+                        <div class="report-info-item">
+                            <span class="report-info-label">Mobile:</span>
+                            <span class="report-info-value">${report.mobile || 'N/A'}</span>
+                        </div>
+                        <div class="report-info-item">
+                            <span class="report-info-label">Referring Doctor:</span>
+                            <span class="report-info-value" style="font-weight:500;color:#1e40af;">${doctorName}</span>
+                        </div>
+                        <div class="report-info-item">
+                            <span class="report-info-label">Report Date:</span>
+                            <span class="report-info-value"><strong>${reportDate}</strong></span>
+                        </div>
+                        <div class="report-info-item">
+                            <span class="report-info-label">Order Date:</span>
+                            <span class="report-info-value">${orderDate}</span>
+                        </div>
+                        <div class="report-info-item">
+                            <span class="report-info-label">Status:</span>
+                            <span class="report-info-value">
+                                <span class="report-status-badge ${statusClass}">${report.report_status || 'Pending'}</span>
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <!-- Test Results Table -->
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th style="width:50px;">#</th>
+                                <th>Test Name</th>
+                                <th style="width:120px;">Result</th>
+                                <th style="width:130px;">Normal Range</th>
+                                <th style="width:80px;">Unit</th>
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${testRows}
+                        </tbody>
+                    </table>
+                    
+                    <!-- Footer -->
+                    <div class="report-footer">
+                        <div>
+                            <div><strong>Technician:</strong> ${report.technician_name || 'N/A'}</div>
+                            <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Generated on: ${new Date().toLocaleString('en-IN')}</div>
+                        </div>
+                        <div class="report-signature">
+                            <div class="line"></div>
+                            <span style="font-size:12px;color:#6b7280;">Authorized Signature</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            content.innerHTML = html;
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+            content.innerHTML = `
+                <div class="text-center py-8 text-red-500">
+                    <i class="fas fa-exclamation-circle text-2xl"></i>
+                    <p class="mt-2">Error loading report details. Please try again.</p>
+                    <p class="text-xs text-gray-400 mt-1">${error.message}</p>
+                </div>
+            `;
+        });
+}
 
         // ========== CLOSE MODAL ==========
         function closeModal(id) {

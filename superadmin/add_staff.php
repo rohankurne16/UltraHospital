@@ -34,8 +34,19 @@ if ($is_super_admin) {
     ");
 }
 
-// Staff roles
-$staff_roles = array("Receptionist", "Nurse", "Ward_boy", "Lab Technician");
+// ============================================================
+// UPDATED STAFF ROLES – matches the image exactly
+// ============================================================
+$staff_roles = array(
+    "Nurse",
+    "Ward Boy",
+    "Lab Technician",
+    "Patient",
+    "Billing Staff",
+    "Accountant",
+    "Pharmacist",
+    "Receptionist"
+);
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
     // Get hospital_id from POST or use session
@@ -87,11 +98,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
             mkdir($folder, 0777, true);
         }
         
-        $image_name = basename($_FILES['staff_image']['name']);
-        $image_path = $folder . $image_name;
+        // Generate unique filename to avoid overwriting
+        $file_extension = pathinfo($_FILES['staff_image']['name'], PATHINFO_EXTENSION);
+        $new_filename = 'staff_' . time() . '_' . uniqid() . '.' . $file_extension;
+        $image_path = $folder . $new_filename;
         
         if (move_uploaded_file($_FILES['staff_image']['tmp_name'], $image_path)) {
-            $staff_image = "documents/staff/images/" . $image_name;
+            $staff_image = "documents/staff/images/" . $new_filename;
         } else {
             $message = "Failed to upload image. Please check folder permissions.";
             $message_type = "error";
@@ -609,9 +622,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
     <script>
         lucide.createIcons();
 
-       
         // ============================================================
-        // VALIDATION LOGIC
+        // VALIDATION LOGIC (unchanged – works with updated roles)
         // ============================================================
         document.addEventListener('DOMContentLoaded', function() {
             // Define validation patterns

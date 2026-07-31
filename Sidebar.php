@@ -302,7 +302,7 @@ if (!function_exists('getDashboardUrl')) {
                      <img alt="Hospital Logo" src="<?php echo $hospital_logo; ?>" class="brand-logo" />
                 <?php   }
                    else{ ?>
-                     <img alt="Hospital Logo" src="../<?php echo $hospital_logo; ?>" class="brand-logo" />
+                     <img alt="Hospital Logo" src="<?php echo $hospital_logo; ?>" class="brand-logo" />
                  <?php  } ?>
                 <?php else: ?>
                     <span class="brand-icon">H</span>
@@ -460,12 +460,12 @@ if (!function_exists('getDashboardUrl')) {
                 </button>
                 <div id="pharmacyMenu" class="dropdown-menu">
                     <?php if (hasPerm('Stock View')): ?>
-                    <a href="pharmacy_stock.php" class="sidebar-link sub-link">
+                    <a href="#" class="sidebar-link sub-link">
                         <i class="fas fa-boxes"></i> Stock
                     </a>
                     <?php endif; ?>
                     <?php if (hasPerm('Medicine Sales View')): ?>
-                    <a href="pharmacy_sales.php" class="sidebar-link sub-link">
+                    <a href="#" class="sidebar-link sub-link">
                         <i class="fas fa-cash-register"></i> Sales
                     </a>
                     <?php endif; ?>

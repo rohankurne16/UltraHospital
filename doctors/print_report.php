@@ -34,6 +34,7 @@ $hospital_pincode = $hospital_data["pincode"] ?? "";
 $hospital_phone = $hospital_data["phone"] ?? "";
 $hospital_email = $hospital_data["email"] ?? "";
 $hospital_registration = $hospital_data["registration_number"] ?? "";
+$hospital_gst = $hospital_data["gst_number"] ?? "";
 
 // Full address
 $full_address = $hospital_address;
@@ -116,8 +117,8 @@ if (!empty($logo_path)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> <?php echo $hospital['hospital_name'] ?>- Lab Report</title>
-    <link rel="icon" type="image/png" href="../<?php echo $hospital['hospital_logo'] ?>">
+    <title><?php echo htmlspecialchars($hospital_name); ?> - Lab Report</title>
+    <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($hospital_logo); ?>">
     <style>
         * {
             margin: 0;
@@ -139,40 +140,55 @@ if (!empty($logo_path)) {
             padding: 30px 35px;
         }
         
-        /* Report Header - Exact same as PDF */
         .report-header {
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
             border-bottom: 2px solid #3b82f6;
             padding-bottom: 15px;
             margin-bottom: 20px;
         }
         
-        .report-header .logo-img {
-            max-height: 60px;
-            max-width: 120px;
-            object-fit: contain;
-            margin-bottom: 5px;
+        .report-header .logo-section {
+            flex: 1;
+            text-align: left;
         }
         
-        .report-header h1 {
+        .report-header .logo-img {
+            max-height: 70px;
+            max-width: 120px;
+            object-fit: contain;
+        }
+        
+        .report-header .hospital-info {
+            flex: 2;
+            text-align: center;
+        }
+        
+        .report-header .hospital-info h1 {
             font-size: 22px;
             font-weight: 700;
             color: #0f172a;
             margin: 0;
         }
         
-        .report-header p {
+        .report-header .hospital-info p {
             color: #6b7280;
             font-size: 13px;
             margin: 2px 0;
         }
         
-        .report-header .phone {
+        .report-header .hospital-info .phone-email {
             font-size: 12px;
             color: #6b7280;
         }
         
-        /* Report Title - Exact same as PDF */
+        .report-header .spacer {
+            flex: 1;
+        }
+        
         .report-title {
             text-align: center;
             font-size: 18px;
@@ -183,27 +199,26 @@ if (!empty($logo_path)) {
             letter-spacing: 1px;
         }
         
-        /* Report Info Grid - Exact same as PDF */
         .report-info-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 6px 20px;
+            gap: 6px 30px;
             background: #f8fafc;
-            padding: 14px 18px;
-            border-radius: 6px;
+            padding: 14px 20px;
+            border-radius: 8px;
             margin-bottom: 20px;
         }
         
         .report-info-item {
             display: flex;
-            padding: 2px 0;
+            padding: 3px 0;
             font-size: 13px;
         }
         
         .report-info-item .label {
             font-weight: 600;
             color: #4b5563;
-            width: 120px;
+            width: 130px;
             flex-shrink: 0;
         }
         
@@ -215,7 +230,11 @@ if (!empty($logo_path)) {
             font-weight: 700;
         }
         
-        /* Test Results Table - Exact same as PDF */
+        .report-info-item .value.doctor-name {
+            font-weight: 500;
+            color: #1e40af;
+        }
+        
         .report-table {
             width: 100%;
             border-collapse: collapse;
@@ -226,7 +245,7 @@ if (!empty($logo_path)) {
         .report-table th {
             background: #3b82f6;
             color: white;
-            padding: 8px 12px;
+            padding: 10px 14px;
             text-align: left;
             font-weight: 600;
             font-size: 12px;
@@ -235,7 +254,7 @@ if (!empty($logo_path)) {
         }
         
         .report-table td {
-            padding: 8px 12px;
+            padding: 10px 14px;
             border-bottom: 1px solid #e5e7eb;
             color: #1f2937;
             vertical-align: middle;
@@ -248,6 +267,7 @@ if (!empty($logo_path)) {
         .report-table .result-highlight {
             font-weight: 700;
             color: #059669;
+            font-size: 14px;
         }
         
         .report-table .test-code {
@@ -257,10 +277,9 @@ if (!empty($logo_path)) {
             margin-top: 2px;
         }
         
-        /* Status Badge - Exact same as PDF */
         .status-badge {
             display: inline-block;
-            padding: 2px 12px;
+            padding: 3px 14px;
             border-radius: 20px;
             font-size: 12px;
             font-weight: 600;
@@ -281,7 +300,6 @@ if (!empty($logo_path)) {
             color: #991b1b;
         }
         
-        /* Report Footer - Exact same as PDF */
         .report-footer {
             margin-top: 20px;
             padding-top: 15px;
@@ -313,7 +331,7 @@ if (!empty($logo_path)) {
         }
         
         .report-footer .signature .line {
-            width: 180px;
+            width: 200px;
             border-top: 1.5px solid #1f2937;
             margin: 5px 0 3px 0;
         }
@@ -323,7 +341,6 @@ if (!empty($logo_path)) {
             color: #6b7280;
         }
         
-        /* Print Actions */
         .print-actions {
             text-align: center;
             margin-top: 30px;
@@ -357,7 +374,6 @@ if (!empty($logo_path)) {
             background: #d1d5db;
         }
         
-        /* Print Styles - Exact same as PDF */
         @media print {
             body {
                 background: white !important;
@@ -372,10 +388,6 @@ if (!empty($logo_path)) {
             
             .print-actions {
                 display: none !important;
-            }
-            
-            .report-table tr:nth-child(even) {
-                background: #f8fafc !important;
             }
             
             .report-table th {
@@ -406,34 +418,52 @@ if (!empty($logo_path)) {
                 print-color-adjust: exact !important;
             }
             
-            .report-header {
-                border-bottom-color: #3b82f6 !important;
+            .report-table tr:nth-child(even) {
+                background: #f8fafc !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
             }
         }
         
         @media (max-width: 640px) {
             body { padding: 10px; }
             .report-container { padding: 15px; }
+            .report-header { flex-direction: column; text-align: center; }
+            .report-header .logo-section { text-align: center; }
             .report-info-grid { grid-template-columns: 1fr; }
             .report-info-item .label { width: 100px; }
-            .report-table th, .report-table td { padding: 5px 8px; font-size: 11px; }
+            .report-table th, .report-table td { padding: 6px 10px; font-size: 11px; }
             .report-footer { flex-direction: column; align-items: center; text-align: center; }
-            .report-header h1 { font-size: 18px; }
         }
     </style>
 </head>
 <body>
     <div class="report-container" id="reportContainer">
-        <!-- Report Header -->
+        <!-- Report Header with Logo - Matching View Modal -->
         <div class="report-header">
-            <?php if (!empty($display_logo) && file_exists($display_logo)): ?>
-                <img src="<?php echo htmlspecialchars($display_logo); ?>" alt="Hospital Logo" class="logo-img">
-            <?php endif; ?>
-            <h1><?php echo htmlspecialchars($hospital_name); ?></h1>
-            <p><?php echo htmlspecialchars($full_address); ?></p>
-            <?php if (!empty($hospital_phone)): ?>
-                <div class="phone">Phone: <?php echo htmlspecialchars($hospital_phone); ?></div>
-            <?php endif; ?>
+            <div class="logo-section">
+                <?php if (!empty($display_logo) && file_exists($display_logo)): ?>
+                    <img src="<?php echo htmlspecialchars($display_logo); ?>" alt="Hospital Logo" class="logo-img">
+                <?php endif; ?>
+            </div>
+            <div class="hospital-info">
+                <h1><?php echo htmlspecialchars($hospital_name); ?></h1>
+                <p><?php echo htmlspecialchars($full_address); ?></p>
+                <?php if (!empty($hospital_phone) || !empty($hospital_email)): ?>
+                    <div class="phone-email">
+                        <?php if (!empty($hospital_phone)): ?>
+                            Phone: <?php echo htmlspecialchars($hospital_phone); ?>
+                        <?php endif; ?>
+                        <?php if (!empty($hospital_phone) && !empty($hospital_email)): ?>
+                            &nbsp;|&nbsp;
+                        <?php endif; ?>
+                        <?php if (!empty($hospital_email)): ?>
+                            Email: <?php echo htmlspecialchars($hospital_email); ?>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+            <div class="spacer"></div>
         </div>
         
         <!-- Report Title -->
@@ -467,7 +497,7 @@ if (!empty($logo_path)) {
             </div>
             <div class="report-info-item">
                 <span class="label">Referring Doctor:</span>
-                <span class="value" style="font-weight:500; color:#1e40af;"><?php echo $doctor_name; ?></span>
+                <span class="value doctor-name"><?php echo $doctor_name; ?></span>
             </div>
             <div class="report-info-item">
                 <span class="label">Report Date:</span>
@@ -536,6 +566,9 @@ if (!empty($logo_path)) {
                 <?php if (!empty($hospital_registration)): ?>
                     <div class="generated" style="margin-top:2px;">Reg No: <?php echo htmlspecialchars($hospital_registration); ?></div>
                 <?php endif; ?>
+                <?php if (!empty($hospital_gst)): ?>
+                    <div class="generated">GST: <?php echo htmlspecialchars($hospital_gst); ?></div>
+                <?php endif; ?>
             </div>
             <div class="signature">
                 <div class="line"></div>
@@ -545,26 +578,18 @@ if (!empty($logo_path)) {
     </div>
     
     <!-- Print Actions -->
-    <div class="print-actions">
-        <button onclick="window.print()">
-            <i class="fas fa-print"></i> Print Report
-        </button>
-        <button class="btn-secondary" onclick="window.close()">
-            <i class="fas fa-times"></i> Close
-        </button>
-    </div>
+ 
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <script>
-        // Auto print after page loads with a small delay
-        window.onload = function() {
-            // Auto print after 1 second
-            setTimeout(function() {
-                // Uncomment below to auto-print
-                // window.print();
-            }, 1000);
-        };
-    </script>
+   <script>
+window.addEventListener('load', function () {
+    window.print();
+});
+
+window.addEventListener('afterprint', function () {
+    window.close();
+});
+</script>
 </body>
 </html>

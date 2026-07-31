@@ -492,7 +492,7 @@ $profile_image = $_SESSION['profile_image'] ?? '';
             </a>
             
             <!-- Subscriptions -->
-            <a href="#" class="sidebar-item <?php echo $current_page == 'subscriptions.php' ? 'active' : ''; ?>">
+            <a href="manage_limits.php" class="sidebar-item <?php echo $current_page == 'subscriptions.php' ? 'active' : ''; ?>">
                 <i class="fas fa-credit-card"></i>
                 <span>Subscriptions</span>
             </a>

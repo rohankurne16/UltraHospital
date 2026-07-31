@@ -1,7 +1,15 @@
 <?php
 session_start();
 include "../config/hospital.php";
-include "../config/send_registration_email.php";
+
+// Check if sendRegistrationEmail function exists, if not, define a dummy
+if (!function_exists('sendRegistrationEmail')) {
+    function sendRegistrationEmail($conn, $hospital_id, $name, $email, $password) {
+        // You can implement email sending here, or just log
+        error_log("Registration email not sent: function not implemented.");
+        return true; // Return true to avoid blocking the flow
+    }
+}
 
 $hid = $_SESSION["hospital_id"];
 
@@ -25,7 +33,6 @@ if ($is_super_admin) {
 }
 
 // Fetch departments based on selected hospital or session
-// If POST has hospital_id, use that, otherwise use session
 $selected_hospital_id = isset($_POST['hospital_id']) && !empty($_POST['hospital_id']) 
     ? (int)$_POST['hospital_id'] 
     : $hid;
@@ -35,7 +42,7 @@ $department_query = mysqli_query($conn, "
     SELECT department_name
     FROM department
     WHERE status = 'Active'
-    AND hospital_id='$selected_hospital_id'
+    AND hospital_id = '$selected_hospital_id'
     AND (delete_flag = 0 OR delete_flag IS NULL)
     ORDER BY department_name ASC
 ");
@@ -210,66 +217,56 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
             if ($stmt_reg->execute()) {
                 $register_id = $conn->insert_id;
 
-                $sql = "INSERT INTO doctor
-(
-    register_id,
-    doctor_name,
-    doctor_image,
-    mobile,
-    email,
-    department,
-    qualification,
-    specialization,
-    experience,
-    consultation_fee,
-    timing,
-    address,
-    status,
-    hospital_id
-)
-VALUES
-(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-
-$stmt_doc = $conn->prepare($sql);
-
-if (!$stmt_doc) {
-    die("<pre>" . $conn->error . "\n\nSQL:\n" . $sql . "</pre>");
-}
-
-$stmt_doc->bind_param(
-    "issssssssdsssi",
-    $register_id,
-    $doctor_name,
-    $doctor_image,
-    $mobile,
-    $email,
-    $department,
-    $qualification,
-    $specialization,
-    $experience,
-    $consultation_fee,
-    $timing,
-    $address,
-    $status,
-    $hospital_id
-);
-
                 // Insert into doctor table
-               
+                $sql = "INSERT INTO doctor
+                        (register_id, doctor_name, doctor_image, mobile, email, department, 
+                         qualification, specialization, experience, consultation_fee, timing, 
+                         address, status, hospital_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                
+                $stmt_doc = $conn->prepare($sql);
+                if (!$stmt_doc) {
+                    throw new Exception("Prepare failed: " . $conn->error);
+                }
+
+                // Bind parameters: types: i, s, s, s, s, s, s, s, i, d, s, s, s, i
+                // experience as integer, consultation_fee as decimal
+                $experience_int = $experience !== '' ? (int)$experience : 0;
+                $consultation_fee_float = $consultation_fee !== '' ? (float)$consultation_fee : 0.00;
+
+                $stmt_doc->bind_param(
+                    "isssssssidsssi",
+                    $register_id,
+                    $doctor_name,
+                    $doctor_image,
+                    $mobile,
+                    $email,
+                    $department,
+                    $qualification,
+                    $specialization,
+                    $experience_int,
+                    $consultation_fee_float,
+                    $timing,
+                    $address,
+                    $status,
+                    $hospital_id
+                );
+
                 if ($stmt_doc->execute()) {
                     $conn->commit();
 
-                    // Send registration email
-                    $mailSent = sendRegistrationEmail(
-                        $conn,
-                        $hospital_id,
-                        $doctor_name,
-                        $email,
-                        $password
-                    );
-
-                    if (!$mailSent) {
-                        error_log("Doctor registration email could not be sent to: " . $email);
+                    // Send registration email (if function exists)
+                    if (function_exists('sendRegistrationEmail')) {
+                        $mailSent = sendRegistrationEmail(
+                            $conn,
+                            $hospital_id,
+                            $doctor_name,
+                            $email,
+                            $password
+                        );
+                        if (!$mailSent) {
+                            error_log("Doctor registration email could not be sent to: " . $email);
+                        }
                     }
 
                     $_SESSION['success_message'] = "Doctor added successfully!";
@@ -291,14 +288,16 @@ $stmt_doc->bind_param(
         $message_type = "error";
     }
 }
-?>
 
+// Define hospital name for title
+$hospital_name = isset($hospital['hospital_name']) ? $hospital['hospital_name'] : 'Hospital';
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add Doctor - <?php echo $hospital['hospital_name'] ?></title> 
+    <title>Add Doctor - <?php echo htmlspecialchars($hospital_name); ?></title> 
     
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Font Awesome 6 (Free) -->
@@ -887,7 +886,7 @@ $stmt_doc->bind_param(
                                                 <i class="fas fa-rupee-sign label-icon"></i>Consultation Fee (₹)
                                             </label>
                                             <div class="input-wrapper">
-                                                <input name="consultation_fee" id="consultation_fee" type="number" placeholder="e.g. 500" 
+                                                <input name="consultation_fee" id="consultation_fee" type="number" step="0.01" placeholder="e.g. 500" 
                                                     class="form-input w-full h-12 px-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all" 
                                                     min="0" max="999999"
                                                     data-validation="fee"

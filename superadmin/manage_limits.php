@@ -8,7 +8,57 @@ require_once '../config/subscription_limits.php';
 $theme = $_SESSION['theme'] ?? 'light';
 $success_msg = $error_msg = '';
 
-// Handle form submission
+// ============================================================
+// CUSTOM FUNCTION: Save limits (insert or update) – FIXED
+// ============================================================
+function saveHospitalLimits($conn, $hospital_id, $max_departments, $max_doctors, $max_staff) {
+    // Check if a subscription record exists for this hospital
+    $check = mysqli_query($conn, "SELECT subscription_id FROM subscriptions WHERE hospital_id = $hospital_id AND delete_flag = 0");
+    if (mysqli_num_rows($check) > 0) {
+        // Update existing record – only update known columns
+        $query = "UPDATE subscriptions SET 
+                    max_departments = $max_departments,
+                    max_doctors = $max_doctors,
+                    max_staff = $max_staff,
+                    modified_at = NOW()
+                  WHERE hospital_id = $hospital_id AND delete_flag = 0";
+    } else {
+        // Insert new record – only include columns that exist
+        $query = "INSERT INTO subscriptions 
+                    (hospital_id, max_departments, max_doctors, max_staff, delete_flag)
+                  VALUES ($hospital_id, $max_departments, $max_doctors, $max_staff, 0)";
+    }
+    return mysqli_query($conn, $query);
+}
+
+// ============================================================
+// HANDLE BULK UPDATE (apply to all)
+// ============================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['apply_to_all'])) {
+    $bulk_departments = (int)$_POST['bulk_max_departments'];
+    $bulk_doctors = (int)$_POST['bulk_max_doctors'];
+    $bulk_staff = (int)$_POST['bulk_max_staff'];
+    
+    // Get all active hospital IDs
+    $all_hospitals_query = "SELECT hospital_id FROM hospital_master WHERE delete_flag = 0";
+    $all_res = mysqli_query($conn, $all_hospitals_query);
+    $updated_count = 0;
+    while ($hosp = mysqli_fetch_assoc($all_res)) {
+        if (saveHospitalLimits($conn, $hosp['hospital_id'], $bulk_departments, $bulk_doctors, $bulk_staff)) {
+            $updated_count++;
+        }
+    }
+    if ($updated_count > 0) {
+        $success_msg = "Bulk update successful! Limits applied to $updated_count hospital(s).";
+        logAudit('Subscription', "Super Admin applied bulk limits: Dep=$bulk_departments, Doc=$bulk_doctors, Staff=$bulk_staff to $updated_count hospitals");
+    } else {
+        $error_msg = "Bulk update failed. No hospitals updated.";
+    }
+}
+
+// ============================================================
+// HANDLE SINGLE HOSPITAL UPDATE
+// ============================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_limits'])) {
     $hospital_id = (int)$_POST['hospital_id'];
     $max_departments = (int)$_POST['max_departments'];
@@ -16,16 +66,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_limits'])) {
     $max_staff = (int)$_POST['max_staff'];
     
     if ($hospital_id > 0) {
-        if (updateHospitalLimits($hospital_id, $max_departments, $max_doctors, $max_staff)) {
+        if (saveHospitalLimits($conn, $hospital_id, $max_departments, $max_doctors, $max_staff)) {
             $success_msg = "Limits updated successfully for Hospital ID $hospital_id.";
             logAudit('Subscription', "Super Admin updated limits for Hospital ID $hospital_id: Dep=$max_departments, Doc=$max_doctors, Staff=$max_staff");
         } else {
-            $error_msg = "Failed to update limits. Please try again.";
+            $error_msg = "Failed to update limits. MySQL error: " . mysqli_error($conn);
         }
+    } else {
+        $error_msg = "Invalid hospital ID.";
     }
 }
 
-// Fetch all hospitals with their current limits
+// ============================================================
+// FETCH ALL HOSPITALS WITH THEIR CURRENT LIMITS
+// ============================================================
 $query = "SELECT h.hospital_id, h.hospital_name, 
                  COALESCE(s.max_departments, 2) AS max_departments,
                  COALESCE(s.max_doctors, 10) AS max_doctors,
@@ -60,7 +114,7 @@ $result = mysqli_query($conn, $query);
             .main-content { margin-left: 0; padding: 1rem; }
         }
 
-        /* ===== BACK BUTTON (matches your theme) ===== */
+        /* ===== BACK BUTTON ===== */
         .back-btn {
             display: inline-flex;
             align-items: center;
@@ -90,8 +144,6 @@ $result = mysqli_query($conn, $query);
             box-shadow: 0 1px 3px rgba(0,0,0,0.04);
             margin-bottom: 1.2rem;
         }
-
-        /* ===== CARD TITLE ===== */
         .card-title {
             font-size: 1.1rem;
             font-weight: 700;
@@ -106,29 +158,7 @@ $result = mysqli_query($conn, $query);
             font-size: 1.2rem;
         }
 
-        /* ===== ALERTS ===== */
-        .alert-success {
-            background: #ecfdf5;
-            border: 1px solid #a7f3d0;
-            color: #059669;
-            padding: 0.8rem 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        .alert-error {
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            color: #dc2626;
-            padding: 0.8rem 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
+       
 
         /* ===== TABLE ===== */
         .table-wrapper {
@@ -202,6 +232,14 @@ $result = mysqli_query($conn, $query);
             background: #2563eb;
             transform: translateY(-1px);
         }
+        .btn-success {
+            background: #22c55e;
+            color: #fff;
+        }
+        .btn-success:hover {
+            background: #16a34a;
+            transform: translateY(-1px);
+        }
 
         /* ===== INFO BOX ===== */
         .info-box {
@@ -248,6 +286,64 @@ $result = mysqli_query($conn, $query);
             width: 1.2rem;
             text-align: center;
         }
+
+        /* ===== BULK UPDATE SECTION ===== */
+        .bulk-card {
+            background: linear-gradient(135deg, #f0f5ff 0%, #e8edff 100%);
+            border: 1px solid #cbd5e1;
+            border-radius: 14px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .bulk-card .bulk-title {
+            font-weight: 700;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        .bulk-card .bulk-title i {
+            color: #3b82f6;
+            font-size: 1.4rem;
+        }
+        .bulk-card .bulk-desc {
+            font-size: 0.9rem;
+            color: #475569;
+            margin-bottom: 1rem;
+        }
+        .bulk-card .bulk-form {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: end;
+            gap: 1rem;
+        }
+        .bulk-card .bulk-form .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+        }
+        .bulk-card .bulk-form .form-group label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            color: #475569;
+            letter-spacing: 0.3px;
+        }
+        .bulk-card .bulk-form .form-group input {
+            padding: 0.5rem 0.8rem;
+            border: 1.5px solid #d1d5db;
+            border-radius: 8px;
+            width: 100px;
+            font-size: 0.9rem;
+            background: #fff;
+            transition: border 0.2s;
+        }
+        .bulk-card .bulk-form .form-group input:focus {
+            border-color: #3b82f6;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(59,130,246,0.1);
+        }
     </style>
 </head>
 <body>
@@ -260,18 +356,39 @@ $result = mysqli_query($conn, $query);
             <i class="fas fa-arrow-left"></i> Back to Dashboard
         </a>
 
-        <!-- ===== ALERTS ===== -->
-        <?php if ($success_msg): ?>
-            <div class="alert-success"><i class="fas fa-check-circle"></i> <?php echo $success_msg; ?></div>
-        <?php endif; ?>
-        <?php if ($error_msg): ?>
-            <div class="alert-error"><i class="fas fa-exclamation-circle"></i> <?php echo $error_msg; ?></div>
-        <?php endif; ?>
+       
+        <!-- ===== BULK UPDATE CARD ===== -->
+        <div class="bulk-card">
+            <div class="bulk-title">
+                <i class="fas fa-layer-group"></i> Apply Limits to All Hospitals
+            </div>
+            <div class="bulk-desc">
+                Set new default limits for <strong>every hospital</strong> at once. This will override individual settings.
+            </div>
+            <form method="POST" class="bulk-form">
+                <div class="form-group">
+                    <label for="bulk_max_departments">Departments</label>
+                    <input type="number" name="bulk_max_departments" id="bulk_max_departments" value="2" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="bulk_max_doctors">Doctors</label>
+                    <input type="number" name="bulk_max_doctors" id="bulk_max_doctors" value="10" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label for="bulk_max_staff">Staff</label>
+                    <input type="number" name="bulk_max_staff" id="bulk_max_staff" value="10" min="0" required>
+                </div>
+                <button type="submit" name="apply_to_all" value="1" class="btn btn-success" 
+                        onclick="return confirm('This will update ALL hospitals. Continue?')">
+                    <i class="fas fa-sync-alt"></i> Apply to All
+                </button>
+            </form>
+        </div>
 
         <!-- ===== MAIN CARD ===== -->
         <div class="content-card">
             <div class="card-title">
-                <i class="fas fa-edit"></i> Manage Subscription Limits
+                <i class="fas fa-edit"></i> Manage Subscription Limits (Per Hospital)
             </div>
             <p style="color:#64748b; font-size:0.9rem; margin-bottom:1.2rem;">
                 Update the maximum number of <strong>Departments, Doctors, and Staff</strong> each hospital can create.
@@ -350,6 +467,7 @@ $result = mysqli_query($conn, $query);
                 <div>
                     <strong>Note:</strong> Changing these limits will immediately allow Hospital Admins to add more resources.
                     Default limits: <strong>Departments = 2, Doctors = 10, Staff = 10</strong>.
+                    Use the <strong>Apply to All</strong> section above to update all hospitals at once.
                 </div>
             </div>
         </div>

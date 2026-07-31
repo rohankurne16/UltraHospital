@@ -765,13 +765,12 @@ if (isset($_GET['delete_report'])) {
                                                             </a>
                                                         <?php endif; ?>
                                                         
-                                                        <a href="print_report.php?file=<?php echo urlencode($report['report_file']); ?>"
-                                                           target="_blank"
-                                                           class="action-btn print-btn"
-                                                           title="Print Report">
-                                                            <i class="fas fa-print"></i>
-                                                            
-                                                        </a>
+                                                      <button type="button"
+        class="action-btn print-btn"
+        title="Print Report"
+        onclick="printReport(<?php echo $report['report_id']; ?>)">
+    <i class="fas fa-print"></i>
+</button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -807,9 +806,9 @@ if (isset($_GET['delete_report'])) {
             </div>
             <div class="modal-footer">
                 <button class="btn-outline" onclick="closeModal('viewModal')">Close</button>
-                <button onclick="window.print()" class="btn-primary">
-                    <i class="fas fa-print"></i> Print Report
-                </button>
+                <button onclick="printReportFromModal()" class="btn-primary">
+    <i class="fas fa-print"></i> Print Report
+</button>
             </div>
         </div>
     </div>
@@ -868,248 +867,526 @@ if (isset($_GET['delete_report'])) {
     </div>
 
     <script>
-        // ========== VIEW REPORT - STANDARD FORMAT ==========
-        // ========== VIEW REPORT - STANDARD FORMAT WITH HOSPITAL LOGO ==========
-function viewReport(reportId) {
-    document.getElementById('viewModal').classList.add('show');
-    document.getElementById('viewReportContent').innerHTML = `
-        <div class="text-center py-8">
-            <i class="fas fa-spinner fa-spin text-2xl"></i>
-            <p class="mt-2 text-gray-500">Loading report details...</p>
-        </div>
-    `;
-    
-    fetch(`lab_report.php?view_report=${reportId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
+    let currentReportId = null;
+
+    // ============================================================
+    // ========== VIEW REPORT - STANDARD FORMAT WITH HOSPITAL LOGO ==========
+    // ============================================================
+    function viewReport(reportId) {
+        currentReportId = reportId;
+        document.getElementById('viewModal').classList.add('show');
+        document.getElementById('viewReportContent').innerHTML = `
+            <div class="text-center py-8">
+                <i class="fas fa-spinner fa-spin text-2xl"></i>
+                <p class="mt-2 text-gray-500">Loading report details...</p>
+            </div>
+        `;
+        
+        fetch(`lab_report.php?view_report=${reportId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('viewReportContent').innerHTML = `
+                        <div class="text-center py-8 text-red-500">
+                            <i class="fas fa-exclamation-circle text-2xl"></i>
+                            <p class="mt-2">${data.error}</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Format dates
+                let reportDate = data.report_date || 'N/A';
+                if (reportDate !== 'N/A' && reportDate !== '0000-00-00') {
+                    let d = new Date(reportDate);
+                    reportDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                }
+                
+                let orderDate = data.order_date || 'N/A';
+                if (orderDate !== 'N/A' && orderDate !== '0000-00-00') {
+                    let d = new Date(orderDate);
+                    orderDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                }
+                
+                let dob = data.date_of_birth || 'N/A';
+                if (dob !== 'N/A' && dob !== '0000-00-00') {
+                    let d = new Date(dob);
+                    dob = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                }
+                
+                let doctorName = data.doctor_name || 'Not Assigned';
+                let statusClass = (data.report_status || 'pending').toLowerCase();
+                
+                // Hospital logo - use data from hospital_master
+                let hospitalLogo = data.hospital_logo || '../documents/hospital/logo.png';
+                let hospitalName = data.hospital_name || 'Hospital';
+                let hospitalAddress = data.hospital_address || '';
+                let hospitalPhone = data.hospital_phone || '';
+                let hospitalEmail = data.hospital_email || '';
+                
+                // Logo image HTML
+                let logoHtml = '';
+                if (hospitalLogo) {
+                    logoHtml = `<img src="${hospitalLogo}" alt="Hospital Logo" style="max-height:70px; max-width:120px; object-fit:contain; margin-bottom:5px;">`;
+                }
+                
+                let html = `
+                    <div class="report-container" id="reportPrintArea">
+                        <!-- Report Header with Logo -->
+                        <div class="report-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+                            <div style="flex:1; text-align:left;">
+                                ${logoHtml}
+                            </div>
+                            <div style="flex:2; text-align:center;">
+                                <h2 style="font-size:22px; font-weight:700; color:#0f172a; margin:0;">${hospitalName}</h2>
+                                <p style="color:#6b7280; font-size:13px; margin:4px 0 0 0;">${hospitalAddress}</p>
+                                ${hospitalPhone ? `<p style="color:#6b7280; font-size:12px; margin:2px 0;">Phone: ${hospitalPhone}</p>` : ''}
+                                ${hospitalEmail ? `<p style="color:#6b7280; font-size:12px; margin:0;">Email: ${hospitalEmail}</p>` : ''}
+                            </div>
+                            <div style="flex:1;"></div>
+                        </div>
+                        
+                        <div class="report-title">Laboratory Test Report</div>
+                        
+                        <!-- Patient & Report Info -->
+                        <div class="report-info-grid">
+                            <div class="report-info-item">
+                                <span class="report-info-label">Report No:</span>
+                                <span class="report-info-value"><strong>${data.report_no || 'N/A'}</strong></span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="report-info-label">Order No:</span>
+                                <span class="report-info-value">${data.order_no || 'N/A'}</span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="report-info-label">Patient Name:</span>
+                                <span class="report-info-value"><strong>${data.patient_name || 'N/A'}</strong></span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="report-info-label">Gender:</span>
+                                <span class="report-info-value">${data.gender || 'N/A'}</span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="report-info-label">Date of Birth:</span>
+                                <span class="report-info-value">${dob}</span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="report-info-label">Mobile:</span>
+                                <span class="report-info-value">${data.patient_mobile || 'N/A'}</span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="report-info-label">Referring Doctor:</span>
+                                <span class="report-info-value doctor-name">${doctorName}</span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="report-info-label">Report Date:</span>
+                                <span class="report-info-value"><strong>${reportDate}</strong></span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="report-info-label">Order Date:</span>
+                                <span class="report-info-value">${orderDate}</span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="report-info-label">Status:</span>
+                                <span class="report-info-value">
+                                    <span class="report-status-badge ${statusClass}">${data.report_status || 'Pending'}</span>
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <!-- Test Results Table -->
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:50px;">#</th>
+                                    <th>Test Name</th>
+                                    <th style="width:120px;">Result</th>
+                                    <th style="width:130px;">Normal Range</th>
+                                    <th style="width:80px;">Unit</th>
+                                    <th>Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>1</td>
+                                    <td><strong>${data.test_name || 'N/A'}</strong><br>
+                                        <span style="font-size:11px;color:#6b7280;">Code: ${data.test_code || 'N/A'}</span>
+                                    </td>
+                                    <td>
+                                        <span class="report-result-highlight">${data.result_value || 'Not entered'}</span>
+                                    </td>
+                                    <td>${data.normal_range || data.test_normal_range || 'N/A'}</td>
+                                    <td>${data.unit || data.test_unit || 'N/A'}</td>
+                                    <td>${data.remarks || data.result_remarks || '-'}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        
+                        <!-- Footer -->
+                        <div class="report-footer">
+                            <div>
+                                <div><strong>Technician:</strong> ${data.technician_name || 'N/A'}</div>
+                                <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Generated on: ${new Date().toLocaleString('en-IN')}</div>
+                                ${data.hospital_registration ? `<div style="font-size:11px;color:#9ca3af;margin-top:2px;">Reg No: ${data.hospital_registration}</div>` : ''}
+                                ${data.hospital_gst ? `<div style="font-size:11px;color:#9ca3af;">GST: ${data.hospital_gst}</div>` : ''}
+                            </div>
+                            <div class="report-signature">
+                                <div class="line"></div>
+                                <span style="font-size:12px;color:#6b7280;">Authorized Signature</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('viewReportContent').innerHTML = html;
+            })
+            .catch((error) => {
+                console.error('Error:', error);
                 document.getElementById('viewReportContent').innerHTML = `
                     <div class="text-center py-8 text-red-500">
                         <i class="fas fa-exclamation-circle text-2xl"></i>
-                        <p class="mt-2">${data.error}</p>
+                        <p class="mt-2">Error loading report details. Please try again.</p>
                     </div>
                 `;
-                return;
-            }
-            
-            // Format dates
-            let reportDate = data.report_date || 'N/A';
-            if (reportDate !== 'N/A' && reportDate !== '0000-00-00') {
-                let d = new Date(reportDate);
-                reportDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-            }
-            
-            let orderDate = data.order_date || 'N/A';
-            if (orderDate !== 'N/A' && orderDate !== '0000-00-00') {
-                let d = new Date(orderDate);
-                orderDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-            }
-            
-            let dob = data.date_of_birth || 'N/A';
-            if (dob !== 'N/A' && dob !== '0000-00-00') {
-                let d = new Date(dob);
-                dob = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-            }
-            
-            let doctorName = data.doctor_name || 'Not Assigned';
-            let statusClass = (data.report_status || 'pending').toLowerCase();
-            
-            // Hospital logo - use data from hospital_master
-            let hospitalLogo = data.hospital_logo || '../documents/hospital/logo.png';
-            let hospitalName = data.hospital_name || 'Hospital';
-            let hospitalAddress = data.hospital_address || '';
-            let hospitalPhone = data.hospital_phone || '';
-            let hospitalEmail = data.hospital_email || '';
-            
-            // Logo image HTML
-            let logoHtml = '';
-            if (hospitalLogo) {
-                logoHtml = `<img src="${hospitalLogo}" alt="Hospital Logo" style="max-height:70px; max-width:120px; object-fit:contain; margin-bottom:5px;">`;
-            }
-            
-            let html = `
-                <div class="report-container" id="reportPrintArea">
-                    <!-- Report Header with Logo -->
-                    <div class="report-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-                        <div style="flex:1; text-align:left;">
+            });
+    }
+
+    // ============================================================
+    // ========== PRINT REPORT - STANDARD FORMAT ==========
+    // ============================================================
+    function printReport(reportId) {
+        // Show loading in new window
+        const printWindow = window.open('', '_blank', 'width=900,height=700,scrollbars=yes');
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Loading Report...</title>
+                <style>
+                    body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+                    .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+                    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                </style>
+            </head>
+            <body>
+                <div class="spinner"></div>
+                <h3>Loading report...</h3>
+                <p style="color:#6b7280;">Please wait while we prepare your report</p>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+        
+        // Fetch report data
+        fetch(`lab_report.php?view_report=${reportId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    printWindow.document.body.innerHTML = `
+                        <h2 style="color:red;">Error</h2>
+                        <p>${data.error}</p>
+                        <button onclick="window.close()">Close</button>
+                    `;
+                    return;
+                }
+                
+                // Format dates
+                let reportDate = data.report_date || 'N/A';
+                if (reportDate !== 'N/A' && reportDate !== '0000-00-00') {
+                    let d = new Date(reportDate);
+                    reportDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                }
+                
+                let orderDate = data.order_date || 'N/A';
+                if (orderDate !== 'N/A' && orderDate !== '0000-00-00') {
+                    let d = new Date(orderDate);
+                    orderDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                }
+                
+                let dob = data.date_of_birth || 'N/A';
+                if (dob !== 'N/A' && dob !== '0000-00-00') {
+                    let d = new Date(dob);
+                    dob = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                }
+                
+                let doctorName = data.doctor_name || 'Not Assigned';
+                let statusClass = (data.report_status || 'pending').toLowerCase();
+                
+                let hospitalLogo = data.hospital_logo || '../documents/hospital/logo.png';
+                let hospitalName = data.hospital_name || 'Hospital';
+                let hospitalAddress = data.hospital_address || '';
+                let hospitalPhone = data.hospital_phone || '';
+                let hospitalEmail = data.hospital_email || '';
+                
+                let logoHtml = '';
+                if (hospitalLogo) {
+                    logoHtml = `<img src="${hospitalLogo}" alt="Hospital Logo" style="max-height:70px; max-width:120px; object-fit:contain; margin-bottom:5px;">`;
+                }
+                
+                let html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Lab Report - ${data.report_no || 'N/A'}</title>
+                    <style>
+                        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, 'Segoe UI', sans-serif; }
+                        body { background: #ffffff; padding: 20px; color: #1f2937; }
+                        .report-container { max-width: 900px; margin: 0 auto; background: white; padding: 30px 35px; }
+                        .report-header { text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 15px; margin-bottom: 20px; }
+                        .report-header .logo-img { max-height: 60px; max-width: 120px; object-fit: contain; margin-bottom: 5px; }
+                        .report-header h1 { font-size: 22px; font-weight: 700; color: #0f172a; margin: 0; }
+                        .report-header p { color: #6b7280; font-size: 13px; margin: 2px 0; }
+                        .report-title { text-align: center; font-size: 18px; font-weight: 700; color: #1e40af; margin: 15px 0 20px 0; text-transform: uppercase; letter-spacing: 1px; }
+                        .report-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; background: #f8fafc; padding: 14px 18px; border-radius: 6px; margin-bottom: 20px; }
+                        .report-info-item { display: flex; padding: 2px 0; font-size: 13px; }
+                        .report-info-item .label { font-weight: 600; color: #4b5563; width: 120px; flex-shrink: 0; }
+                        .report-info-item .value { color: #1f2937; }
+                        .report-info-item .value strong { font-weight: 700; }
+                        .report-table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px; }
+                        .report-table th { background: #3b82f6; color: white; padding: 8px 12px; text-align: left; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+                        .report-table td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; color: #1f2937; vertical-align: middle; }
+                        .report-table tr:nth-child(even) { background: #f8fafc; }
+                        .report-table .result-highlight { font-weight: 700; color: #059669; }
+                        .report-table .test-code { font-size: 11px; color: #6b7280; display: block; margin-top: 2px; }
+                        .status-badge { display: inline-block; padding: 2px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+                        .status-badge.completed { background: #dcfce7; color: #166534; }
+                        .status-badge.pending { background: #fef3c7; color: #92400e; }
+                        .status-badge.cancelled { background: #fecaca; color: #991b1b; }
+                        .report-footer { margin-top: 20px; padding-top: 15px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 10px; font-size: 13px; color: #6b7280; }
+                        .report-footer .left strong { color: #1f2937; }
+                        .report-footer .left .generated { font-size: 12px; color: #9ca3af; margin-top: 2px; }
+                        .report-footer .signature { display: flex; flex-direction: column; align-items: center; text-align: center; }
+                        .report-footer .signature .line { width: 180px; border-top: 1.5px solid #1f2937; margin: 5px 0 3px 0; }
+                        .report-footer .signature span { font-size: 12px; color: #6b7280; }
+                        .print-actions { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; }
+                        .print-actions button { background: #3b82f6; color: white; border: none; padding: 10px 30px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+                        .print-actions button:hover { background: #2563eb; }
+                        .print-actions .btn-secondary { background: #e5e7eb; color: #374151; margin-left: 10px; }
+                        .print-actions .btn-secondary:hover { background: #d1d5db; }
+                        @media print {
+                            body { padding: 0 !important; margin: 0 !important; }
+                            .print-actions { display: none !important; }
+                            .report-container { padding: 30px 35px !important; max-width: 100% !important; }
+                            .report-table th { background: #3b82f6 !important; color: white !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                            .status-badge { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                            .report-info-grid { background: #f8fafc !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                        }
+                        @media (max-width: 640px) {
+                            body { padding: 10px; }
+                            .report-container { padding: 15px; }
+                            .report-info-grid { grid-template-columns: 1fr; }
+                            .report-info-item .label { width: 100px; }
+                            .report-table th, .report-table td { padding: 5px 8px; font-size: 11px; }
+                            .report-footer { flex-direction: column; align-items: center; text-align: center; }
+                            .report-header h1 { font-size: 18px; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="report-container">
+                        <!-- Header -->
+                        <div class="report-header">
                             ${logoHtml}
+                            <h1>${hospitalName}</h1>
+                            <p>${hospitalAddress}</p>
+                            ${hospitalPhone ? `<p style="color:#6b7280; font-size:12px;">Phone: ${hospitalPhone}</p>` : ''}
+                            ${hospitalEmail ? `<p style="color:#6b7280; font-size:12px;">Email: ${hospitalEmail}</p>` : ''}
                         </div>
-                        <div style="flex:2; text-align:center;">
-                            <h2 style="font-size:22px; font-weight:700; color:#0f172a; margin:0;">${hospitalName}</h2>
-                            <p style="color:#6b7280; font-size:13px; margin:4px 0 0 0;">${hospitalAddress}</p>
-                            ${hospitalPhone ? `<p style="color:#6b7280; font-size:12px; margin:2px 0;">Phone: ${hospitalPhone}</p>` : ''}
-                            ${hospitalEmail ? `<p style="color:#6b7280; font-size:12px; margin:0;">Email: ${hospitalEmail}</p>` : ''}
+                        
+                        <div class="report-title">Laboratory Test Report</div>
+                        
+                        <!-- Patient & Report Info -->
+                        <div class="report-info-grid">
+                            <div class="report-info-item">
+                                <span class="label">Report No:</span>
+                                <span class="value"><strong>${data.report_no || 'N/A'}</strong></span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="label">Order No:</span>
+                                <span class="value">${data.order_no || 'N/A'}</span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="label">Patient Name:</span>
+                                <span class="value"><strong>${data.patient_name || 'N/A'}</strong></span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="label">Gender:</span>
+                                <span class="value">${data.gender || 'N/A'}</span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="label">Date of Birth:</span>
+                                <span class="value">${dob}</span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="label">Mobile:</span>
+                                <span class="value">${data.patient_mobile || 'N/A'}</span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="label">Referring Doctor:</span>
+                                <span class="value" style="font-weight:500;color:#1e40af;">${doctorName}</span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="label">Report Date:</span>
+                                <span class="value"><strong>${reportDate}</strong></span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="label">Order Date:</span>
+                                <span class="value">${orderDate}</span>
+                            </div>
+                            <div class="report-info-item">
+                                <span class="label">Status:</span>
+                                <span class="value">
+                                    <span class="status-badge ${statusClass}">${data.report_status || 'Pending'}</span>
+                                </span>
+                            </div>
                         </div>
-                        <div style="flex:1;"></div>
-                    </div>
-                    
-                    <div class="report-title">Laboratory Test Report</div>
-                    
-                    <!-- Patient & Report Info -->
-                    <div class="report-info-grid">
-                        <div class="report-info-item">
-                            <span class="report-info-label">Report No:</span>
-                            <span class="report-info-value"><strong>${data.report_no || 'N/A'}</strong></span>
-                        </div>
-                        <div class="report-info-item">
-                            <span class="report-info-label">Order No:</span>
-                            <span class="report-info-value">${data.order_no || 'N/A'}</span>
-                        </div>
-                        <div class="report-info-item">
-                            <span class="report-info-label">Patient Name:</span>
-                            <span class="report-info-value"><strong>${data.patient_name || 'N/A'}</strong></span>
-                        </div>
-                        <div class="report-info-item">
-                            <span class="report-info-label">Gender:</span>
-                            <span class="report-info-value">${data.gender || 'N/A'}</span>
-                        </div>
-                        <div class="report-info-item">
-                            <span class="report-info-label">Date of Birth:</span>
-                            <span class="report-info-value">${dob}</span>
-                        </div>
-                        <div class="report-info-item">
-                            <span class="report-info-label">Mobile:</span>
-                            <span class="report-info-value">${data.patient_mobile || 'N/A'}</span>
-                        </div>
-                        <div class="report-info-item">
-                            <span class="report-info-label">Referring Doctor:</span>
-                            <span class="report-info-value doctor-name">${doctorName}</span>
-                        </div>
-                        <div class="report-info-item">
-                            <span class="report-info-label">Report Date:</span>
-                            <span class="report-info-value"><strong>${reportDate}</strong></span>
-                        </div>
-                        <div class="report-info-item">
-                            <span class="report-info-label">Order Date:</span>
-                            <span class="report-info-value">${orderDate}</span>
-                        </div>
-                        <div class="report-info-item">
-                            <span class="report-info-label">Status:</span>
-                            <span class="report-info-value">
-                                <span class="report-status-badge ${statusClass}">${data.report_status || 'Pending'}</span>
-                            </span>
-                        </div>
-                    </div>
-                    
-                    <!-- Test Results Table -->
-                    <table class="report-table">
-                        <thead>
-                            <tr>
-                                <th style="width:50px;">#</th>
-                                <th>Test Name</th>
-                                <th style="width:120px;">Result</th>
-                                <th style="width:130px;">Normal Range</th>
-                                <th style="width:80px;">Unit</th>
-                                <th>Remarks</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>1</td>
-                                <td><strong>${data.test_name || 'N/A'}</strong><br>
-                                    <span style="font-size:11px;color:#6b7280;">Code: ${data.test_code || 'N/A'}</span>
-                                </td>
-                                <td>
-                                    <span class="report-result-highlight">${data.result_value || 'Not entered'}</span>
-                                </td>
-                                <td>${data.normal_range || data.test_normal_range || 'N/A'}</td>
-                                <td>${data.unit || data.test_unit || 'N/A'}</td>
-                                <td>${data.remarks || data.result_remarks || '-'}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    
-                    <!-- Footer -->
-                    <div class="report-footer">
-                        <div>
-                            <div><strong>Technician:</strong> ${data.technician_name || 'N/A'}</div>
-                            <div style="font-size:12px;color:#9ca3af;margin-top:4px;">Generated on: ${new Date().toLocaleString('en-IN')}</div>
-                            ${data.hospital_registration ? `<div style="font-size:11px;color:#9ca3af;margin-top:2px;">Reg No: ${data.hospital_registration}</div>` : ''}
-                            ${data.hospital_gst ? `<div style="font-size:11px;color:#9ca3af;">GST: ${data.hospital_gst}</div>` : ''}
-                        </div>
-                        <div class="report-signature">
-                            <div class="line"></div>
-                            <span style="font-size:12px;color:#6b7280;">Authorized Signature</span>
+                        
+                        <!-- Test Results -->
+                        <table class="report-table">
+                            <thead>
+                                <tr>
+                                    <th style="width:40px;">#</th>
+                                    <th>Test Name</th>
+                                    <th style="width:100px;">Result</th>
+                                    <th style="width:120px;">Normal Range</th>
+                                    <th style="width:70px;">Unit</th>
+                                    <th>Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>1</td>
+                                    <td>
+                                        <strong>${data.test_name || 'N/A'}</strong>
+                                        <span class="test-code">Code: ${data.test_code || 'N/A'}</span>
+                                    </td>
+                                    <td><span class="result-highlight">${data.result_value || 'Not entered'}</span></td>
+                                    <td>${data.normal_range || data.test_normal_range || 'N/A'}</td>
+                                    <td>${data.unit || data.test_unit || 'N/A'}</td>
+                                    <td>${data.remarks || data.result_remarks || '-'}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        
+                        <!-- Footer -->
+                        <div class="report-footer">
+                            <div class="left">
+                                <div><strong>Technician:</strong> ${data.technician_name || 'N/A'}</div>
+                                <div class="generated">Generated on: ${new Date().toLocaleString('en-IN')}</div>
+                                ${data.hospital_registration ? `<div class="generated" style="margin-top:2px;">Reg No: ${data.hospital_registration}</div>` : ''}
+                                ${data.hospital_gst ? `<div class="generated">GST: ${data.hospital_gst}</div>` : ''}
+                            </div>
+                            <div class="signature">
+                                <div class="line"></div>
+                                <span>Authorized Signature</span>
+                            </div>
                         </div>
                     </div>
-                </div>
-            `;
-            document.getElementById('viewReportContent').innerHTML = html;
-        })
-        .catch((error) => {
-            console.error('Error:', error);
-            document.getElementById('viewReportContent').innerHTML = `
-                <div class="text-center py-8 text-red-500">
-                    <i class="fas fa-exclamation-circle text-2xl"></i>
-                    <p class="mt-2">Error loading report details. Please try again.</p>
-                </div>
-            `;
-        });
-}
+                    
+                    <div class="print-actions">
+                        <button onclick="window.print()"><i class="fas fa-print"></i> Print Report</button>
+                        <button class="btn-secondary" onclick="window.close()"><i class="fas fa-times"></i> Close</button>
+                    </div>
+                    
+                    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+                    
+                    <script>
+                        // Auto print after page loads
+                        window.onload = function() {
+                            setTimeout(function() {
+                                window.print();
+                            }, 800);
+                        };
+                    <\/script>
+                </body>
+                </html>`;
+                
+                printWindow.document.open();
+                printWindow.document.write(html);
+                printWindow.document.close();
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                printWindow.document.body.innerHTML = `
+                    <h2 style="color:red;">Error Loading Report</h2>
+                    <p>${error.message}</p>
+                    <button onclick="window.close()">Close</button>
+                `;
+            });
+    }
 
-        // ========== EDIT REPORT ==========
-        function editReport(reportId) {
-            document.getElementById('editModal').classList.add('show');
-            document.getElementById('edit_report_id').value = reportId;
-            
-            fetch(`lab_report.php?view_report=${reportId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        alert(data.error);
-                        closeModal('editModal');
-                        return;
-                    }
-                    
-                    document.getElementById('edit_report_date').value = data.report_date || '';
-                    document.getElementById('edit_report_status').value = data.report_status || 'Pending';
-                    document.getElementById('edit_result_value').value = data.result_value || '';
-                    document.getElementById('edit_remarks').value = data.remarks || data.result_remarks || '';
-                    
-                    if (data.report_file) {
-                        document.getElementById('current_file_display').innerHTML = `
-                            <i class="fas fa-paperclip"></i> Current file: 
-                            <a href="../documents/reports/${data.report_file}" target="_blank" class="text-blue-600 underline">
-                                ${data.report_file}
-                            </a>
-                        `;
-                    } else {
-                        document.getElementById('current_file_display').innerHTML = 'No file attached';
-                    }
-                })
-                .catch(() => {
-                    alert('Error loading report data');
+    // ========== PRINT FROM MODAL ==========
+    function printReportFromModal() {
+        if (currentReportId) {
+            printReport(currentReportId);
+        } else {
+            alert('No report loaded to print');
+        }
+    }
+
+    // ========== EDIT REPORT ==========
+    function editReport(reportId) {
+        document.getElementById('editModal').classList.add('show');
+        document.getElementById('edit_report_id').value = reportId;
+        
+        fetch(`lab_report.php?view_report=${reportId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
                     closeModal('editModal');
-                });
+                    return;
+                }
+                
+                document.getElementById('edit_report_date').value = data.report_date || '';
+                document.getElementById('edit_report_status').value = data.report_status || 'Pending';
+                document.getElementById('edit_result_value').value = data.result_value || '';
+                document.getElementById('edit_remarks').value = data.remarks || data.result_remarks || '';
+                
+                if (data.report_file) {
+                    document.getElementById('current_file_display').innerHTML = `
+                        <i class="fas fa-paperclip"></i> Current file: 
+                        <a href="../documents/reports/${data.report_file}" target="_blank" class="text-blue-600 underline">
+                            ${data.report_file}
+                        </a>
+                    `;
+                } else {
+                    document.getElementById('current_file_display').innerHTML = 'No file attached';
+                }
+            })
+            .catch(() => {
+                alert('Error loading report data');
+                closeModal('editModal');
+            });
+    }
+
+    // ========== DELETE REPORT ==========
+    function deleteReport(reportId, reportNo) {
+        if (confirm(`Are you sure you want to delete report ${reportNo}? This action cannot be undone.`)) {
+            window.location.href = `lab_report.php?delete_report=${reportId}`;
         }
+    }
 
-        // ========== DELETE REPORT ==========
-        function deleteReport(reportId, reportNo) {
-            if (confirm(`Are you sure you want to delete report ${reportNo}? This action cannot be undone.`)) {
-                window.location.href = `lab_report.php?delete_report=${reportId}`;
-            }
+    // ========== CLOSE MODAL ==========
+    function closeModal(id) {
+        document.getElementById(id).classList.remove('show');
+    }
+
+    // ========== CLOSE MODAL ON ESC ==========
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal.show').forEach(function(el) {
+                el.classList.remove('show');
+            });
         }
+    });
 
-        // ========== CLOSE MODAL ==========
-        function closeModal(id) {
-            document.getElementById(id).classList.remove('show');
+    // ========== CLICK OUTSIDE MODAL ==========
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('modal')) {
+            e.target.classList.remove('show');
         }
-
-        // ========== CLOSE MODAL ON ESC ==========
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                document.querySelectorAll('.modal.show').forEach(function(el) {
-                    el.classList.remove('show');
-                });
-            }
-        });
-
-        // ========== CLICK OUTSIDE MODAL ==========
-        document.addEventListener('click', function(e) {
-            if (e.target.classList.contains('modal')) {
-                e.target.classList.remove('show');
-            }
-        });
-    </script>
+    });
+</script>
 </body>
 </html>
