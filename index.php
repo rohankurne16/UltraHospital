@@ -302,12 +302,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 exit();
 
             case 'nurse':
-                header("Location: staff/nurse_dashboard.php");
+                header("Location: nurse/dashboard.php");
                 exit();
 
-            case 'ward boy':
-                header("Location: staff/wardboy_dashboard.php");
-                exit();
+            
 
             case 'lab technician':
             case 'labtechnician':
@@ -327,27 +325,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     }
                 }
                 exit();
-
+ case 'hr':
+    case 'HR':
+        
+        header("Location: HR/dashboard.php");
+        exit();
             case 'patient':
                 header("Location: patients/dashboard.php");
                 exit();
 
             case 'billing staff':
-                header("Location: staff/billing_dashboard.php");
+                header("Location: billing/dashboard.php");
                 exit();
 
             case 'accountant':
-                header("Location: staff/accountant_dashboard.php");
+                header("Location: accountant/dashboard.php");
                 exit();
 
             case 'pharmacist':
-                header("Location: staff/pharmacist_dashboard.php");
+                header("Location: pharmacist/dashboard.php");
                 exit();
 
           
 
             case 'receptionist':
-                header("Location: receptionist/dashboard_receptionist.php");
+                header("Location: receptionist/dashboard.php");
                 exit();
 
             default:

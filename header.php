@@ -514,7 +514,7 @@ if (!isset($_SESSION['profile_image']) || empty($_SESSION['profile_image'])) {
                 </a>
                 <?php endif; ?>
                 <div class="dropdown-divider"></div>
-                <a href="auth/Logout.php" class="dropdown-item" style="color:#dc2626;">
+                <a href="../auth/Logout.php" class="dropdown-item" style="color:#dc2626;">
                     <i class="fas fa-sign-out-alt"></i> Logout
                 </a>
             </div>

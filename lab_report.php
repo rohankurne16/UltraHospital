@@ -478,25 +478,27 @@ if (isset($_GET['delete_report'])) {
         </a>
         
         <!-- Print Report -->
-        <?php if (!empty($report['report_file'])): ?>
-            <a href="print_report.php?id=<?php echo $report['report_id']; ?>" 
-               target="_blank" class="action-btn print-btn">
-                <i class="fas fa-print"></i>
-               
-            </a>
-        <?php endif; ?>
+        <a href="printt_report.php?id=<?php echo $report['report_id']; ?>" 
+           target="_blank" class="action-btn print-btn" title="Print Report">
+            <i class="fas fa-print"></i>
+          
+        </a>
         
-        <!-- Download Report -->
-        <?php if ($report['report_file']): ?>
+        <!-- Download Report (if file exists) -->
+      
             <a href="../documents/reports/<?php echo $report['report_file']; ?>" 
                download class="action-btn download-btn" title="Download Report">
                 <i class="fas fa-download"></i>
-              
-            </a>
-        <?php endif; ?>
+                 </a>
+
         
         <!-- Delete Report -->
-       
+        <a href="?delete_report=<?php echo $report['report_id']; ?>" 
+           class="action-btn delete-btn" title="Delete Report"
+           onclick="return confirm('Are you sure you want to delete this report?')">
+            <i class="fas fa-trash"></i>
+           
+        </a>
     </div>
 </td>
                                             </tr>
@@ -626,7 +628,7 @@ if (isset($_GET['delete_report'])) {
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <a href="print_report.php?id=<?php echo $report_details['report_id']; ?>" 
+                            <a href="printt_report.php?id=<?php echo $report_details['report_id']; ?>" 
                                target="_blank" class="btn-warning">
                                 <i class="fas fa-print"></i> Print
                             </a>

@@ -33,11 +33,14 @@ $result_hospital = $conn->query($sql_hospital);
 if ($result_hospital && $result_hospital->num_rows > 0) {
     $hospital_data = $result_hospital->fetch_assoc();
 }
-$hospital_name = $hospital_data["hospital_name"] ?? "MedixPro";
-$hospital_logo = $hospital_data["hospital_logo"] ?? "../documents/hospital/logo.png";
+$hospital_name = $hospital_data["hospital_name"] ?? "";
+$hospital_logo = $hospital_data["hospital_logo"] ?? "../documents/hospital/hospital_1784169924_6a5845c46a419.jpg";
 $hospital_address = $hospital_data["address"] ?? "";
 $hospital_phone = $hospital_data["phone"] ?? "";
 $hospital_email = $hospital_data["email"] ?? "";
+$hospital_city = $hospital_data["city"] ?? "";
+$hospital_state = $hospital_data["state"] ?? "";
+$hospital_pincode = $hospital_data["pincode"] ?? "";
 
 // ========== VIEW REPORT DETAILS (AJAX) - MUST BE FIRST ==========
 // ========== VIEW REPORT DETAILS (AJAX) - WITH HOSPITAL DATA ==========
@@ -67,6 +70,7 @@ if (isset($_GET['view_report']) && isset($_GET['report_id'])) {
     
     if ($result_detail && $result_detail->num_rows > 0) {
         $report_detail = $result_detail->fetch_assoc();
+        $report_detail['report_id'] = $report_id;
         
         // Get test results
         $sql_tests = "SELECT od.*, t.test_name, t.test_code, t.normal_range as test_normal_range, t.unit,
@@ -200,7 +204,7 @@ if (isset($_GET['view_file']) && isset($_GET['report_id'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($hospital_name); ?> - Lab Reports</title>
   
-    <link rel="icon" type="image/png" href="../<?php echo $hospital_data['hospital_logo'] ?? 'documents/hospital/logo.png'; ?>">
+    <link rel="icon" type="image/png" href="../<?php echo $hospital_data['hospital_logo'] ?? 'documents/hospital/hospital_1784169924_6a5845c46a419.jpg'; ?>">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -703,7 +707,7 @@ if (isset($_GET['view_file']) && isset($_GET['report_id'])) {
                                                             <button onclick="viewReport(<?php echo $report['report_id']; ?>)" 
                                                                     class="action-btn view" 
                                                                     title="View Report Details">
-                                                                <i class="fas fa-file-alt"></i>
+                                                               <i class="fas fa-eye"></i>
                                                             </button>
                                                             
                                                             <!-- View File Button -->
@@ -714,10 +718,8 @@ if (isset($_GET['view_file']) && isset($_GET['report_id'])) {
                                                                    title="View Report File">
                                                                     <i class="fas fa-eye"></i>
                                                                 </a>
-                                                            <?php else: ?>
-                                                                <span class="no-file-text" title="No file attached">
-                                                                    <i class="fas fa-eye-slash"></i>
-                                                                </span>
+                                                           
+                                                               
                                                             <?php endif; ?>
                                                             
                                                             <!-- Download Report -->
@@ -732,11 +734,11 @@ if (isset($_GET['view_file']) && isset($_GET['report_id'])) {
                                                             
                                                             <!-- Print Report -->
                                                             <?php if (!empty($report['order_id'])): ?>
-                                                                <button onclick="window.open('print_report.php?order_id=<?php echo $report['order_id']; ?>', '_blank')" 
-                                                                        class="action-btn print" 
-                                                                        title="Print Report">
-                                                                    <i class="fas fa-print"></i>
-                                                                </button>
+                                                              <button onclick="window.open('../printt_report.php?id=<?php echo $report['report_id']; ?>', '_blank')"
+        class="action-btn print"
+        title="Print Report">
+    <i class="fas fa-print"></i>
+</button>
                                                             <?php endif; ?>
                                                             
                                                             <!-- Delete Report -->
@@ -798,20 +800,21 @@ if (isset($_GET['view_file']) && isset($_GET['report_id'])) {
         // ============================================================
 // ========== PRINT MODAL REPORT ==========
 // ============================================================
-let currentReportOrderId = null;
+
+
+let currentReportId = null;
 
 function printModalReport() {
-    if (!currentReportOrderId) {
+    if (!currentReportId) {
         alert('Report is not loaded yet.');
         return;
     }
 
     window.open(
-        'print_report.php?order_id=' + encodeURIComponent(currentReportOrderId),
+        '../printt_report.php?id=' + currentReportId,
         '_blank'
     );
-}
-        let currentFilter = 'all';
+}    let currentFilter = 'all';
         const serverToday = '<?php echo date('Y-m-d'); ?>';
 
         function filterReports(filter) {
@@ -903,8 +906,8 @@ function viewReport(reportId) {
             }
             
             const report = data.report;
-            
-            currentReportOrderId = report.order_id;
+            currentReportId = report.report_id;
+        
             
             // Format dates
             let reportDate = report.report_date || 'N/A';
@@ -934,7 +937,7 @@ function viewReport(reportId) {
             let statusClass = (report.report_status || 'pending').toLowerCase();
             
             // Hospital info
-            let hospitalLogo = report.hospital_logo || '../documents/hospital/logo.png';
+            let hospitalLogo = report.hospital_logo || '../documents/hospital/hospital_1784169924_6a5845c46a419.jpg';
             let hospitalName = report.hospital_name || 'Hospital';
             let hospitalAddress = report.hospital_address || '';
             let hospitalPhone = report.hospital_phone || '';

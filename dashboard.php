@@ -202,6 +202,86 @@ $trendDataJson   = json_encode($trendData);
             font-size:0.8rem; font-weight:500; color:var(--muted); box-shadow:0 2px 8px rgba(31,36,48,.04); white-space:nowrap; }
         .uh-dash .uh-date i{ color:var(--uhp); margin-right:6px; }
 
+        /* ── NEW HEADER STYLES (merged from snippet) ── */
+        .uh-dash .uh-left {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .uh-dash .greeting {
+            font-size: 14px;
+            font-weight: 500;
+            color: #6b7a8f;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+        }
+        .uh-dash .user-name {
+            font-size: 28px;
+            font-weight: 700;
+            color: #0b1a33;
+            line-height: 1.2;
+        }
+        .uh-dash .user-name span {
+            font-weight: 400;
+            color: #6b7a8f;
+        }
+        .uh-dash .uh-datetime {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px 16px;
+            background: #f0f4fe;
+            padding: 10px 18px 10px 14px;
+            border-radius: 60px;
+            font-size: 15px;
+            font-weight: 500;
+            color: #1a2a4a;
+            white-space: nowrap;
+        }
+        .uh-dash .uh-datetime i {
+            color: #3b6eff;
+            font-size: 16px;
+            margin-right: 4px;
+        }
+        .uh-dash .uh-datetime .divider {
+            color: #bcc9db;
+            font-weight: 300;
+            margin: 0 2px;
+        }
+        .uh-dash .uh-datetime .time-part {
+            font-weight: 600;
+            color: #0b1a33;
+        }
+        /* responsive overrides for the new header */
+        @media (max-width: 600px) {
+            .uh-dash .uh-head {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .uh-dash .uh-datetime {
+                width: 100%;
+                justify-content: center;
+                white-space: normal;
+                flex-wrap: wrap;
+                padding: 10px 14px;
+                border-radius: 30px;
+                font-size: 14px;
+            }
+            .uh-dash .user-name {
+                font-size: 24px;
+            }
+        }
+        @media (max-width: 400px) {
+            .uh-dash .uh-datetime {
+                font-size: 13px;
+                padding: 8px 12px;
+            }
+            .uh-dash .user-name {
+                font-size: 20px;
+            }
+        }
+        /* ── end new header styles ── */
+
         .uh-dash .uh-grid{ display:grid; gap:16px; margin-bottom:16px; }
         .uh-dash .uh-grid-4{ grid-template-columns:repeat(4,1fr); }
         .uh-dash .uh-grid-2-1{ grid-template-columns:2fr 1fr; }
@@ -640,13 +720,25 @@ include 'Sidebar.php';
 
 <div class="uh-dash" id="uhDashboardRoot">
 
+    <!-- ========== UPDATED HEADER ========== -->
     <div class="uh-head">
-        <div>
-            <h4>Welcome back, <?= htmlspecialchars($admin_name) ?> <span>👋</span></h4>
-            <p>Here's what's happening at your hospital today.</p>
+        <!-- left: greeting + name -->
+        <div class="uh-left">
+            <div class="greeting" id="greetingText">Good Evening!</div>
+            <div class="user-name">
+                <?= htmlspecialchars($admin_name) ?> <span>👋</span>
+            </div>
         </div>
-        <div class="uh-date"><i class="fa-regular fa-calendar"></i><?= date('l, d M Y') ?></div>
+        <!-- right: date + time (live) -->
+        <div class="uh-datetime" id="datetimeDisplay">
+            <i class="fa-regular fa-calendar"></i>
+            <span id="dateText">Saturday, 1 Aug 2026</span>
+            <span class="divider">|</span>
+            <i class="fa-regular fa-clock" style="margin-left:2px;"></i>
+            <span class="time-part" id="timeText">10:48 PM</span>
+        </div>
     </div>
+    <!-- ========== /UPDATED HEADER ========== -->
 
     <!-- KPI ROW 1 -->
     <div class="uh-grid uh-grid-4">
@@ -1000,6 +1092,7 @@ include 'Sidebar.php';
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        // ─── Charts (existing) ────────────────────────────────────
         const trendLabels = <?= $trendLabelsJson ?>;
         const trendData = <?= $trendDataJson ?>;
         const opdCount = <?= $opdCount ?>;
@@ -1068,6 +1161,50 @@ include 'Sidebar.php';
                 }
             });
         }
+
+        // ─── Live Clock & Greeting (new) ──────────────────────────
+        const greetingEl = document.getElementById('greetingText');
+        const dateEl = document.getElementById('dateText');
+        const timeEl = document.getElementById('timeText');
+
+        function pad(n) {
+            return String(n).padStart(2, '0');
+        }
+
+        function getGreeting(hours) {
+            if (hours >= 5 && hours < 12) return 'Good Morning!';
+            if (hours >= 12 && hours < 17) return 'Good Afternoon!';
+            if (hours >= 17 && hours < 21) return 'Good Evening!';
+            return 'Good Night!';
+        }
+
+        function formatDate(date) {
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const dayName = days[date.getDay()];
+            const day = date.getDate();
+            const month = months[date.getMonth()];
+            const year = date.getFullYear();
+            return `${dayName}, ${day} ${month} ${year}`;
+        }
+
+        function formatTime(date) {
+            let h = date.getHours();
+            const m = pad(date.getMinutes());
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12;
+            return `${h}:${m} ${ampm}`;
+        }
+
+        function updateClock() {
+            const now = new Date();
+            greetingEl.textContent = getGreeting(now.getHours());
+            dateEl.textContent = formatDate(now);
+            timeEl.textContent = formatTime(now);
+        }
+
+        updateClock();
+        setInterval(updateClock, 1000);
     });
 </script>
 

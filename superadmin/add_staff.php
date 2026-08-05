@@ -34,9 +34,7 @@ if ($is_super_admin) {
     ");
 }
 
-// ============================================================
-// UPDATED STAFF ROLES – matches the image exactly
-// ============================================================
+// Staff roles
 $staff_roles = array(
     "Nurse",
     "Ward Boy",
@@ -47,6 +45,69 @@ $staff_roles = array(
     "Pharmacist",
     "Receptionist"
 );
+
+// Gender options
+$gender_options = ['Male', 'Female', 'Other'];
+
+// Blood group options
+$blood_groups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+// Shift timing options
+$shift_timings = [
+    'Morning (7 AM - 3 PM)',
+    'Evening (3 PM - 11 PM)',
+    'Night (11 PM - 7 AM)',
+    'Rotational',
+    'Flexible'
+];
+
+// Nurse type options
+$nurse_types = [
+    'Staff Nurse',
+    'Senior Nurse',
+    'Head Nurse',
+    'Assistant Nurse',
+    'Trainee'
+];
+
+// Qualification options
+$qualifications = [
+    'B.Sc. Nursing',
+    'M.Sc. Nursing',
+    'G.N.M.',
+    'A.N.M.',
+    'Diploma in Nursing',
+    'Ph.D. Nursing',
+    'Other'
+];
+
+// Specialization options
+$specializations = [
+    'Critical Care',
+    'Cardiac Care',
+    'Pediatric',
+    'Orthopedic',
+    'Neurology',
+    'Oncology',
+    'Emergency',
+    'ICU',
+    'NICU',
+    'General'
+];
+
+// Department options
+$departments = [
+    'ICU',
+    'NICU',
+    'Emergency',
+    'Cardiology',
+    'Neurology',
+    'Orthopedics',
+    'Pediatrics',
+    'Oncology',
+    'General Ward',
+    'OT'
+];
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
     // Get hospital_id from POST or use session
@@ -61,6 +122,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
     $selectrole = $_POST['selectrole'];
     $address = $_POST['address'];
     $status = $_POST['status'];
+    
+    // New fields
+    $date_of_birth = $_POST['date_of_birth'] ?? null;
+    $age = $_POST['age'] ?? null;
+    $gender = $_POST['gender'] ?? null;
+    $blood_group = $_POST['blood_group'] ?? null;
+    $qualification = $_POST['qualification'] ?? null;
+    $specialization = $_POST['specialization'] ?? null;
+    $department = $_POST['department'] ?? null;
+    $experience = $_POST['experience'] ?? null;
+    $shift_timing = $_POST['shift_timing'] ?? null;
+    $emergency_contact = $_POST['emergency_contact'] ?? null;
+    $nurse_type = $_POST['nurse_type'] ?? null;
 
     // Server-side Validation
     if (!preg_match("/^[A-Za-z\s'-]+$/", $name)) {
@@ -98,7 +172,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
             mkdir($folder, 0777, true);
         }
         
-        // Generate unique filename to avoid overwriting
         $file_extension = pathinfo($_FILES['staff_image']['name'], PATHINFO_EXTENSION);
         $new_filename = 'staff_' . time() . '_' . uniqid() . '.' . $file_extension;
         $image_path = $folder . $new_filename;
@@ -123,9 +196,36 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
             if ($stmt_reg->execute()) {
                 $register_id = $conn->insert_id;
 
-                // Insert into staff table
-                $stmt_staff = $conn->prepare("INSERT INTO staff (register_id, name, mobile, email, role, address, status, profile_image, hospital_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt_staff->bind_param("isssssssi", $register_id, $name, $mobile, $email, $selectrole, $address, $status, $staff_image, $hospital_id);
+                // Insert into staff table with all new fields
+                $stmt_staff = $conn->prepare("INSERT INTO staff (
+                    register_id, name, mobile, email, role, address, status, profile_image, hospital_id,
+                    date_of_birth, age, gender, blood_group, qualification, specialization, 
+                    department, experience, shift_timing, emergency_contact, nurse_type
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                
+                $stmt_staff->bind_param(
+                    "isssssssisssssssisss",
+                    $register_id, 
+                    $name, 
+                    $mobile, 
+                    $email, 
+                    $selectrole, 
+                    $address, 
+                    $status, 
+                    $staff_image, 
+                    $hospital_id,
+                    $date_of_birth,
+                    $age,
+                    $gender,
+                    $blood_group,
+                    $qualification,
+                    $specialization,
+                    $department,
+                    $experience,
+                    $shift_timing,
+                    $emergency_contact,
+                    $nurse_type
+                );
                 
                 if ($stmt_staff->execute()) {
                     $conn->commit();
@@ -189,14 +289,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
             margin-left: 250px; 
             padding: 1.5rem; 
             min-height: 100vh;
-            margin-top: 70px; /* Adjust to match your header height */
+            margin-top: 70px;
         }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
         .required-star { color: #ef4444; margin-left: 2px; }
         
-        /* Validation Styles */
         .input-wrapper {
             position: relative;
         }
@@ -321,7 +420,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
             color: #9ca3af;
         }
 
-        /* Hospital selection specific styles */
         .hospital-select-wrapper {
             position: relative;
         }
@@ -334,19 +432,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
             background-position: right 12px center;
             padding-right: 36px;
         }
+
+        /* Conditional field visibility */
+        .nurse-fields {
+            display: none;
+        }
+        .nurse-fields.visible {
+            display: block;
+        }
     </style>
 </head>
 <body>
-    
-
     <div class="flex min-h-screen flex-col bg-gray-50 ">
-        <!-- Header -->
         <?php include 'header.php'; ?>
 
         <div class="flex flex-1 items-start">
-            <?php include 'sidebar.php'; ?> <!-- corrected case -->
+            <?php include 'sidebar.php'; ?>
 
-            <!-- Main Content Area -->
             <main id="main-content" class="flex-1 overflow-x-hidden duration-300 p-4 xl:p-8 xl:ml-64 w-full">
                 <div class="max-w-5xl mx-auto w-full">
                     <div class="flex items-center gap-4 mb-8">
@@ -558,13 +660,142 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
                                                 <option value="Inactive">Inactive</option>
                                             </select>
                                         </div>
+
+                                        <!-- Gender -->
+                                        <div class="space-y-2">
+                                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Gender</label>
+                                            <select name="gender" class="w-full h-12 px-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all bg-white">
+                                                <option value="">Select Gender</option>
+                                                <?php foreach ($gender_options as $gender): ?>
+                                                    <option value="<?php echo $gender; ?>"><?php echo $gender; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+
+                                        <!-- Date of Birth -->
+                                        <div class="space-y-2">
+                                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Date of Birth</label>
+                                            <input name="date_of_birth" id="date_of_birth" type="date" 
+                                                class="form-input w-full h-12 px-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all">
+                                        </div>
+
+                                        <!-- Age -->
+                                        <div class="space-y-2">
+                                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Age</label>
+                                            <input name="age" id="age" type="number" placeholder="e.g., 30" 
+                                                class="form-input w-full h-12 px-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all"
+                                                min="18" max="65">
+                                        </div>
+
+                                        <!-- Blood Group -->
+                                        <div class="space-y-2">
+                                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Blood Group</label>
+                                            <select name="blood_group" class="w-full h-12 px-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all bg-white">
+                                                <option value="">Select Blood Group</option>
+                                                <?php foreach ($blood_groups as $bg): ?>
+                                                    <option value="<?php echo $bg; ?>"><?php echo $bg; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+
+                                        <!-- Emergency Contact -->
+                                        <div class="space-y-2">
+                                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Emergency Contact</label>
+                                            <input name="emergency_contact" id="emergency_contact" type="tel" placeholder="9876543210" 
+                                                class="form-input w-full h-12 px-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all"
+                                                pattern="[0-9]{10}" maxlength="10" minlength="10">
+                                            <small class="text-xs text-gray-400">Emergency contact number (10 digits)</small>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Nurse Specific Fields (Conditional) -->
+                                <div class="space-y-8 nurse-fields" id="nurseFields">
+                                    <div class="flex items-center gap-3 pb-4 border-b border-gray-50">
+                                        <div class="p-2 bg-purple-50 rounded-lg text-purple-600">
+                                            <i data-lucide="heart-pulse" class="w-5 h-5"></i>
+                                        </div>
+                                        <h2 class="text-sm font-bold text-gray-900 uppercase tracking-widest">Nurse Details</h2>
+                                        <span class="ml-auto text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full font-semibold">Nurse Only</span>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                                        <!-- Nurse Type -->
+                                        <div class="space-y-2">
+                                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nurse Type</label>
+                                            <select name="nurse_type" class="w-full h-12 px-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all bg-white">
+                                                <option value="">Select Nurse Type</option>
+                                                <?php foreach ($nurse_types as $nt): ?>
+                                                    <option value="<?php echo $nt; ?>"><?php echo $nt; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+
+                                        <!-- Qualification -->
+                                        <div class="space-y-2">
+                                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Qualification</label>
+                                            <select name="qualification" class="w-full h-12 px-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all bg-white">
+                                                <option value="">Select Qualification</option>
+                                                <?php foreach ($qualifications as $qual): ?>
+                                                    <option value="<?php echo $qual; ?>"><?php echo $qual; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+
+                                        <!-- Specialization -->
+                                        <div class="space-y-2">
+                                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Specialization</label>
+                                            <select name="specialization" class="w-full h-12 px-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all bg-white">
+                                                <option value="">Select Specialization</option>
+                                                <?php foreach ($specializations as $spec): ?>
+                                                    <option value="<?php echo $spec; ?>"><?php echo $spec; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+
+                                        <!-- Department -->
+                                        <div class="space-y-2">
+                                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Department</label>
+                                            <select name="department" class="w-full h-12 px-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all bg-white">
+                                                <option value="">Select Department</option>
+                                                <?php foreach ($departments as $dept): ?>
+                                                    <option value="<?php echo $dept; ?>"><?php echo $dept; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+
+                                        <!-- Experience -->
+                                        <div class="space-y-2">
+                                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Experience (Years)</label>
+                                            <input name="experience" type="number" placeholder="e.g., 5" 
+                                                class="form-input w-full h-12 px-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all"
+                                                min="0" max="50">
+                                        </div>
+
+                                        <!-- Shift Timing -->
+                                        <div class="space-y-2">
+                                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Shift Timing</label>
+                                            <select name="shift_timing" class="w-full h-12 px-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all bg-white">
+                                                <option value="">Select Shift</option>
+                                                <?php foreach ($shift_timings as $shift): ?>
+                                                    <option value="<?php echo $shift; ?>"><?php echo $shift; ?></option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+
+                                        <!-- Joining Date -->
+                                        <div class="space-y-2">
+                                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Joining Date</label>
+                                            <input name="joining_date" type="date" 
+                                                class="form-input w-full h-12 px-4 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm transition-all">
+                                        </div>
                                     </div>
                                 </div>
 
                                 <!-- Location & Media Section -->
                                 <div class="space-y-8">
                                     <div class="flex items-center gap-3 pb-4 border-b border-gray-50">
-                                        <div class="p-2 bg-purple-50 rounded-lg text-purple-600">
+                                        <div class="p-2 bg-orange-50 rounded-lg text-orange-600">
                                             <i data-lucide="map-pin" class="w-5 h-5"></i>
                                         </div>
                                         <h2 class="text-sm font-bold text-gray-900 uppercase tracking-widest">Location & Media</h2>
@@ -622,8 +853,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
     <script>
         lucide.createIcons();
 
+        // Toggle Nurse Fields based on role selection
+        document.addEventListener('DOMContentLoaded', function() {
+            const roleSelect = document.getElementById('selectrole');
+            const nurseFields = document.getElementById('nurseFields');
+            
+            function toggleNurseFields() {
+                if (roleSelect.value === 'Nurse') {
+                    nurseFields.classList.add('visible');
+                } else {
+                    nurseFields.classList.remove('visible');
+                }
+            }
+            
+            // Check on load
+            toggleNurseFields();
+            
+            // Check on change
+            roleSelect.addEventListener('change', toggleNurseFields);
+        });
+
         // ============================================================
-        // VALIDATION LOGIC (unchanged – works with updated roles)
+        // VALIDATION LOGIC
         // ============================================================
         document.addEventListener('DOMContentLoaded', function() {
             // Define validation patterns
@@ -757,16 +1008,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
                 const input = document.getElementById(fieldId);
                 if (!input) return;
 
-                // Validate on blur
                 input.addEventListener('blur', function() {
                     validateField(fieldId);
                 });
 
-                // Validate on input for better UX
                 input.addEventListener('input', function() {
                     validateField(fieldId);
                     
-                    // Special handling for password
                     if (fieldId === 'password') {
                         checkPasswordStrength(this.value);
                     }
@@ -781,14 +1029,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
                 });
             }
 
-            // Mobile number validation - exactly 10 digits
+            // Mobile number validation
             function validateMobile(input) {
                 const value = input.value.trim();
                 const errorMsg = document.getElementById('mobile_error');
                 const successMsg = document.getElementById('mobile_success');
                 const icon = document.getElementById('mobile_icon');
                 
-                // Reset states
                 input.classList.remove('error', 'success');
                 if (errorMsg) errorMsg.classList.remove('show');
                 if (successMsg) successMsg.classList.remove('show');
@@ -796,7 +1043,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
                     icon.classList.remove('valid', 'invalid');
                 }
                 
-                // If empty, it's optional
                 if (value === '') {
                     input.classList.add('success');
                     if (successMsg) successMsg.classList.add('show');
@@ -804,7 +1050,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
                     return true;
                 }
                 
-                // Check if exactly 10 digits
                 const mobileRegex = /^[0-9]{10}$/;
                 if (!mobileRegex.test(value)) {
                     input.classList.add('error');
@@ -822,35 +1067,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
                     return false;
                 }
                 
-                // Valid
                 input.classList.add('success');
                 if (successMsg) successMsg.classList.add('show');
                 if (icon) icon.classList.add('valid');
                 return true;
             }
 
-            // Attach to mobile input
             const mobileInput = document.getElementById('mobile');
             if (mobileInput) {
-                // Validate on input (real-time)
                 mobileInput.addEventListener('input', function() {
-                    // Remove non-digits
                     this.value = this.value.replace(/[^0-9]/g, '');
-                    
-                    // Limit to 10 characters
                     if (this.value.length > 10) {
                         this.value = this.value.slice(0, 10);
                     }
-                    
                     validateMobile(this);
                 });
                 
-                // Validate on blur
                 mobileInput.addEventListener('blur', function() {
                     validateMobile(this);
                 });
                 
-                // Prevent pasting non-digits
                 mobileInput.addEventListener('paste', function(e) {
                     e.preventDefault();
                     const pastedText = (e.clipboardData || window.clipboardData).getData('text');
@@ -862,11 +1098,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
                 });
             }
 
+            // Age calculation from DOB
+            const dobInput = document.getElementById('date_of_birth');
+            const ageInput = document.getElementById('age');
+            
+            if (dobInput && ageInput) {
+                dobInput.addEventListener('change', function() {
+                    if (this.value) {
+                        const birthDate = new Date(this.value);
+                        const today = new Date();
+                        let age = today.getFullYear() - birthDate.getFullYear();
+                        const monthDiff = today.getMonth() - birthDate.getMonth();
+                        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                            age--;
+                        }
+                        if (age >= 18 && age <= 65) {
+                            ageInput.value = age;
+                        } else {
+                            ageInput.value = '';
+                            alert('Age must be between 18 and 65 years');
+                            this.value = '';
+                        }
+                    }
+                });
+            }
+
             // Form submission validation
             document.getElementById('staffForm').addEventListener('submit', function(e) {
                 let isValid = true;
 
-                // Validate hospital selection for super admin
                 <?php if ($is_super_admin): ?>
                 const hospitalSelect = document.getElementById('hospital_id');
                 const hospitalError = document.getElementById('hospitalError');
@@ -890,7 +1150,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
                 }
                 <?php endif; ?>
 
-                // Validate all fields
                 Object.keys(fields).forEach(fieldId => {
                     if (!validateField(fieldId)) {
                         isValid = false;
@@ -899,7 +1158,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
 
                 if (!isValid) {
                     e.preventDefault();
-                    // Scroll to first error
                     const firstError = document.querySelector('.form-input.error');
                     if (firstError) {
                         firstError.focus();
@@ -915,7 +1173,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
                 }
             });
 
-            // Reset form - clear validation states
+            // Reset form
             document.querySelector('button[type="reset"]').addEventListener('click', function(e) {
                 setTimeout(() => {
                     document.querySelectorAll('.form-input').forEach(input => {
@@ -927,7 +1185,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
                     document.querySelectorAll('.input-icon').forEach(icon => {
                         icon.classList.remove('valid', 'invalid');
                     });
-                    // Reset password strength
                     const strengthBar = document.getElementById('strengthBar');
                     const strengthText = document.getElementById('strengthText');
                     if (strengthBar) strengthBar.className = 'strength-bar';
@@ -935,7 +1192,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
                         strengthText.textContent = 'Weak';
                         strengthText.style.color = '#9ca3af';
                     }
-                    // Reset hospital selection
                     <?php if ($is_super_admin): ?>
                     const hospitalSelect = document.getElementById('hospital_id');
                     if (hospitalSelect) {
@@ -950,7 +1206,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['email'])) {
                 }, 10);
             });
 
-            // Hospital selection validation on change
             <?php if ($is_super_admin): ?>
             const hospitalSelect = document.getElementById('hospital_id');
             if (hospitalSelect) {

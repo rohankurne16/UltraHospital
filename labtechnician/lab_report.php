@@ -1,11 +1,17 @@
-<?php
+<?php 
 session_start();
 include "../config/hospital.php";
 
-// ========== HELPER: GET DOCTOR NAME ==========
+// ========== HELPER: GET DOCTOR NAME WITH CACHE ==========
 function getDoctorName($conn, $doctor_id) {
+    static $doctor_cache = [];
+    
     if (empty($doctor_id)) {
         return 'Not Assigned';
+    }
+    
+    if (isset($doctor_cache[$doctor_id])) {
+        return $doctor_cache[$doctor_id];
     }
     
     $sql = "SELECT doctor_name, department, qualification
@@ -20,8 +26,10 @@ function getDoctorName($conn, $doctor_id) {
         $name = $doctor['doctor_name'] ?? '';
         if (!empty($name)) {
             $name = preg_replace('/^Dr\.?\s*/i', '', $name);
-            return 'Dr. ' . $name;
+            $doctor_cache[$doctor_id] = 'Dr. ' . $name;
+            return $doctor_cache[$doctor_id];
         }
+        $doctor_cache[$doctor_id] = 'Not Assigned';
         return 'Not Assigned';
     }
     
@@ -32,32 +40,49 @@ function getDoctorName($conn, $doctor_id) {
         $name = $staff['name'] ?? '';
         if (!empty($name)) {
             $name = preg_replace('/^Dr\.?\s*/i', '', $name);
-            return 'Dr. ' . $name;
+            $doctor_cache[$doctor_id] = 'Dr. ' . $name;
+            return $doctor_cache[$doctor_id];
         }
     }
     
+    $doctor_cache[$doctor_id] = 'Not Assigned';
     return 'Not Assigned';
 }
 
-// ========== HELPER: GET PATIENT NAME ==========
+// ========== HELPER: GET PATIENT NAME WITH CACHE ==========
 function getPatientName($conn, $patient_id) {
+    static $patient_cache = [];
+    
     if (empty($patient_id)) {
         return 'N/A';
+    }
+    
+    if (isset($patient_cache[$patient_id])) {
+        return $patient_cache[$patient_id];
     }
     
     $sql = "SELECT patient_name FROM patients WHERE patient_id = $patient_id AND (delete_flag = 0 OR delete_flag IS NULL) LIMIT 1";
     $result = $conn->query($sql);
     if ($result && $result->num_rows > 0) {
         $patient = $result->fetch_assoc();
-        return $patient['patient_name'] ?? 'N/A';
+        $patient_cache[$patient_id] = $patient['patient_name'] ?? 'N/A';
+        return $patient_cache[$patient_id];
     }
+    
+    $patient_cache[$patient_id] = 'N/A';
     return 'N/A';
 }
 
-// ========== HELPER: GET TEST NAME ==========
+// ========== HELPER: GET TEST NAME WITH CACHE ==========
 function getTestName($conn, $detail_id) {
+    static $test_cache = [];
+    
     if (empty($detail_id)) {
         return 'N/A';
+    }
+    
+    if (isset($test_cache[$detail_id])) {
+        return $test_cache[$detail_id];
     }
     
     $sql = "SELECT t.test_name, t.test_code 
@@ -69,15 +94,24 @@ function getTestName($conn, $detail_id) {
     $result = $conn->query($sql);
     if ($result && $result->num_rows > 0) {
         $test = $result->fetch_assoc();
-        return $test['test_name'] ?? 'N/A';
+        $test_cache[$detail_id] = $test['test_name'] ?? 'N/A';
+        return $test_cache[$detail_id];
     }
+    
+    $test_cache[$detail_id] = 'N/A';
     return 'N/A';
 }
 
-// ========== HELPER: GET TEST RESULT ==========
+// ========== HELPER: GET TEST RESULT WITH CACHE ==========
 function getTestResult($conn, $detail_id) {
+    static $result_cache = [];
+    
     if (empty($detail_id)) {
         return null;
+    }
+    
+    if (isset($result_cache[$detail_id])) {
+        return $result_cache[$detail_id];
     }
     
     $sql = "SELECT result_value, unit, normal_range, remarks 
@@ -86,12 +120,15 @@ function getTestResult($conn, $detail_id) {
             LIMIT 1";
     $result = $conn->query($sql);
     if ($result && $result->num_rows > 0) {
-        return $result->fetch_assoc();
+        $result_cache[$detail_id] = $result->fetch_assoc();
+        return $result_cache[$detail_id];
     }
+    
+    $result_cache[$detail_id] = null;
     return null;
 }
 
-// Check if user is logged in
+// ========== CHECK SESSION FIRST ==========
 if (!isset($_SESSION["id"]) || empty($_SESSION["id"])) {
     header("Location: ../index.php");
     exit();
@@ -100,30 +137,41 @@ if (!isset($_SESSION["id"]) || empty($_SESSION["id"])) {
 $hid = $_SESSION["hospital_id"];
 $register_id = $_SESSION["id"];
 
-// ========== GET STAFF ID FROM REGISTER ID ==========
-$sql_staff = "SELECT staff_id, name, profile_image FROM staff WHERE register_id = $register_id AND role = 'Lab Technician' AND hospital_id = $hid AND delete_flag = 0";
-$result_staff = $conn->query($sql_staff);
+// ========== GET TECHNICIAN INFO - CACHED ==========
+$tech_cache_key = 'tech_info_' . $register_id;
+$technician = isset($_SESSION[$tech_cache_key]) ? $_SESSION[$tech_cache_key] : null;
 
-if ($result_staff && $result_staff->num_rows > 0) {
-    $technician = $result_staff->fetch_assoc();
-    $user_id = $technician['staff_id'];
-    $_SESSION["name"] = $technician['name'] ?? 'Technician';
-    $_SESSION["role"] = "Lab Technician";
-    $_SESSION["profile_image"] = $technician['profile_image'] ?? '';
-    $_SESSION['staff_id'] = $user_id;
-} else {
-    $sql_tech = "SELECT id, name, email, phone FROM lab_technicians WHERE register_id = $register_id AND hospital_id = $hid AND status = 'active'";
-    $result_tech = $conn->query($sql_tech);
-    if ($result_tech && $result_tech->num_rows > 0) {
-        $tech = $result_tech->fetch_assoc();
-        $user_id = $tech['id'];
-        $_SESSION["name"] = $tech['name'];
+if (!$technician || !isset($technician['time']) || (time() - $technician['time'] > 300)) {
+    $sql_staff = "SELECT staff_id, name, profile_image FROM staff WHERE register_id = $register_id AND role = 'Lab Technician' AND hospital_id = $hid AND delete_flag = 0";
+    $result_staff = $conn->query($sql_staff);
+
+    if ($result_staff && $result_staff->num_rows > 0) {
+        $technician = $result_staff->fetch_assoc();
+        $technician['time'] = time();
+        $_SESSION[$tech_cache_key] = $technician;
+        $user_id = $technician['staff_id'];
+        $_SESSION["name"] = $technician['name'] ?? 'Technician';
         $_SESSION["role"] = "Lab Technician";
-        $_SESSION['lab_tech_id'] = $user_id;
+        $_SESSION["profile_image"] = $technician['profile_image'] ?? '';
+        $_SESSION['staff_id'] = $user_id;
     } else {
-        echo "<script>alert('Lab Technician not found!'); window.location='../index.php';</script>";
-        exit();
+        $sql_tech = "SELECT id, name, email, phone FROM lab_technicians WHERE register_id = $register_id AND hospital_id = $hid AND status = 'active'";
+        $result_tech = $conn->query($sql_tech);
+        if ($result_tech && $result_tech->num_rows > 0) {
+            $technician = $result_tech->fetch_assoc();
+            $technician['time'] = time();
+            $_SESSION[$tech_cache_key] = $technician;
+            $user_id = $technician['id'];
+            $_SESSION["name"] = $technician['name'];
+            $_SESSION["role"] = "Lab Technician";
+            $_SESSION['lab_tech_id'] = $user_id;
+        } else {
+            echo "<script>alert('Lab Technician not found!'); window.location='../index.php';</script>";
+            exit();
+        }
     }
+} else {
+    $user_id = $technician['staff_id'] ?? $technician['id'] ?? 0;
 }
 
 if (!isset($user_id) || empty($user_id)) {
@@ -137,15 +185,24 @@ if ($user_role != "Lab Technician" && $user_role != "Admin") {
     exit();
 }
 
-// ========== GET HOSPITAL DATA - MOVED HERE BEFORE AJAX ==========
-$hospital_data = null;
-$sql_hospital = "SELECT * FROM hospital_master WHERE hospital_id = $hid AND delete_flag = 0 LIMIT 1";
-$result_hospital = $conn->query($sql_hospital);
-if ($result_hospital && $result_hospital->num_rows > 0) {
-    $hospital_data = $result_hospital->fetch_assoc();
+// ========== GET HOSPITAL DATA - CACHED ==========
+$hospital_cache_key = 'hospital_data_' . $hid;
+$hospital_data = isset($_SESSION[$hospital_cache_key]) ? $_SESSION[$hospital_cache_key] : null;
+
+if (!$hospital_data || !isset($hospital_data['time']) || (time() - $hospital_data['time'] > 3600)) {
+    $sql_hospital = "SELECT * FROM hospital_master WHERE hospital_id = $hid AND delete_flag = 0 LIMIT 1";
+    $result_hospital = $conn->query($sql_hospital);
+    if ($result_hospital && $result_hospital->num_rows > 0) {
+        $hospital_data = $result_hospital->fetch_assoc();
+        $hospital_data['time'] = time();
+        $_SESSION[$hospital_cache_key] = $hospital_data;
+    } else {
+        $hospital_data = [];
+    }
 }
+
 $hospital_name = $hospital_data["hospital_name"] ?? "MedixPro";
-$hospital_logo = $hospital_data["hospital_logo"] ?? "../documents/hospital/logo.png";
+$hospital_logo = $hospital_data["hospital_logo"] ?? "../documents/hospital/hospital_1784169924_6a5845c46a419.jpg";
 $hospital_address = $hospital_data["address"] ?? "";
 $hospital_phone = $hospital_data["phone"] ?? "";
 $hospital_email = $hospital_data["email"] ?? "";
@@ -157,125 +214,144 @@ $hospital_gst = $hospital_data["gst_number"] ?? "";
 $hospital_type = $hospital_data["hospital_type"] ?? "";
 $hospital_established = $hospital_data["established_year"] ?? "";
 
-// Full address
 $full_address = $hospital_address;
 if (!empty($hospital_city)) $full_address .= ", " . $hospital_city;
 if (!empty($hospital_state)) $full_address .= ", " . $hospital_state;
 if (!empty($hospital_pincode)) $full_address .= " - " . $hospital_pincode;
 
-// Fix logo path
-if (!empty($hospital_logo) && !file_exists($hospital_logo)) {
-    $hospital_logo = "../documents/hospital/logo.png";
-}
-
-// ========== VIEW REPORT (AJAX) - MUST BE BEFORE ANY HTML OUTPUT ==========
-if (isset($_GET['view_report'])) {
-    // Set JSON header
+// ========== AJAX HANDLER - MUST BE BEFORE HTML ==========
+if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     header('Content-Type: application/json');
     
-    $report_id = intval($_GET['view_report']);
-    
-    $sql = "SELECT r.*, 
-            o.order_no, o.order_date,
-            p.patient_name, p.mobile as patient_mobile, p.gender, p.date_of_birth, p.age,
-            s.name as technician_name
-            FROM lab_reports r
-            LEFT JOIN lab_orders o ON r.order_id = o.order_id
-            LEFT JOIN patients p ON r.patient_id = p.patient_id
-            LEFT JOIN staff s ON r.technician_id = s.staff_id
-            WHERE r.report_id = $report_id 
-            AND r.technician_id = $user_id
-            AND r.hospital_id = $hid
-            AND (r.delete_flag = 0 OR r.delete_flag IS NULL)
-            LIMIT 1";
-    
-    $result = $conn->query($sql);
-    
-    if (!$result) {
-        echo json_encode(['error' => 'Database error: ' . $conn->error]);
+    if (isset($_GET['view_report'])) {
+        $report_id = intval($_GET['view_report']);
+        
+        $sql = "SELECT r.*, 
+                o.order_no, o.order_date,
+                p.patient_name, p.mobile as patient_mobile, p.gender, p.date_of_birth, p.age,
+                s.name as technician_name
+                FROM lab_reports r
+                LEFT JOIN lab_orders o ON r.order_id = o.order_id
+                LEFT JOIN patients p ON r.patient_id = p.patient_id
+                LEFT JOIN staff s ON r.technician_id = s.staff_id
+                WHERE r.report_id = $report_id 
+                AND r.technician_id = $user_id
+                AND r.hospital_id = $hid
+                AND (r.delete_flag = 0 OR r.delete_flag IS NULL)
+                LIMIT 1";
+        
+        $result = $conn->query($sql);
+        
+        if ($result && $result->num_rows > 0) {
+            $report = $result->fetch_assoc();
+            $report['doctor_name'] = getDoctorName($conn, $report['doctor_id']);
+            
+            $test_sql = "SELECT t.test_name, t.test_code, t.normal_range as test_normal_range, t.unit as test_unit
+                         FROM lab_order_details od
+                         LEFT JOIN lab_tests t ON od.test_id = t.test_id
+                         WHERE od.detail_id = " . $report['detail_id'] . " 
+                         AND (od.delete_flag = 0 OR od.delete_flag IS NULL)
+                         LIMIT 1";
+            $test_result = $conn->query($test_sql);
+            if ($test_result && $test_result->num_rows > 0) {
+                $test_data = $test_result->fetch_assoc();
+                $report = array_merge($report, $test_data);
+            }
+            
+            $result_sql = "SELECT result_value, unit, normal_range, remarks 
+                           FROM lab_test_results 
+                           WHERE order_detail_id = " . $report['detail_id'] . " 
+                           LIMIT 1";
+            $result_result = $conn->query($result_sql);
+            if ($result_result && $result_result->num_rows > 0) {
+                $result_data = $result_result->fetch_assoc();
+                $report = array_merge($report, $result_data);
+            }
+            
+            
+            $report['hospital_name'] = $hospital_name;
+            $report['hospital_logo'] = $hospital_logo;
+            $report['hospital_address'] = $full_address;
+            $report['hospital_phone'] = $hospital_phone;
+            $report['hospital_email'] = $hospital_email;
+            $report['hospital_registration'] = $hospital_registration;
+            $report['hospital_gst'] = $hospital_gst;
+            $report['hospital_type'] = $hospital_type;
+            
+            echo json_encode($report);
+        } else {
+            echo json_encode(['error' => 'Report not found']);
+        }
         exit();
     }
     
-    if ($result && $result->num_rows > 0) {
-        $report = $result->fetch_assoc();
-        $report['doctor_name'] = getDoctorName($conn, $report['doctor_id']);
-        
-        $test_sql = "SELECT t.test_name, t.test_code, t.normal_range as test_normal_range, t.unit as test_unit
-                     FROM lab_order_details od
-                     LEFT JOIN lab_tests t ON od.test_id = t.test_id
-                     WHERE od.detail_id = " . $report['detail_id'] . " 
-                     AND (od.delete_flag = 0 OR od.delete_flag IS NULL)
-                     LIMIT 1";
-        $test_result = $conn->query($test_sql);
-        if ($test_result && $test_result->num_rows > 0) {
-            $test_data = $test_result->fetch_assoc();
-            $report = array_merge($report, $test_data);
+    if (isset($_GET['action']) && $_GET['action'] == 'get_stats') {
+        $sql_stats = "
+            SELECT 'total' as type, COUNT(*) as count FROM lab_reports WHERE technician_id = $user_id AND hospital_id = $hid AND (delete_flag = 0 OR delete_flag IS NULL)
+            UNION ALL
+            SELECT 'completed' as type, COUNT(*) as count FROM lab_reports WHERE technician_id = $user_id AND hospital_id = $hid AND report_status = 'Completed' AND (delete_flag = 0 OR delete_flag IS NULL)
+            UNION ALL
+            SELECT 'pending' as type, COUNT(*) as count FROM lab_reports WHERE technician_id = $user_id AND hospital_id = $hid AND report_status = 'Pending' AND (delete_flag = 0 OR delete_flag IS NULL)
+        ";
+        $result = $conn->query($sql_stats);
+        $stats = ['success' => true];
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $stats[$row['type']] = $row['count'];
+            }
         }
-        
-        $result_sql = "SELECT result_value, unit, normal_range, remarks 
-                       FROM lab_test_results 
-                       WHERE order_detail_id = " . $report['detail_id'] . " 
-                       LIMIT 1";
-        $result_result = $conn->query($result_sql);
-        if ($result_result && $result_result->num_rows > 0) {
-            $result_data = $result_result->fetch_assoc();
-            $report = array_merge($report, $result_data);
-        }
-        
-        // Add hospital data to response
-        $report['hospital_name'] = $hospital_name;
-        $report['hospital_logo'] = $hospital_logo;
-        $report['hospital_address'] = $full_address;
-        $report['hospital_phone'] = $hospital_phone;
-        $report['hospital_email'] = $hospital_email;
-        $report['hospital_registration'] = $hospital_registration;
-        $report['hospital_gst'] = $hospital_gst;
-        $report['hospital_type'] = $hospital_type;
-        
-        echo json_encode($report);
-    } else {
-        echo json_encode(['error' => 'Report not found']);
+        echo json_encode($stats);
+        exit();
     }
+    
     exit();
 }
 
-// ========== GET ALL REPORTS ==========
+// ========== GET REPORTS ==========
 $reports = [];
 
-$sql_reports = "SELECT r.* 
+$sql_reports = "SELECT r.*, 
+                o.order_no, o.order_date,
+                p.patient_name,
+                d.doctor_name, d.department,
+                t.test_name, t.test_code, t.normal_range as test_normal_range, t.unit as test_unit,
+                tr.result_value, tr.unit as result_unit, tr.normal_range as result_normal_range, tr.remarks as result_remarks,
+                s.name as technician_name
                 FROM lab_reports r
+                LEFT JOIN lab_orders o ON r.order_id = o.order_id AND (o.delete_flag = 0 OR o.delete_flag IS NULL)
+                LEFT JOIN patients p ON r.patient_id = p.patient_id AND (p.delete_flag = 0 OR p.delete_flag IS NULL)
+                LEFT JOIN doctor d ON r.doctor_id = d.doctor_id AND (d.delete_flag = 0 OR d.delete_flag IS NULL)
+                LEFT JOIN lab_order_details od ON r.detail_id = od.detail_id AND (od.delete_flag = 0 OR od.delete_flag IS NULL)
+                LEFT JOIN lab_tests t ON od.test_id = t.test_id
+                LEFT JOIN lab_test_results tr ON od.detail_id = tr.order_detail_id
+                LEFT JOIN staff s ON r.technician_id = s.staff_id
                 WHERE r.technician_id = $user_id 
                 AND r.hospital_id = $hid
                 AND (r.delete_flag = 0 OR r.delete_flag IS NULL)
+                GROUP BY r.report_id
                 ORDER BY r.report_id DESC";
 
 $result_reports = $conn->query($sql_reports);
 
 if ($result_reports && $result_reports->num_rows > 0) {
     while ($report_row = $result_reports->fetch_assoc()) {
-        $order_data = null;
-        $order_sql = "SELECT order_no, order_date FROM lab_orders WHERE order_id = " . $report_row['order_id'] . " AND delete_flag = 0";
-        $order_result = $conn->query($order_sql);
-        if ($order_result && $order_result->num_rows > 0) {
-            $order_data = $order_result->fetch_assoc();
+        if (!empty($report_row['doctor_name'])) {
+            $name = preg_replace('/^Dr\.?\s*/i', '', $report_row['doctor_name']);
+            $report_row['doctor_display'] = 'Dr. ' . $name;
+            if (!empty($report_row['department'])) {
+                $report_row['doctor_display'] .= ' (' . $report_row['department'] . ')';
+            }
+        } else {
+            $report_row['doctor_display'] = 'Not Assigned';
         }
         
-        $patient_name = getPatientName($conn, $report_row['patient_id']);
-        $doctor_name = getDoctorName($conn, $report_row['doctor_id']);
-        $test_name = getTestName($conn, $report_row['detail_id']);
-        $test_result = getTestResult($conn, $report_row['detail_id']);
+        $report_row['test_name'] = $report_row['test_name'] ?? 'N/A';
+        $report_row['result_value'] = $report_row['result_value'] ?? null;
+        $report_row['unit'] = $report_row['result_unit'] ?? $report_row['test_unit'] ?? null;
+        $report_row['normal_range'] = $report_row['result_normal_range'] ?? $report_row['test_normal_range'] ?? null;
+        $report_row['result_remarks'] = $report_row['result_remarks'] ?? null;
         
-        $reports[] = array_merge($report_row, [
-            'order_no' => $order_data['order_no'] ?? 'N/A',
-            'order_date' => $order_data['order_date'] ?? 'N/A',
-            'patient_name' => $patient_name,
-            'doctor_name' => $doctor_name,
-            'test_name' => $test_name,
-            'result_value' => $test_result['result_value'] ?? null,
-            'unit' => $test_result['unit'] ?? null,
-            'normal_range' => $test_result['normal_range'] ?? null,
-            'result_remarks' => $test_result['remarks'] ?? null
-        ]);
+        $reports[] = $report_row;
     }
 }
 
@@ -376,8 +452,6 @@ if (isset($_GET['delete_report'])) {
     header("Location: lab_report.php");
     exit();
 }
-
-// Rest of HTML code remains the same...
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -385,7 +459,7 @@ if (isset($_GET['delete_report'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($hospital_name); ?> - Lab Reports</title>
-    <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($hospital_logo); ?>">
+    <link rel="icon" type="image/png" href="../<?php echo htmlspecialchars($hospital_logo); ?>">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -395,9 +469,7 @@ if (isset($_GET['delete_report'])) {
     .main-content { width: 100%; margin-left: 260px; padding: 20px 28px; min-height: 100vh; }
     @media (max-width: 1024px) { .main-content { margin-left: 0; padding: 16px; } }
     
-    i, .fas, .far, .fal, .fab, .fa, .icon, [class*="fa-"] {
-        color: #3b82f6 !important;
-    }
+  
     
     .card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1); }
     .card-header { padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; gap: 10px; }
@@ -509,7 +581,6 @@ if (isset($_GET['delete_report'])) {
     
     .doctor-name { font-weight: 500; color: #1e40af; }
 
-    /* ===== STANDARD REPORT STYLES ===== */
     .report-container {
         background: white;
         padding: 30px;
@@ -739,21 +810,18 @@ if (isset($_GET['delete_report'])) {
                                                                 class="action-btn view-btn" 
                                                                 title="View Report">
                                                             <i class="fas fa-eye"></i>
-                                                            
                                                         </button>
                                                         
                                                         <button onclick="editReport(<?php echo $report['report_id']; ?>)" 
                                                                 class="action-btn edit-btn" 
                                                                 title="Edit Report">
                                                             <i class="fas fa-edit"></i>
-                                                          
                                                         </button>
                                                         
                                                         <button onclick="deleteReport(<?php echo $report['report_id']; ?>, '<?php echo htmlspecialchars($report['report_no']); ?>')" 
                                                                 class="action-btn delete-btn" 
                                                                 title="Delete Report">
                                                             <i class="fas fa-trash"></i>
-                                                          
                                                         </button>
                                                         
                                                         <?php if (!empty($report['report_file'])): ?>
@@ -761,16 +829,14 @@ if (isset($_GET['delete_report'])) {
                                                                class="action-btn download-btn"
                                                                title="Download Report">
                                                                 <i class="fas fa-download"></i>
-                                                                
                                                             </a>
                                                         <?php endif; ?>
-                                                        
-                                                      <button type="button"
-        class="action-btn print-btn"
-        title="Print Report"
-        onclick="printReport(<?php echo $report['report_id']; ?>)">
+                                                    <a href="../printt_report.php?id=<?php echo $report['report_id']; ?>"
+   target="_blank"
+   class="action-btn print-btn"
+   title="Print Report">
     <i class="fas fa-print"></i>
-</button>
+</a>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -791,7 +857,7 @@ if (isset($_GET['delete_report'])) {
         </div>
     </div>
 
-    <!-- ========== VIEW REPORT MODAL - STANDARD REPORT FORMAT ========== -->
+    <!-- View Report Modal -->
     <div class="modal" id="viewModal">
         <div class="modal-content" style="max-width: 850px;">
             <div class="modal-header">
@@ -807,13 +873,13 @@ if (isset($_GET['delete_report'])) {
             <div class="modal-footer">
                 <button class="btn-outline" onclick="closeModal('viewModal')">Close</button>
                 <button onclick="printReportFromModal()" class="btn-primary">
-    <i class="fas fa-print"></i> Print Report
-</button>
+                    <i class="fas fa-print"></i> Print Report
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- ========== EDIT REPORT MODAL ========== -->
+    <!-- Edit Report Modal -->
     <div class="modal" id="editModal">
         <div class="modal-content" style="max-width: 700px;">
             <div class="modal-header">
@@ -869,9 +935,6 @@ if (isset($_GET['delete_report'])) {
     <script>
     let currentReportId = null;
 
-    // ============================================================
-    // ========== VIEW REPORT - STANDARD FORMAT WITH HOSPITAL LOGO ==========
-    // ============================================================
     function viewReport(reportId) {
         currentReportId = reportId;
         document.getElementById('viewModal').classList.add('show');
@@ -882,9 +945,12 @@ if (isset($_GET['delete_report'])) {
             </div>
         `;
         
-        fetch(`lab_report.php?view_report=${reportId}`)
+        fetch(`lab_report.php?ajax=1&view_report=${reportId}`)
             .then(response => response.json())
             .then(data => {
+                console.log(data);
+console.log(data.hospital_logo);
+console.log(data.hospital_name);
                 if (data.error) {
                     document.getElementById('viewReportContent').innerHTML = `
                         <div class="text-center py-8 text-red-500">
@@ -895,7 +961,6 @@ if (isset($_GET['delete_report'])) {
                     return;
                 }
                 
-                // Format dates
                 let reportDate = data.report_date || 'N/A';
                 if (reportDate !== 'N/A' && reportDate !== '0000-00-00') {
                     let d = new Date(reportDate);
@@ -917,22 +982,27 @@ if (isset($_GET['delete_report'])) {
                 let doctorName = data.doctor_name || 'Not Assigned';
                 let statusClass = (data.report_status || 'pending').toLowerCase();
                 
-                // Hospital logo - use data from hospital_master
-                let hospitalLogo = data.hospital_logo || '../documents/hospital/logo.png';
+              let hospitalLogo = '';
+
+if (data.hospital_logo) {
+    hospitalLogo = '../' + data.hospital_logo.replace(/^(\.\.\/)+/, '');
+}
                 let hospitalName = data.hospital_name || 'Hospital';
                 let hospitalAddress = data.hospital_address || '';
                 let hospitalPhone = data.hospital_phone || '';
                 let hospitalEmail = data.hospital_email || '';
                 
-                // Logo image HTML
-                let logoHtml = '';
-                if (hospitalLogo) {
-                    logoHtml = `<img src="${hospitalLogo}" alt="Hospital Logo" style="max-height:70px; max-width:120px; object-fit:contain; margin-bottom:5px;">`;
-                }
-                
+             let logoHtml = '';
+
+if (hospitalLogo) {
+    logoHtml = `
+        <img src="${hospitalLogo}"
+             style="max-height:70px;max-width:120px"
+             onerror="this.style.display='none'">
+    `;
+}
                 let html = `
                     <div class="report-container" id="reportPrintArea">
-                        <!-- Report Header with Logo -->
                         <div class="report-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
                             <div style="flex:1; text-align:left;">
                                 ${logoHtml}
@@ -948,7 +1018,6 @@ if (isset($_GET['delete_report'])) {
                         
                         <div class="report-title">Laboratory Test Report</div>
                         
-                        <!-- Patient & Report Info -->
                         <div class="report-info-grid">
                             <div class="report-info-item">
                                 <span class="report-info-label">Report No:</span>
@@ -994,7 +1063,6 @@ if (isset($_GET['delete_report'])) {
                             </div>
                         </div>
                         
-                        <!-- Test Results Table -->
                         <table class="report-table">
                             <thead>
                                 <tr>
@@ -1022,7 +1090,6 @@ if (isset($_GET['delete_report'])) {
                             </tbody>
                         </table>
                         
-                        <!-- Footer -->
                         <div class="report-footer">
                             <div>
                                 <div><strong>Technician:</strong> ${data.technician_name || 'N/A'}</div>
@@ -1050,286 +1117,20 @@ if (isset($_GET['delete_report'])) {
             });
     }
 
-    // ============================================================
-    // ========== PRINT REPORT - STANDARD FORMAT ==========
-    // ============================================================
     function printReport(reportId) {
-        // Show loading in new window
-        const printWindow = window.open('', '_blank', 'width=900,height=700,scrollbars=yes');
-        printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Loading Report...</title>
-                <style>
-                    body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-                    .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
-                    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-                </style>
-            </head>
-            <body>
-                <div class="spinner"></div>
-                <h3>Loading report...</h3>
-                <p style="color:#6b7280;">Please wait while we prepare your report</p>
-            </body>
-            </html>
-        `);
-        printWindow.document.close();
-        
-        // Fetch report data
-        fetch(`lab_report.php?view_report=${reportId}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    printWindow.document.body.innerHTML = `
-                        <h2 style="color:red;">Error</h2>
-                        <p>${data.error}</p>
-                        <button onclick="window.close()">Close</button>
-                    `;
-                    return;
-                }
-                
-                // Format dates
-                let reportDate = data.report_date || 'N/A';
-                if (reportDate !== 'N/A' && reportDate !== '0000-00-00') {
-                    let d = new Date(reportDate);
-                    reportDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-                }
-                
-                let orderDate = data.order_date || 'N/A';
-                if (orderDate !== 'N/A' && orderDate !== '0000-00-00') {
-                    let d = new Date(orderDate);
-                    orderDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-                }
-                
-                let dob = data.date_of_birth || 'N/A';
-                if (dob !== 'N/A' && dob !== '0000-00-00') {
-                    let d = new Date(dob);
-                    dob = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-                }
-                
-                let doctorName = data.doctor_name || 'Not Assigned';
-                let statusClass = (data.report_status || 'pending').toLowerCase();
-                
-                let hospitalLogo = data.hospital_logo || '../documents/hospital/logo.png';
-                let hospitalName = data.hospital_name || 'Hospital';
-                let hospitalAddress = data.hospital_address || '';
-                let hospitalPhone = data.hospital_phone || '';
-                let hospitalEmail = data.hospital_email || '';
-                
-                let logoHtml = '';
-                if (hospitalLogo) {
-                    logoHtml = `<img src="${hospitalLogo}" alt="Hospital Logo" style="max-height:70px; max-width:120px; object-fit:contain; margin-bottom:5px;">`;
-                }
-                
-                let html = `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <title>Lab Report - ${data.report_no || 'N/A'}</title>
-                    <style>
-                        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, 'Segoe UI', sans-serif; }
-                        body { background: #ffffff; padding: 20px; color: #1f2937; }
-                        .report-container { max-width: 900px; margin: 0 auto; background: white; padding: 30px 35px; }
-                        .report-header { text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 15px; margin-bottom: 20px; }
-                        .report-header .logo-img { max-height: 60px; max-width: 120px; object-fit: contain; margin-bottom: 5px; }
-                        .report-header h1 { font-size: 22px; font-weight: 700; color: #0f172a; margin: 0; }
-                        .report-header p { color: #6b7280; font-size: 13px; margin: 2px 0; }
-                        .report-title { text-align: center; font-size: 18px; font-weight: 700; color: #1e40af; margin: 15px 0 20px 0; text-transform: uppercase; letter-spacing: 1px; }
-                        .report-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; background: #f8fafc; padding: 14px 18px; border-radius: 6px; margin-bottom: 20px; }
-                        .report-info-item { display: flex; padding: 2px 0; font-size: 13px; }
-                        .report-info-item .label { font-weight: 600; color: #4b5563; width: 120px; flex-shrink: 0; }
-                        .report-info-item .value { color: #1f2937; }
-                        .report-info-item .value strong { font-weight: 700; }
-                        .report-table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 13px; }
-                        .report-table th { background: #3b82f6; color: white; padding: 8px 12px; text-align: left; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-                        .report-table td { padding: 8px 12px; border-bottom: 1px solid #e5e7eb; color: #1f2937; vertical-align: middle; }
-                        .report-table tr:nth-child(even) { background: #f8fafc; }
-                        .report-table .result-highlight { font-weight: 700; color: #059669; }
-                        .report-table .test-code { font-size: 11px; color: #6b7280; display: block; margin-top: 2px; }
-                        .status-badge { display: inline-block; padding: 2px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-                        .status-badge.completed { background: #dcfce7; color: #166534; }
-                        .status-badge.pending { background: #fef3c7; color: #92400e; }
-                        .status-badge.cancelled { background: #fecaca; color: #991b1b; }
-                        .report-footer { margin-top: 20px; padding-top: 15px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 10px; font-size: 13px; color: #6b7280; }
-                        .report-footer .left strong { color: #1f2937; }
-                        .report-footer .left .generated { font-size: 12px; color: #9ca3af; margin-top: 2px; }
-                        .report-footer .signature { display: flex; flex-direction: column; align-items: center; text-align: center; }
-                        .report-footer .signature .line { width: 180px; border-top: 1.5px solid #1f2937; margin: 5px 0 3px 0; }
-                        .report-footer .signature span { font-size: 12px; color: #6b7280; }
-                        .print-actions { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; }
-                        .print-actions button { background: #3b82f6; color: white; border: none; padding: 10px 30px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-                        .print-actions button:hover { background: #2563eb; }
-                        .print-actions .btn-secondary { background: #e5e7eb; color: #374151; margin-left: 10px; }
-                        .print-actions .btn-secondary:hover { background: #d1d5db; }
-                        @media print {
-                            body { padding: 0 !important; margin: 0 !important; }
-                            .print-actions { display: none !important; }
-                            .report-container { padding: 30px 35px !important; max-width: 100% !important; }
-                            .report-table th { background: #3b82f6 !important; color: white !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                            .status-badge { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                            .report-info-grid { background: #f8fafc !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                        }
-                        @media (max-width: 640px) {
-                            body { padding: 10px; }
-                            .report-container { padding: 15px; }
-                            .report-info-grid { grid-template-columns: 1fr; }
-                            .report-info-item .label { width: 100px; }
-                            .report-table th, .report-table td { padding: 5px 8px; font-size: 11px; }
-                            .report-footer { flex-direction: column; align-items: center; text-align: center; }
-                            .report-header h1 { font-size: 18px; }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="report-container">
-                        <!-- Header -->
-                        <div class="report-header">
-                            ${logoHtml}
-                            <h1>${hospitalName}</h1>
-                            <p>${hospitalAddress}</p>
-                            ${hospitalPhone ? `<p style="color:#6b7280; font-size:12px;">Phone: ${hospitalPhone}</p>` : ''}
-                            ${hospitalEmail ? `<p style="color:#6b7280; font-size:12px;">Email: ${hospitalEmail}</p>` : ''}
-                        </div>
-                        
-                        <div class="report-title">Laboratory Test Report</div>
-                        
-                        <!-- Patient & Report Info -->
-                        <div class="report-info-grid">
-                            <div class="report-info-item">
-                                <span class="label">Report No:</span>
-                                <span class="value"><strong>${data.report_no || 'N/A'}</strong></span>
-                            </div>
-                            <div class="report-info-item">
-                                <span class="label">Order No:</span>
-                                <span class="value">${data.order_no || 'N/A'}</span>
-                            </div>
-                            <div class="report-info-item">
-                                <span class="label">Patient Name:</span>
-                                <span class="value"><strong>${data.patient_name || 'N/A'}</strong></span>
-                            </div>
-                            <div class="report-info-item">
-                                <span class="label">Gender:</span>
-                                <span class="value">${data.gender || 'N/A'}</span>
-                            </div>
-                            <div class="report-info-item">
-                                <span class="label">Date of Birth:</span>
-                                <span class="value">${dob}</span>
-                            </div>
-                            <div class="report-info-item">
-                                <span class="label">Mobile:</span>
-                                <span class="value">${data.patient_mobile || 'N/A'}</span>
-                            </div>
-                            <div class="report-info-item">
-                                <span class="label">Referring Doctor:</span>
-                                <span class="value" style="font-weight:500;color:#1e40af;">${doctorName}</span>
-                            </div>
-                            <div class="report-info-item">
-                                <span class="label">Report Date:</span>
-                                <span class="value"><strong>${reportDate}</strong></span>
-                            </div>
-                            <div class="report-info-item">
-                                <span class="label">Order Date:</span>
-                                <span class="value">${orderDate}</span>
-                            </div>
-                            <div class="report-info-item">
-                                <span class="label">Status:</span>
-                                <span class="value">
-                                    <span class="status-badge ${statusClass}">${data.report_status || 'Pending'}</span>
-                                </span>
-                            </div>
-                        </div>
-                        
-                        <!-- Test Results -->
-                        <table class="report-table">
-                            <thead>
-                                <tr>
-                                    <th style="width:40px;">#</th>
-                                    <th>Test Name</th>
-                                    <th style="width:100px;">Result</th>
-                                    <th style="width:120px;">Normal Range</th>
-                                    <th style="width:70px;">Unit</th>
-                                    <th>Remarks</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>1</td>
-                                    <td>
-                                        <strong>${data.test_name || 'N/A'}</strong>
-                                        <span class="test-code">Code: ${data.test_code || 'N/A'}</span>
-                                    </td>
-                                    <td><span class="result-highlight">${data.result_value || 'Not entered'}</span></td>
-                                    <td>${data.normal_range || data.test_normal_range || 'N/A'}</td>
-                                    <td>${data.unit || data.test_unit || 'N/A'}</td>
-                                    <td>${data.remarks || data.result_remarks || '-'}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                        
-                        <!-- Footer -->
-                        <div class="report-footer">
-                            <div class="left">
-                                <div><strong>Technician:</strong> ${data.technician_name || 'N/A'}</div>
-                                <div class="generated">Generated on: ${new Date().toLocaleString('en-IN')}</div>
-                                ${data.hospital_registration ? `<div class="generated" style="margin-top:2px;">Reg No: ${data.hospital_registration}</div>` : ''}
-                                ${data.hospital_gst ? `<div class="generated">GST: ${data.hospital_gst}</div>` : ''}
-                            </div>
-                            <div class="signature">
-                                <div class="line"></div>
-                                <span>Authorized Signature</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="print-actions">
-                        <button onclick="window.print()"><i class="fas fa-print"></i> Print Report</button>
-                        <button class="btn-secondary" onclick="window.close()"><i class="fas fa-times"></i> Close</button>
-                    </div>
-                    
-                    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-                    
-                    <script>
-                        // Auto print after page loads
-                        window.onload = function() {
-                            setTimeout(function() {
-                                window.print();
-                            }, 800);
-                        };
-                    <\/script>
-                </body>
-                </html>`;
-                
-                printWindow.document.open();
-                printWindow.document.write(html);
-                printWindow.document.close();
-            })
-            .catch((error) => {
-                console.error('Error:', error);
-                printWindow.document.body.innerHTML = `
-                    <h2 style="color:red;">Error Loading Report</h2>
-                    <p>${error.message}</p>
-                    <button onclick="window.close()">Close</button>
-                `;
-            });
-    }
+    window.open('../printt_report.php?id=' + reportId, '_blank');
+}
 
-    // ========== PRINT FROM MODAL ==========
-    function printReportFromModal() {
-        if (currentReportId) {
-            printReport(currentReportId);
-        } else {
-            alert('No report loaded to print');
-        }
+function printReportFromModal() {
+    if (currentReportId) {
+        window.open('../printt_report.php?id=' + currentReportId, '_blank');
     }
-
-    // ========== EDIT REPORT ==========
+}
     function editReport(reportId) {
         document.getElementById('editModal').classList.add('show');
         document.getElementById('edit_report_id').value = reportId;
         
-        fetch(`lab_report.php?view_report=${reportId}`)
+        fetch(`lab_report.php?ajax=1&view_report=${reportId}`)
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
@@ -1360,19 +1161,16 @@ if (isset($_GET['delete_report'])) {
             });
     }
 
-    // ========== DELETE REPORT ==========
     function deleteReport(reportId, reportNo) {
         if (confirm(`Are you sure you want to delete report ${reportNo}? This action cannot be undone.`)) {
             window.location.href = `lab_report.php?delete_report=${reportId}`;
         }
     }
 
-    // ========== CLOSE MODAL ==========
     function closeModal(id) {
         document.getElementById(id).classList.remove('show');
     }
 
-    // ========== CLOSE MODAL ON ESC ==========
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             document.querySelectorAll('.modal.show').forEach(function(el) {
@@ -1381,7 +1179,6 @@ if (isset($_GET['delete_report'])) {
         }
     });
 
-    // ========== CLICK OUTSIDE MODAL ==========
     document.addEventListener('click', function(e) {
         if (e.target.classList.contains('modal')) {
             e.target.classList.remove('show');

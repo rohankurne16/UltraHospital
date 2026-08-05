@@ -191,7 +191,7 @@ if (isset($_POST['update_profile'])) {
 
             echo "<script>
                     alert('Profile Updated Successfully');
-                    window.location='reception_profile.php';
+                    window.location='update_adminprofile.php';
                   </script>";
 
         } catch (Exception $e) {
@@ -229,7 +229,7 @@ if (isset($_POST['update_password'])) {
             ");
             echo "<script>
                     alert('Password Updated Successfully');
-                    window.location='reception_profile.php';
+                    window.location='update_adminprofile.php';
                   </script>";
         } else {
             $password_errors['current_password'] = "Current password is incorrect.";
@@ -250,7 +250,7 @@ $user_name = $_SESSION['name'] ?? 'User';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($hospital_name); ?> - Receptionist Profile</title>
-    <link rel="icon" type="image/png" href="<?php echo $hospital_logo; ?>">
+    <link rel="icon" type="image/png" href="../<?php echo $hospital_logo; ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -504,7 +504,7 @@ $user_name = $_SESSION['name'] ?? 'User';
             
             <!-- Back Button -->
             <div style="margin-bottom:1.5rem; display:flex; align-items:center; gap:0.75rem;">
-                <a href="dashboard_receptionist.php" class="back-btn">
+                <a href="dashboard.php" class="back-btn">
                     <i class="fas fa-arrow-left"></i>
                 </a>
                 <span style="font-size:0.9rem; color:#94a3b8;">Back to Dashboard</span>
@@ -531,7 +531,7 @@ $user_name = $_SESSION['name'] ?? 'User';
                     Profile Information
                 </h2>
                 
-                <form action="reception_profile.php" method="POST" enctype="multipart/form-data">
+                <form action="update_adminprofile.php" method="POST" enctype="multipart/form-data">
                     <!-- Profile Image -->
                     <div class="profile-image-section">
                         <?php if (!empty($admin_data['profile_image']) && file_exists($admin_data['profile_image'])): ?>
@@ -629,7 +629,7 @@ $user_name = $_SESSION['name'] ?? 'User';
                     </div>
                 <?php endif; ?>
                 
-                <form action="reception_profile.php" method="POST">
+                <form action="update_adminprofile.php" method="POST">
                     <div class="grid-2">
                         <div class="form-group">
                             <label>Current Password <span class="required">*</span></label>

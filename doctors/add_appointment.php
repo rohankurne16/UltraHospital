@@ -1,4 +1,4 @@
-    <?php
+<?php
     session_start();
     include("../config/hospital.php");
 
@@ -134,20 +134,12 @@
         $severity = mysqli_real_escape_string($conn, getPostData('severity'));
         $allergies = mysqli_real_escape_string($conn, getPostData('allergies'));
         $current_medicines = mysqli_real_escape_string($conn, getPostData('current_medicines'));
-        if (!empty($allergies) && !preg_match('/^[A-Za-z,\s]+$/', $allergies)) {
-        $message = "Known Allergies should contain only letters, spaces and commas only.";
-        $messageType = "error";
-        $error = true;
-    }
+        // Removed pattern validation; now only sanitized
         $note = mysqli_real_escape_string($conn, getPostData('note'));
         $opd_ipd_type = mysqli_real_escape_string($conn, getPostData('opd_ipd_type', 'OPD'));
         $status = mysqli_real_escape_string($conn, getPostData('status', 'Scheduled'));
         $previous_history = isset($_POST['previous_history']) ? implode(", ", $_POST['previous_history']) : "";
-        if (empty($_POST['previous_history'])) {
-        $message = "Please select at least one Previous Condition.";
-        $messageType = "error";
-        $error = true;
-    }
+        // Server-side validation: previous_history is now optional – we won't error if empty
         // IPD specific fields
         $admission_date = mysqli_real_escape_string($conn, getPostData('admission_date', date('Y-m-d')));
         $diagnosis = mysqli_real_escape_string($conn, getPostData('diagnosis'));
@@ -711,17 +703,16 @@
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                                 <div class="form-group">
-        <label for="allergies">Known Allergies</label>
-        <input type="text"
-            id="allergies"
-            name="allergies"
-            placeholder="e.g., Penicillin, Dust, Pollen"
-            class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            value="<?php echo htmlspecialchars($form_data['allergies'] ?? ''); ?>"
-            pattern="[A-Za-z,\s]+"
-            title="Only letters, spaces and commas are allowed"
-            maxlength="100">
-    </div>
+                                    <label for="allergies">Known Allergies</label>
+                                    <!-- Removed pattern attribute to allow any input -->
+                                    <input type="text"
+                                        id="allergies"
+                                        name="allergies"
+                                        placeholder="e.g., Penicillin, Dust, Pollen"
+                                        class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        value="<?php echo htmlspecialchars($form_data['allergies'] ?? ''); ?>"
+                                        maxlength="100">
+                                </div>
                                 <div class="form-group">
                                     <label for="current_medicines">Current Medications</label>
                                     <input type="text" id="current_medicines" name="current_medicines" placeholder="e.g., Aspirin, Insulin" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" value="<?php echo htmlspecialchars($form_data['current_medicines'] ?? ''); ?>">
@@ -1034,17 +1025,19 @@
                 bedSelect.innerHTML = '<option value="">Select Bed</option>';
                 if (!wardId) return;
                 roomSelect.innerHTML = '<option>Loading...</option>';
-                const response = await fetch(`get_rooms.php?ward_id=${wardId}`);
-                console.log(response);
-                const data = await response.json();
-                console.log(data);
-                let options = '<option value="">Select Room</option>';
-                data.forEach(room=>{
-                    options += `<option value="${room.room_id}">
-                        ${room.room_no}
-                    </option>`;
-                });
-                roomSelect.innerHTML = options;
+                try {
+                    const response = await fetch(`get_rooms.php?ward_id=${wardId}`);
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    const data = await response.json();
+                    let options = '<option value="">Select Room</option>';
+                    data.forEach(room => {
+                        options += `<option value="${room.room_id}">${room.room_no}</option>`;
+                    });
+                    roomSelect.innerHTML = options;
+                } catch (error) {
+                    console.error('Error loading rooms:', error);
+                    roomSelect.innerHTML = '<option value="">Error loading rooms</option>';
+                }
             }
             
             async function loadBeds(roomId) {
@@ -1054,6 +1047,7 @@
                 bedSelect.innerHTML = '<option value="">Loading beds...</option>';
                 try {
                     const response = await fetch(`get_beds.php?room_id=${roomId}`);
+                    if (!response.ok) throw new Error('Network response was not ok');
                     const data = await response.json();
                     let options = '<option value="">Select Bed</option>';
                     if (data.length === 0) {
@@ -1061,14 +1055,13 @@
                     }
                     const selectedBedId = '<?php echo $form_data['bed_id'] ?? ''; ?>';
                     data.forEach(bed => {
-        const selected = (selectedBedId == bed.bed_id) ? 'selected' : '';
-
-        options += `
-            <option value="${bed.bed_id}" ${selected}>
-                ${bed.bed_no} - ${bed.bed_type}
-            </option>
-        `;
-    });
+                        const selected = (selectedBedId == bed.bed_id) ? 'selected' : '';
+                        options += `
+                            <option value="${bed.bed_id}" ${selected}>
+                                ${bed.bed_no} - ${bed.bed_type}
+                            </option>
+                        `;
+                    });
                     bedSelect.innerHTML = options;
                 } catch (error) {
                     console.error('Error loading beds:', error);
@@ -1173,16 +1166,7 @@
                 }
             });
 
-        document.getElementById("appointmentForm").addEventListener("submit", function(e) {
-
-        const checked = document.querySelectorAll('input[name="previous_history[]"]:checked');
-
-        if (checked.length === 0) {
-            alert("Please select at least one Previous Condition.");
-            e.preventDefault();
-        }
-
-    });
+            // Removed the submit event listener that blocked submission if no previous history checked
         </script>
     </body>
     </html>

@@ -26,7 +26,7 @@ if ($result_hospital && $result_hospital->num_rows > 0) {
     $hospital_data = $result_hospital->fetch_assoc();
 }
 $hospital_name = $hospital_data["hospital_name"] ?? "MedixPro";
-$hospital_logo = $hospital_data["hospital_logo"] ?? "../documents/hospital/logo.png";
+$hospital_logo = $hospital_data["hospital_logo"] ?? "../documents/hospital/hospital_1784169924_6a5845c46a419.jpg";
 $hospital_address = $hospital_data["address"] ?? "";
 $hospital_city = $hospital_data["city"] ?? "";
 $hospital_state = $hospital_data["state"] ?? "";

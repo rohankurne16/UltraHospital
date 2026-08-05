@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// SUPER ADMIN DASHBOARD
+// SUPER ADMIN DASHBOARD – Fixed SQL error handling
 // ============================================================
 
 // Start session
@@ -20,6 +20,18 @@ logAudit('Dashboard', 'Super Admin accessed dashboard');
 // Force light theme
 $_SESSION['theme'] = 'light';
 $theme = 'light';
+
+// ============================================================
+// SAFE COUNT HELPER – prevents fetch errors on failed queries
+// ============================================================
+function safeCount($conn, $query) {
+    $result = mysqli_query($conn, $query);
+    if ($result && mysqli_num_rows($result) > 0) {
+        $row = mysqli_fetch_assoc($result);
+        return (int)($row['total'] ?? 0);
+    }
+    return 0;
+}
 
 // ============================================================
 // HANDLE STATUS TOGGLE
@@ -44,66 +56,23 @@ if (isset($_GET['action']) && $_GET['action'] === 'toggle_status' && isset($_GET
 }
 
 // ============================================================
-// STATISTICS
+// STATISTICS – using safeCount()
 // ============================================================
 
-// Total Hospitals
-$query = "SELECT COUNT(*) as total FROM hospital_master WHERE delete_flag = 0";
-$result = mysqli_query($conn, $query);
-$total_hospitals = mysqli_fetch_assoc($result)['total'] ?? 0;
+$total_hospitals   = safeCount($conn, "SELECT COUNT(*) as total FROM hospital_master WHERE delete_flag = 0");
+$active_hospitals  = safeCount($conn, "SELECT COUNT(*) as total FROM hospital_master WHERE delete_flag = 0 AND status = 'Active'");
+$inactive_hospitals= safeCount($conn, "SELECT COUNT(*) as total FROM hospital_master WHERE delete_flag = 0 AND status = 'Inactive'");
 
-$query = "SELECT COUNT(*) as total FROM hospital_master WHERE delete_flag = 0 AND status = 'Active'";
-$result = mysqli_query($conn, $query);
-$active_hospitals = mysqli_fetch_assoc($result)['total'] ?? 0;
+$total_doctors     = safeCount($conn, "SELECT COUNT(*) as total FROM doctor WHERE delete_flag = 0");
+$total_departments = safeCount($conn, "SELECT COUNT(*) as total FROM department WHERE delete_flag = 0");
+$total_staff       = safeCount($conn, "SELECT COUNT(*) as total FROM staff WHERE delete_flag = 0");
+$total_patients    = safeCount($conn, "SELECT COUNT(*) as total FROM patients WHERE delete_flag = 0");
+$total_users       = safeCount($conn, "SELECT COUNT(*) as total FROM register WHERE delete_flag = 0 AND role != 'SuperAdmin'");
+$total_ipd         = safeCount($conn, "SELECT COUNT(*) as total FROM ipd_admissions WHERE delete_flag = 0");
+$total_opd         = safeCount($conn, "SELECT COUNT(*) as total FROM opd WHERE delete_flag = 0");
 
-$query = "SELECT COUNT(*) as total FROM hospital_master WHERE delete_flag = 0 AND status = 'Inactive'";
-$result = mysqli_query($conn, $query);
-$inactive_hospitals = mysqli_fetch_assoc($result)['total'] ?? 0;
-
-// Total Doctors
-$query = "SELECT COUNT(*) as total FROM doctor WHERE delete_flag = 0";
-$result = mysqli_query($conn, $query);
-$total_doctors = mysqli_fetch_assoc($result)['total'] ?? 0;
-
-// Total Departments
-$query = "SELECT COUNT(*) as total FROM department WHERE delete_flag = 0";
-$result = mysqli_query($conn, $query);
-$total_departments = mysqli_fetch_assoc($result)['total'] ?? 0;
-
-// Total Staff
-$query = "SELECT COUNT(*) as total FROM staff WHERE delete_flag = 0";
-$result = mysqli_query($conn, $query);
-$total_staff = mysqli_fetch_assoc($result)['total'] ?? 0;
-
-// Total Patients
-$query = "SELECT COUNT(*) as total FROM patients WHERE delete_flag = 0";
-$result = mysqli_query($conn, $query);
-$total_patients = mysqli_fetch_assoc($result)['total'] ?? 0;
-
-// Total Users
-$query = "SELECT COUNT(*) as total FROM register WHERE delete_flag = 0 AND role != 'SuperAdmin'";
-$result = mysqli_query($conn, $query);
-$total_users = mysqli_fetch_assoc($result)['total'] ?? 0;
-
-
-// Total IPD
-$query = "SELECT COUNT(*) as total FROM ipd_admissions WHERE delete_flag = 0";
-$result = mysqli_query($conn, $query);
-$total_ipd = mysqli_fetch_assoc($result)['total'] ?? 0;
-
-// Total OPD
-$query = "SELECT COUNT(*) as total FROM opd WHERE delete_flag = 0";
-$result = mysqli_query($conn, $query);
-$total_opd = mysqli_fetch_assoc($result)['total'] ?? 0;
-
-// Active Subscriptions
-
-
-// Today's logins
 $today = date('Y-m-d');
-$query = "SELECT COUNT(*) as total FROM login_logs WHERE DATE(login_time) = '$today'";
-$result = mysqli_query($conn, $query);
-$today_logins = mysqli_fetch_assoc($result)['total'] ?? 0;
+$today_logins = safeCount($conn, "SELECT COUNT(*) as total FROM login_logs WHERE DATE(login_time) = '$today'");
 
 // ============================================================
 // HOSPITAL OVERVIEW TABLE
@@ -124,6 +93,9 @@ $hospital_overview_query = "SELECT
                             ORDER BY h.created_at DESC
                             LIMIT 10";
 $hospital_overview_result = mysqli_query($conn, $hospital_overview_query);
+if (!$hospital_overview_result) {
+    $hospital_overview_result = false; // fallback for later checks
+}
 
 // ============================================================
 // RECENT HOSPITALS
@@ -139,6 +111,9 @@ $recent_hospitals_query = "SELECT
                           ORDER BY h.created_at DESC
                           LIMIT 5";
 $recent_hospitals_result = mysqli_query($conn, $recent_hospitals_query);
+if (!$recent_hospitals_result) {
+    $recent_hospitals_result = false;
+}
 
 // ============================================================
 // RECENT AUDIT LOGS
@@ -161,8 +136,10 @@ LEFT JOIN register r ON a.register_id = r.id
 LEFT JOIN hospital_master h ON a.hospital_id = h.hospital_id
 ORDER BY a.created_at DESC
 LIMIT 5";
-
 $audit_logs_result = mysqli_query($conn, $audit_logs_query);
+if (!$audit_logs_result) {
+    $audit_logs_result = false;
+}
 
 // Get user name
 $user_name = $_SESSION['name'] ?? 'Super Admin';
@@ -792,7 +769,7 @@ unset($_SESSION['error_message']);
                     <i class="fas fa-clock" style="color: #3b82f6;"></i>
                     Recent Hospitals
                     <span style="font-size: 0.7rem; background: <?php echo $theme == 'dark' ? '#2a2a2a' : '#e2e8f0'; ?>; padding: 0.15rem 0.6rem; border-radius: 12px; font-weight: 400; color: <?php echo $theme == 'dark' ? '#94a3b8' : '#64748b'; ?>;">
-                        <?php echo mysqli_num_rows($recent_hospitals_result); ?>
+                        <?php echo $recent_hospitals_result ? mysqli_num_rows($recent_hospitals_result) : 0; ?>
                     </span>
                 </div>
                 <a href="hospitals.php" style="font-size: 0.75rem; color: #3b82f6; text-decoration: none; font-weight: 500; display: flex; align-items: center; gap: 0.3rem; transition: all 0.2s;">
