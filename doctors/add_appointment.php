@@ -79,6 +79,13 @@
     }
     sort($departments);
 
+    // ========== FIX: Appointment number generation with session persistence ==========
+    // Generate a new appointment number only if not already set in session
+    if (!isset($_SESSION['appointment_no'])) {
+        $_SESSION['appointment_no'] = "APP-" . rand(1, 9999);
+    }
+    $appointment_no = $_SESSION['appointment_no'];
+
     // Initialize form data with session values or defaults (unchanged)
     $form_data = isset($_SESSION['appointment_form_data']) ? $_SESSION['appointment_form_data'] : [];
     $patient_name = $form_data['patient_name'] ?? "";
@@ -87,7 +94,6 @@
     $patient_blood_group = $form_data['patient_blood_group'] ?? "";
     $patient_mobile = $form_data['patient_mobile'] ?? "";
     $patient_email = $form_data['patient_email'] ?? "";
-    $appointment_no = $form_data['appointment_no'] ?? ("APP-"  . rand(1, 9999));
 
     // ----- Pre-select doctor if doctor_id is in session or GET (only when not submitting) -----
     if ($_SERVER['REQUEST_METHOD'] != 'POST') {
@@ -134,12 +140,10 @@
         $severity = mysqli_real_escape_string($conn, getPostData('severity'));
         $allergies = mysqli_real_escape_string($conn, getPostData('allergies'));
         $current_medicines = mysqli_real_escape_string($conn, getPostData('current_medicines'));
-        // Removed pattern validation; now only sanitized
         $note = mysqli_real_escape_string($conn, getPostData('note'));
         $opd_ipd_type = mysqli_real_escape_string($conn, getPostData('opd_ipd_type', 'OPD'));
         $status = mysqli_real_escape_string($conn, getPostData('status', 'Scheduled'));
         $previous_history = isset($_POST['previous_history']) ? implode(", ", $_POST['previous_history']) : "";
-        // Server-side validation: previous_history is now optional – we won't error if empty
         // IPD specific fields
         $admission_date = mysqli_real_escape_string($conn, getPostData('admission_date', date('Y-m-d')));
         $diagnosis = mysqli_real_escape_string($conn, getPostData('diagnosis'));
@@ -417,6 +421,7 @@
                         $conn->query("UPDATE appointments SET status='Confirmed' WHERE appointment_id='$appointment_id'");
                         
                         unset($_SESSION['appointment_form_data']);
+                        unset($_SESSION['appointment_no']); // Clear the generated number
                         echo "<script>alert('IPD Admission completed successfully!'); window.location='show_ipd_appointments.php';</script>";
                         exit();
                     } else {
@@ -424,10 +429,79 @@
                         $messageType = "error";
                     }
                 } else {
-                    // OPD appointment
-                    unset($_SESSION['appointment_form_data']);
-                    echo "<script>alert('OPD Appointment scheduled successfully!'); window.location='show_opd_appointments.php';</script>";
-                    exit();
+                    // ========== OPD: Insert into opd table ==========
+                    $sql_opd = "INSERT INTO opd (
+                                appointment_id,
+                                patient_id,
+                                doctor_id,
+                                appointment_no,
+                                department,
+                                appointment_type,
+                                appointment_date,
+                                appointment_time,
+                                duration,
+                                reason,
+                                notes,
+                                symptoms,
+                                since_when,
+                                severity,
+                                previous_history,
+                                allergies,
+                                current_medicines,
+                                prescription_file,
+                                lab_report_file,
+                                xray_file,
+                                mri_file,
+                                ctscan_file,
+                                other_document,
+                                diagnosis,
+                                visit_date,
+                                hospital_id,
+                                delete_flag
+                            ) VALUES (
+                                '$appointment_id',
+                                '$patient_id',
+                                '$doctor_id',
+                                '$appointment_no',
+                                '$department',
+                                '$appointment_type',
+                                '$appointment_date',
+                                '$appointment_time',
+                                '$duration',
+                                '$reason',
+                                '$note',
+                                '$symptoms',
+                                '$since_when',
+                                '$severity',
+                                '$previous_history',
+                                '$allergies',
+                                '$current_medicines',
+                                '$opd_prescription_file',
+                                '$opd_lab_report_file',
+                                '$opd_xray_file',
+                                '$opd_mri_file',
+                                '$opd_ctscan_file',
+                                '$opd_other_document',
+                                NULL,
+                                '$appointment_date',
+                                '$hid',
+                                '0'
+                            )";
+
+                    if ($conn->query($sql_opd)) {
+                        // Success – clear session and redirect
+                        unset($_SESSION['appointment_form_data']);
+                        unset($_SESSION['appointment_no']);
+                        echo "<script>alert('OPD Appointment scheduled successfully!'); window.location='show_opd_appointments.php';</script>";
+                        exit();
+                    } else {
+                        // If OPD insert fails, we might want to rollback the appointment insertion
+                        // but we haven't started a transaction. For simplicity, we'll show an error.
+                        $message = "Error inserting OPD record: " . $conn->error;
+                        $messageType = "error";
+                        // Optionally, delete the appointment to maintain consistency
+                        $conn->query("DELETE FROM appointments WHERE appointment_id = '$appointment_id'");
+                    }
                 }
             } else {
                 $message = "Error inserting appointment: " . $conn->error;
@@ -525,7 +599,8 @@
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                                 <div class="form-group">
                                     <label for="appointment_no">Appointment No <span class="required">*</span></label>
-                                    <input type="text" id="appointment_no" name="appointment_no" value="<?php echo htmlspecialchars($appointment_no); ?>" required disabled>
+                                    <!-- FIX: Changed disabled to readonly so value is submitted -->
+                                    <input type="text" id="appointment_no" name="appointment_no" value="<?php echo htmlspecialchars($appointment_no); ?>" required readonly>
                                 </div>
                                 <div class="form-group">
                                     <label for="opd_ipd_type"> Type <span class="required">*</span></label>
