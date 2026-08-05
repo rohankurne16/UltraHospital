@@ -921,20 +921,31 @@ if (hasAnyPerm(['hr-dashboard-view', 'hr-attendance-view', 'hr-leave-view', 'hr-
         </nav>
 
         <!-- Footer -->
-        <div class="sidebar-footer">
-            <div class="user-avatar">
-                <?php if (!empty($profile_image)): ?>
-                    <img src="<?php echo $profile_image; ?>" alt="User">
-                <?php else: ?>
-                    <?php echo strtoupper(substr($user_name, 0, 1)); ?>
-                <?php endif; ?>
-            </div>
-            <div class="user-info">
-                <p class="user-name"><?php echo htmlspecialchars($user_name); ?></p>
-                <p class="user-role"><?php echo htmlspecialchars($user_role); ?></p>
-            </div>
-        </div>
-    </aside>
+       <div class="sidebar-footer">
+    <div class="user-avatar">
+        <?php
+        $profile = $profile_image;
+
+        // Remove wrong ../../ if stored in database
+        if (!empty($profile) && strpos($profile, '../../') === 0) {
+            $profile = str_replace('../../', '', $profile);
+        }
+
+        // Check file from project root
+        if (!empty($profile) && file_exists(__DIR__ . '/' . $profile)):
+        ?>
+            <img src="<?php echo htmlspecialchars($profile); ?>" alt="User">
+        <?php else: ?>
+            <img src="documents/default.webp" alt="User">
+        <?php endif; ?>
+    </div>
+
+    <div class="user-info">
+        <p class="user-name"><?php echo htmlspecialchars($user_name); ?></p>
+        <p class="user-role"><?php echo htmlspecialchars($user_role); ?></p>
+    </div>
+</div>
+</aside>
 </div>
 
 <script>
