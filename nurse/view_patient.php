@@ -97,7 +97,6 @@ $appointment_result = $conn->query($appointment_query);
 $appointment_data = $appointment_result->fetch_assoc();
 $total_visits = $appointment_data['total_visits'] ?? 0;
 $last_visit = $appointment_data['last_visit'] ?? '-';
-$next_visit = $appointment_data[''] ??'-';
 
 // ============================================================
 // FETCH SURGERIES COUNT AND LAST SURGERY
@@ -137,86 +136,6 @@ if($recent_docs_result && $recent_docs_result->num_rows > 0){
     }
 }
 
-// ============================================================
-// FETCH PATIENT TIMELINE
-// ============================================================
-$timeline_query = "
-    (SELECT 
-        'appointment' as event_type,
-        a.appointment_date as event_date,
-        a.appointment_time as event_time,
-        CONCAT('Appointment - ', a.status) as title,
-        CONCAT(COALESCE(d.doctor_name, 'Unknown'), ' • ', a.opd_ipd_type, ' Consultation') as description,
-        a.created_at as created_date,
-        a.appointment_id as event_id
-    FROM appointments a
-    LEFT JOIN doctor d ON a.doctor_id = d.doctor_id
-    WHERE a.patient_id='$patient_id' AND (a.delete_flag=0 OR a.delete_flag IS NULL))
-    
-    UNION
-    
-    (SELECT 
-        'prescription' as event_type,
-        MAX(p.created_at) as event_date,
-        NULL as event_time,
-        'Prescription Created' as title,
-        CONCAT(COUNT(*), ' Medicines Prescribed') as description,
-        MAX(p.created_at) as created_date,
-        MAX(p.id) as event_id
-    FROM prescriptions p
-    WHERE p.patient_id='$patient_id' AND (p.delete_flag=0 OR p.delete_flag IS NULL))
-    
-    UNION
-    
-    (SELECT 
-        'surgery' as event_type,
-        ia.created_at as event_date,
-        NULL as event_time,
-        'Surgery Recorded' as title,
-        'Surgery Procedure' as description,
-        ia.created_at as created_date,
-        ia.id as event_id
-    FROM ipd_admissions ia
-    WHERE ia.patient_id='$patient_id' AND (ia.delete_flag=0 OR ia.delete_flag IS NULL)
-    LIMIT 1)
-    
-    UNION
-    
-    (SELECT 
-        'diagnosis' as event_type,
-        p2.created_at as event_date,
-        NULL as event_time,
-        'Diagnosis Added' as title,
-        COALESCE(p2.medical_history, 'No diagnosis') as description,
-        p2.modified_at as created_date,
-        p2.patient_id as event_id
-    FROM patients p2
-    WHERE p2.patient_id='$patient_id' AND p2.medical_history IS NOT NULL AND p2.medical_history != '')
-    
-    UNION
-    
-    (SELECT 
-        'registration' as event_type,
-        p3.created_at as event_date,
-        NULL as event_time,
-        'Patient Registered' as title,
-        'By Admin' as description,
-        p3.created_at as created_date,
-        p3.patient_id as event_id
-    FROM patients p3
-    WHERE p3.patient_id='$patient_id')
-    
-    ORDER BY created_date DESC
-    LIMIT 5
-";
-
-$timeline_result = $conn->query($timeline_query);
-$timeline_events = [];
-if($timeline_result && $timeline_result->num_rows > 0){
-    while($event = $timeline_result->fetch_assoc()){
-        $timeline_events[] = $event;
-    }
-}
 
 // ============================================================
 // FETCH ALL SURGERIES FOR HISTORY TABLE
@@ -402,6 +321,68 @@ $appointment_info = $conn->query($patient_appointment);
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
 
+        /* Patient timeline */
+        .timeline-list { position: relative; }
+        .timeline-list::before {
+            content: '';
+            position: absolute;
+            top: 0.75rem;
+            bottom: 0.75rem;
+            left: 0.75rem;
+            width: 2px;
+            background: linear-gradient(to bottom, #bfdbfe, #e5e7eb 85%, transparent);
+        }
+        .timeline-item {
+            position: relative;
+            padding-left: 2.75rem;
+            padding-bottom: 1.25rem;
+        }
+        .timeline-item:last-child { padding-bottom: 0; }
+        .timeline-marker {
+            position: absolute;
+            z-index: 1;
+            top: 0.15rem;
+            left: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.55rem;
+            height: 1.55rem;
+            border: 4px solid #fff;
+            border-radius: 9999px;
+            box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.35), 0 3px 8px rgba(15, 23, 42, 0.08);
+        }
+        .timeline-card {
+            border: 1px solid #eef2f7;
+            border-radius: 0.875rem;
+            background: #fff;
+            padding: 0.9rem 1rem;
+            box-shadow: 0 3px 12px rgba(15, 23, 42, 0.04);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        }
+        .timeline-card:hover {
+            transform: translateY(-2px);
+            border-color: #dbeafe;
+            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+        }
+        .timeline-date {
+            flex-shrink: 0;
+            color: #64748b;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            line-height: 1.35;
+            text-align: right;
+        }
+        @media (max-width: 640px) {
+            .timeline-item { padding-left: 2.35rem; }
+            .timeline-list::before { left: 0.65rem; }
+            .timeline-marker { width: 1.35rem; height: 1.35rem; }
+            .timeline-card { padding: 0.8rem; }
+            .timeline-card > div:first-child { flex-direction: column; gap: 0.45rem; }
+            .timeline-date { text-align: left; }
+        }
+
         @media (max-width: 768px) {
             .doc-tab-btn { font-size: 0.75rem; padding: 0.5rem 0.75rem; }
         }
@@ -569,105 +550,364 @@ $appointment_info = $conn->query($patient_appointment);
                     </div>
 
                     <!-- ============================================================ -->
-                    <!-- DIAGNOSIS & SURGERY SUMMARY -->
-                    <!-- ============================================================ -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        <div class="bg-white rounded-xl border border-gray-200 p-4">
-                            <h3 class="text-sm font-medium text-gray-700 mb-3">Diagnosis</h3>
-                            <div class="grid grid-cols-3 gap-4">
-                                <div>
-                                    <p class="text-sm text-gray-600">Diagnosis</p>
-                                    <p class="text-xl font-semibold text-gray-900"><?php echo $diagnosis_count; ?></p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="bg-white rounded-xl border border-gray-200 p-4">
-                            <h3 class="text-sm font-medium text-gray-700 mb-3">Surgeries</h3>
-                            <div class="space-y-2">
-                                <?php if(!empty($surgeries_history)): ?>
-                                    <?php foreach(array_slice($surgeries_history, 0, 2) as $surgery): ?>
-                                        <div class="flex justify-between items-center text-sm">
-                                            <span class="text-gray-600"><?php echo $surgery['surgery_title']; ?></span>
-                                            <span class="text-gray-400"><?php echo date("d M Y", strtotime($surgery['surgery_date'])); ?></span>
-                                        </div>
-                                    <?php endforeach; ?>
-                                <?php else: ?>
-                                    <p class="text-sm text-gray-400 italic">No surgeries recorded</p>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- ============================================================ -->
-                    <!-- MAIN CONTENT GRID -->
+                    <!-- LEFT COLUMN - TIMELINE & SURGERY HISTORY -->
                     <!-- ============================================================ -->
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         
-                        <!-- ============================================================ -->
-                        <!-- LEFT COLUMN - TIMELINE -->
-                        <!-- ============================================================ -->
-                        <div class="lg:col-span-2">
-                            <div class="bg-white rounded-xl border border-gray-200 p-4">
-                                <div class="flex items-center justify-between mb-4">
-                                    <h3 class="text-lg font-semibold text-gray-900">Patient Timeline</h3>
-                                    <button 
-                                        onclick="window.location.href='view_full_timeline.php?id=<?php echo $patient_id; ?>'"
-                                        class="text-sm text-blue-600 hover:text-blue-800 font-medium">
-                                        View Full Timeline →
-                                    </button>
+                        <!-- LEFT COLUMN (2/3 width) -->
+                        <div class="lg:col-span-2 space-y-6">
+                            
+                            <!-- ============================================================ -->
+                            <!-- DIAGNOSIS & SURGERY SUMMARY -->
+                            <!-- ============================================================ -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="bg-white rounded-xl border border-gray-200 p-4">
+                                    <h3 class="text-sm font-medium text-gray-700 mb-3">Diagnosis</h3>
+                                    <div class="grid grid-cols-3 gap-4">
+                                        <div>
+                                            <p class="text-sm text-gray-600">Diagnosis</p>
+                                            <p class="text-xl font-semibold text-gray-900"><?php echo $diagnosis_count; ?></p>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="space-y-4">
-                                    <?php if(!empty($timeline_events)): ?>
-                                        <?php foreach($timeline_events as $event): 
-                                            $icon = match($event['event_type']) {
-                                                'appointment' => 'calendar',
-                                                'prescription' => 'pill',
-                                                'surgery' => 'scissors',
-                                                'diagnosis' => 'stethoscope',
-                                                'registration' => 'user-plus',
-                                                default => 'clock'
-                                            };
-                                            $color = match($event['event_type']) {
-                                                'appointment' => 'text-blue-500',
-                                                'prescription' => 'text-green-500',
-                                                'surgery' => 'text-purple-500',
-                                                'diagnosis' => 'text-red-500',
-                                                'registration' => 'text-gray-500',
-                                                default => 'text-gray-500'
-                                            };
-                                            $bg_color = match($event['event_type']) {
-                                                'appointment' => 'bg-blue-50',
-                                                'prescription' => 'bg-green-50',
-                                                'surgery' => 'bg-purple-50',
-                                                'diagnosis' => 'bg-red-50',
-                                                'registration' => 'bg-gray-50',
-                                                default => 'bg-gray-50'
-                                            };
-                                        ?>
-                                        <div class="flex space-x-3">
-                                            <div class="flex-shrink-0">
-                                                <div class="w-8 h-8 <?php echo $bg_color; ?> rounded-full flex items-center justify-center">
-                                                    <i data-lucide="<?php echo $icon; ?>" class="w-4 h-4 <?php echo $color; ?>"></i>
+                                <div class="bg-white rounded-xl border border-gray-200 p-4">
+                                    <h3 class="text-sm font-medium text-gray-700 mb-3">Surgeries</h3>
+                                    <div class="space-y-2">
+                                        <?php if(!empty($surgeries_history)): ?>
+                                            <?php foreach(array_slice($surgeries_history, 0, 2) as $surgery): ?>
+                                                <div class="flex justify-between items-center text-sm">
+                                                    <span class="text-gray-600"><?php echo $surgery['surgery_title']; ?></span>
+                                                    <span class="text-gray-400"><?php echo date("d M Y", strtotime($surgery['surgery_date'])); ?></span>
                                                 </div>
-                                            </div>
-                                            <div class="flex-1">
-                                                <div class="flex items-center justify-between">
-                                                    <p class="font-medium text-gray-900"><?php echo $event['title']; ?></p>
-                                                    <span class="text-xs text-gray-500"><?php echo date("d M Y", strtotime($event['event_date'])); ?><?php echo !empty($event['event_time']) ? ', ' . date("h:i A", strtotime($event['event_time'])) : ''; ?></span>
+                                            <?php endforeach; ?>
+                                        <?php else: ?>
+                                            <p class="text-sm text-gray-400 italic">No surgeries recorded</p>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ============================================================ -->
+                            <!-- PATIENT TIMELINE -->
+                            <!-- ============================================================ -->
+                            <?php
+                            $timeline_query = "
+    (SELECT 
+        'appointment' as event_type,
+        a.appointment_date as event_date,
+        a.appointment_time as event_time,
+        CONCAT('Appointment - ', a.status) as title,
+        CONCAT(COALESCE(d.doctor_name, 'Unknown'), ' • ', a.opd_ipd_type, ' Consultation') as description,
+        a.created_at as created_date,
+        a.appointment_id as event_id,
+        a.status as event_status
+    FROM appointments a
+    LEFT JOIN doctor d ON a.doctor_id = d.doctor_id
+    WHERE a.patient_id = $patient_id 
+    AND (a.delete_flag = 0 OR a.delete_flag IS NULL))
+    
+    UNION
+    
+    (SELECT 
+        'prescription' as event_type,
+        p.created_at as event_date,
+        NULL as event_time,
+        'Prescription Created' as title,
+        CONCAT(COUNT(pd.detail_id), ' Medicines Prescribed') as description,
+        p.created_at as created_date,
+        p.prescription_id as event_id,
+        NULL as event_status
+    FROM prescription_master p
+    LEFT JOIN prescription_details pd ON p.prescription_id = pd.prescription_id
+    WHERE p.patient_id = $patient_id 
+    AND (p.delete_flag = 0 OR p.delete_flag IS NULL)
+    GROUP BY p.prescription_id)
+    
+    UNION
+    
+    (SELECT 
+        'surgery' as event_type,
+        s.surgery_date as event_date,
+        s.surgery_time as event_time,
+        CONCAT('Surgery - ', s.status) as title,
+        s.surgery_title as description,
+        s.created_at as created_date,
+        s.surgery_id as event_id,
+        s.status as event_status
+    FROM surgeries s
+    WHERE s.patient_id = $patient_id 
+    AND (s.delete_flag = 0 OR s.delete_flag IS NULL))
+    
+    UNION
+    
+    (SELECT 
+        'vitals' as event_type,
+        v.recorded_at as event_date,
+        NULL as event_time,
+        'Vitals Recorded' as title,
+        CONCAT('BP: ', v.bp, ' | Pulse: ', v.pulse, ' | Temp: ', v.temperature, '°C') as description,
+        v.recorded_at as created_date,
+        v.vital_id as event_id,
+        NULL as event_status
+    FROM patient_vitals v
+    WHERE v.patient_id = $patient_id 
+    AND (v.delete_flag = 0 OR v.delete_flag IS NULL))
+    
+    UNION
+    
+    (SELECT 
+        'lab_report' as event_type,
+        lr.created_at as event_date,
+        NULL as event_time,
+        'Lab Report' as title,
+        CONCAT('Report #', lr.report_no) as description,
+        lr.created_at as created_date,
+        lr.report_id as event_id,
+        lr.report_status as event_status
+    FROM lab_reports lr
+    WHERE lr.patient_id = $patient_id 
+    AND (lr.delete_flag = 0 OR lr.delete_flag IS NULL))
+    
+    UNION
+    
+    (SELECT 
+        'diagnosis' as event_type,
+        p2.created_at as event_date,
+        NULL as event_time,
+        'Diagnosis Added' as title,
+        COALESCE(p2.medical_history, 'No diagnosis') as description,
+        p2.created_at as created_date,
+        p2.patient_id as event_id,
+        NULL as event_status
+    FROM patients p2
+    WHERE p2.patient_id = $patient_id 
+    AND p2.medical_history IS NOT NULL 
+    AND p2.medical_history != '')
+    
+    UNION
+    
+    (SELECT 
+        'registration' as event_type,
+        p3.created_at as event_date,
+        NULL as event_time,
+        'Patient Registered' as title,
+        CONCAT('Registered as ', p3.patient_admission_type, ' patient') as description,
+        p3.created_at as created_date,
+        p3.patient_id as event_id,
+        NULL as event_status
+    FROM patients p3
+    WHERE p3.patient_id = $patient_id)
+    
+    ORDER BY created_date DESC
+    LIMIT 10
+";
+
+$timeline_result = $conn->query($timeline_query);
+
+if (!$timeline_result) {
+    die("Timeline Query Error: " . $conn->error);
+}
+
+$timeline_events = [];
+if ($timeline_result && $timeline_result->num_rows > 0) {
+    while ($event = $timeline_result->fetch_assoc()) {
+        $timeline_events[] = $event;
+    }
+}
+
+if (empty($timeline_events)) {
+    $default_sql = "
+        SELECT 
+            'registration' as event_type,
+            created_at as event_date,
+            NULL as event_time,
+            'Patient Registered' as title,
+            CONCAT('Registered as ', patient_admission_type, ' patient') as description,
+            created_at as created_date,
+            patient_id as event_id,
+            NULL as event_status
+        FROM patients
+        WHERE patient_id = $patient_id
+    ";
+    
+    $default_result = $conn->query($default_sql);
+    if ($default_result && $default_result->num_rows > 0) {
+        while ($event = $default_result->fetch_assoc()) {
+            $timeline_events[] = $event;
+        }
+    }
+}
+?>
+
+                            <?php if (!empty($timeline_events)): ?>
+                            <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+                                <div class="px-6 py-4 border-b bg-gray-50">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center">
+                                            <i data-lucide="clock" class="w-5 h-5"></i>
+                                        </div>
+                                        <div>
+                                            <h2 class="font-semibold text-gray-900">Patient Timeline</h2>
+                                            <p class="text-xs text-gray-500">Recent activities and events</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                                                <div class="p-4 sm:p-6">
+                                    <div class="timeline-list">
+                                        <?php foreach ($timeline_events as $index => $event): ?>
+                                        <div class="timeline-item">
+                                            <div class="timeline-marker  
+                                                <?php 
+                                                switch($event['event_type']) {
+                                                    case 'appointment':
+                                                        echo 'border-blue-500 bg-blue-100';
+                                                        break;
+                                                    case 'prescription':
+                                                        echo 'border-green-500 bg-green-100';
+                                                        break;
+                                                    case 'surgery':
+                                                        echo 'border-red-500 bg-red-100';
+                                                        break;
+                                                    case 'vitals':
+                                                        echo 'border-purple-500 bg-purple-100';
+                                                        break;
+                                                    case 'lab_report':
+                                                        echo 'border-yellow-500 bg-yellow-100';
+                                                        break;
+                                                    case 'diagnosis':
+                                                        echo 'border-indigo-500 bg-indigo-100';
+                                                        break;
+                                                    default:
+                                                        echo 'border-gray-500 bg-gray-100';
+                                                }
+                                                ?>
+                                            "></div>
+                                            
+                                            <div class="timeline-card">
+                                                <div class="flex items-start justify-between gap-4">
+                                                    <div>
+                                                        <h3 class="font-medium text-gray-900">
+                                                            <?php echo htmlspecialchars($event['title'] ?? 'N/A'); ?>
+                                                        </h3>
+                                                        <p class="text-sm text-gray-600 mt-1">
+                                                            <?php echo htmlspecialchars($event['description'] ?? ''); ?>
+                                                        </p>
+                                                    </div>
+                                                    <span class="timeline-date">
+                                                        <?php 
+                                                        $date = $event['event_date'] ?? $event['created_date'];
+                                                        if ($date) {
+                                                            echo date('M d, Y', strtotime($date));
+                                                            if (!empty($event['event_time'])) {
+                                                                echo ' at ' . date('h:i A', strtotime($event['event_time']));
+                                                            }
+                                                        }
+                                                        ?>
+                                                    </span>
                                                 </div>
-                                                <p class="text-sm text-gray-600"><?php echo $event['description']; ?></p>
+                                                <?php if (!empty($event['event_status'])): ?>
+                                                <div class="mt-2">
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                                                        <?php 
+                                                        $status = strtolower($event['event_status']);
+                                                        if ($status == 'scheduled' || $status == 'pending') {
+                                                            echo 'bg-yellow-100 text-yellow-800';
+                                                        } elseif ($status == 'completed' || $status == 'confirmed') {
+                                                            echo 'bg-green-100 text-green-800';
+                                                        } elseif ($status == 'cancelled') {
+                                                            echo 'bg-red-100 text-red-800';
+                                                        } else {
+                                                            echo 'bg-gray-100 text-gray-800';
+                                                        }
+                                                        ?>
+                                                    ">
+                                                        <?php echo htmlspecialchars($event['event_status']); ?>
+                                                    </span>
+                                                </div>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
                                         <?php endforeach; ?>
+                                    </div>
+                                </div>
+                            </div>
+                            <?php else: ?>
+                            <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+                                <div class="px-6 py-4 border-b bg-gray-50">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center">
+                                            <i data-lucide="clock" class="w-5 h-5"></i>
+                                        </div>
+                                        <div>
+                                            <h2 class="font-semibold text-gray-900">Patient Timeline</h2>
+                                            <p class="text-xs text-gray-500">No activities recorded yet</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="p-12 text-center">
+                                    <i data-lucide="calendar" class="w-12 h-12 text-gray-300 mx-auto mb-3"></i>
+                                    <p class="text-gray-500">No timeline events found for this patient.</p>
+                                    <p class="text-sm text-gray-400 mt-1">Events will appear here as they are recorded.</p>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+
+                            <!-- ============================================================ -->
+                            <!-- SURGERY HISTORY TABLE -->
+                            <!-- ============================================================ -->
+                            <div class="bg-white rounded-xl border border-gray-200 p-4">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-lg font-semibold text-gray-900">Surgery History</h3>
+                                    <button class="text-sm text-blue-600 hover:text-blue-800 font-medium" onclick="window.location='surgeries.php'">
+                                        View all surgeries →
+                                    </button>
+                                </div>
+                                <div class="overflow-x-auto">
+                                    <?php if(!empty($surgeries_history)): ?>
+                                    <table class="w-full text-sm">
+                                        <thead>
+                                            <tr class="border-b border-gray-200">
+                                                <th class="text-left py-2 px-3 text-gray-600 font-medium">Surgery Date</th>
+                                                <th class="text-left py-2 px-3 text-gray-600 font-medium">Title</th>
+                                                <th class="text-left py-2 px-3 text-gray-600 font-medium">Full Name</th>
+                                                <th class="text-left py-2 px-3 text-gray-600 font-medium">Hospital</th>
+                                                <th class="text-left py-2 px-3 text-gray-600 font-medium">Surgeon</th>
+                                                <th class="text-left py-2 px-3 text-gray-600 font-medium">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach($surgeries_history as $surgery): ?>
+                                            <tr class="border-b border-gray-100 clickable-row" onclick="window.location='view_surgery.php?id=<?php echo $surgery['surgery_id']; ?>'">
+                                                <td class="py-2 px-3 text-gray-800">
+                                                    <?php echo date("d M Y", strtotime($surgery['surgery_date'])); ?>
+                                                </td>
+                                                <td class="py-2 px-3 text-gray-800"><?php echo $surgery['surgery_title']; ?></td>
+                                                <td class="py-2 px-3 text-gray-800"><?php echo $surgery['surgery_full_name']; ?></td>
+                                                <td class="py-2 px-3 text-gray-800"><?php echo $surgery['hospital_name'] ?? 'N/A'; ?></td>
+                                                <td class="py-2 px-3 text-gray-800"><?php echo $surgery['surgeon_name'] ?? 'N/A'; ?></td>
+                                                <td class="py-2 px-3">
+                                                    <button class="text-blue-600 hover:text-blue-800 font-medium text-xs" onclick="event.stopPropagation(); window.location='view_surgery.php?id=<?php echo $surgery['surgery_id']; ?>'">
+                                                        View
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
                                     <?php else: ?>
-                                        <p class="text-sm text-gray-400 italic text-center py-4">No timeline events found</p>
+                                    <div class="flex flex-col items-center justify-center py-12 text-center">
+                                        <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                                            <i data-lucide="scissors" class="w-8 h-8 text-gray-300"></i>
+                                        </div>
+                                        <p class="text-gray-500 font-medium">No surgery history found</p>
+                                    </div>
                                     <?php endif; ?>
                                 </div>
                             </div>
                         </div>
 
                         <!-- ============================================================ -->
-                        <!-- RIGHT COLUMN - RECENT DOCUMENTS -->
+                        <!-- RIGHT COLUMN (1/3 width) - RECENT DOCUMENTS -->
                         <!-- ============================================================ -->
                         <div class="space-y-6">
                             <div class="bg-white rounded-xl border border-gray-200 p-4">
@@ -706,93 +946,99 @@ $appointment_info = $conn->query($patient_appointment);
                     </div>
 
                     <!-- ============================================================ -->
-                    <!-- SURGERY HISTORY TABLE -->
+                    <!-- DOCUMENTS SECTION - FULL WIDTH -->
                     <!-- ============================================================ -->
-                    <div class="mt-6 bg-white rounded-xl border border-gray-200 p-4">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-lg font-semibold text-gray-900">Surgery History</h3>
-                            <button class="text-sm text-blue-600 hover:text-blue-800 font-medium" onclick="window.location='surgeries.php'">
-                                View and manage all surgeries performed →
-                            </button>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <?php if(!empty($surgeries_history)): ?>
-                            <table class="w-full text-sm">
-                                <thead>
-                                    <tr class="border-b border-gray-200">
-                                        <th class="text-left py-2 px-3 text-gray-600 font-medium">Surgery Date</th>
-                                        <th class="text-left py-2 px-3 text-gray-600 font-medium">Surgery Title</th>
-                                        <th class="text-left py-2 px-3 text-gray-600 font-medium">Surgery Full Name</th>
-                                        <th class="text-left py-2 px-3 text-gray-600 font-medium">Hospital / Location</th>
-                                        <th class="text-left py-2 px-3 text-gray-600 font-medium">Surgeon</th>
-                                        <th class="text-left py-2 px-3 text-gray-600 font-medium">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach($surgeries_history as $surgery): ?>
-                                    <tr class="border-b border-gray-100 clickable-row" onclick="window.location='view_surgery.php?id=<?php echo $surgery['surgery_id']; ?>'">
-                                        <td class="py-2 px-3 text-gray-800">
-                                            <?php echo date("d M Y", strtotime($surgery['surgery_date'])); ?>
-                                        </td>
-                                        <td class="py-2 px-3 text-gray-800"><?php echo $surgery['surgery_title']; ?></td>
-                                        <td class="py-2 px-3 text-gray-800"><?php echo $surgery['surgery_full_name']; ?></td>
-                                        <td class="py-2 px-3 text-gray-800"><?php echo $surgery['hospital_name'] ?? 'N/A'; ?></td>
-                                        <td class="py-2 px-3 text-gray-800"><?php echo $surgery['surgeon_name'] ?? 'N/A'; ?></td>
-                                        <td class="py-2 px-3">
-                                            <button class="text-blue-600 hover:text-blue-800 font-medium text-xs" onclick="event.stopPropagation(); window.location='view_surgery.php?id=<?php echo $surgery['surgery_id']; ?>'">
-                                                View
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                            <?php else: ?>
-                            <div class="flex flex-col items-center justify-center py-12 text-center">
-                                <div class="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                                    <i data-lucide="scissors" class="w-8 h-8 text-gray-300"></i>
-                                </div>
-                                <p class="text-gray-500 font-medium">No surgery history found</p>
-                            </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
+                    <?php
+                    $active_tab = $_GET['doc_tab'] ?? 'Pre-Operation';
 
-                    <!-- ============================================================ -->
-                    <!-- DOCUMENTS SECTION -->
-                    <!-- ============================================================ -->
+                    $doc_query = "
+                    SELECT pd.*, r.name as uploaded_by_name
+                    FROM patient_documents pd
+                    LEFT JOIN register r ON pd.uploaded_by = r.id
+                    WHERE pd.patient_id='$patient_id'
+                    AND pd.document_category='$active_tab'
+                    AND (pd.delete_flag=0 OR pd.delete_flag IS NULL)
+                    ORDER BY pd.document_date DESC
+                    ";
+
+                    $doc_result = mysqli_query($conn,$doc_query);
+
+                    $pre_count = mysqli_num_rows(mysqli_query($conn,"
+                    SELECT document_id
+                    FROM patient_documents
+                    WHERE patient_id='$patient_id'
+                    AND document_category='Pre-Operation'
+                    AND (delete_flag=0 OR delete_flag IS NULL)
+                    "));
+
+                    $ot_count = mysqli_num_rows(mysqli_query($conn,"
+                    SELECT document_id
+                    FROM patient_documents
+                    WHERE patient_id='$patient_id'
+                    AND document_category='OT'
+                    AND (delete_flag=0 OR delete_flag IS NULL)
+                    "));
+
+                    $post_count = mysqli_num_rows(mysqli_query($conn,"
+                    SELECT document_id
+                    FROM patient_documents
+                    WHERE patient_id='$patient_id'
+                    AND document_category='Post-Operation'
+                    AND (delete_flag=0 OR delete_flag IS NULL)
+                    "));
+                    ?>
+                   
                     <div class="bg-white rounded-xl border border-gray-200 p-5 mt-6">
                         <div class="flex justify-between items-center mb-5">
                             <div>
-                                <h2 class="text-lg font-semibold text-gray-800">Documents</h2>
-                                <p class="text-sm text-gray-500">View patient documents</p>
+                                <h2 class="text-lg font-semibold text-gray-800">
+                                    Documents
+                                </h2>
+                                <p class="text-sm text-gray-500">
+                                    View and manage patient documents
+                                </p>
                             </div>
                         </div>
 
                         <div class="flex items-center gap-6 border-b border-gray-200 mb-5 overflow-x-auto">
                             <a href="?id=<?php echo $patient_id; ?>&doc_tab=Pre-Operation"
-                               class="flex items-center gap-2 px-4 py-3 text-sm border-b-2 <?php echo ($active_tab=='Pre-Operation') ? 'font-semibold text-blue-600 border-blue-600' : 'text-gray-500 border-transparent'; ?>">
+                            class="flex items-center gap-2 px-4 py-3 text-sm border-b-2
+                            <?php echo ($active_tab=='Pre-Operation')
+                                    ? 'font-semibold text-blue-600 border-blue-600'
+                                    : 'text-gray-500 border-transparent'; ?>">
                                 <i data-lucide="file-text" class="w-4 h-4"></i>
                                 PRE-OT
-                                <span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs"><?php echo $pre_count; ?></span>
+                                <span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs">
+                                    <?php echo $pre_count; ?>
+                                </span>
                             </a>
 
                             <a href="?id=<?php echo $patient_id; ?>&doc_tab=OT"
-                               class="flex items-center gap-2 px-4 py-3 text-sm border-b-2 <?php echo ($active_tab=='OT') ? 'font-semibold text-blue-600 border-blue-600' : 'text-gray-500 border-transparent'; ?>">
+                            class="flex items-center gap-2 px-4 py-3 text-sm border-b-2
+                            <?php echo ($active_tab=='OT')
+                                    ? 'font-semibold text-blue-600 border-blue-600'
+                                    : 'text-gray-500 border-transparent'; ?>">
                                 <i data-lucide="folder" class="w-4 h-4"></i>
                                 OT
-                                <span class="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs"><?php echo $ot_count; ?></span>
+                                <span class="bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-xs">
+                                    <?php echo $ot_count; ?>
+                                </span>
                             </a>
 
                             <a href="?id=<?php echo $patient_id; ?>&doc_tab=Post-Operation"
-                               class="flex items-center gap-2 px-4 py-3 text-sm border-b-2 <?php echo ($active_tab=='Post-Operation') ? 'font-semibold text-blue-600 border-blue-600' : 'text-gray-500 border-transparent'; ?>">
+                            class="flex items-center gap-2 px-4 py-3 text-sm border-b-2
+                            <?php echo ($active_tab=='Post-Operation')
+                                    ? 'font-semibold text-blue-600 border-blue-600'
+                                    : 'text-gray-500 border-transparent'; ?>">
                                 <i data-lucide="image" class="w-4 h-4"></i>
                                 POST-OT
-                                <span class="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs"><?php echo $post_count; ?></span>
+                                <span class="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs">
+                                    <?php echo $post_count; ?>
+                                </span>
                             </a>
                         </div>
 
-                        <!-- Documents Table -->
+                        <!-- Table -->
                         <div class="overflow-x-auto">
                             <table class="w-full text-sm">
                                 <thead>
@@ -806,17 +1052,23 @@ $appointment_info = $conn->query($patient_appointment);
                                 </thead>
                                 <tbody>
                                     <?php if(mysqli_num_rows($doc_result)>0){ ?>
-                                    <?php while($doc = mysqli_fetch_assoc($doc_result)){ ?>
+                                    <?php while($doc=mysqli_fetch_assoc($doc_result)){ ?>
                                     <tr class="border-b border-gray-100 hover:bg-gray-50">
-                                        <td class="py-3"><?php echo date("d M Y", strtotime($doc['document_date'])); ?></td>
+                                        <td class="py-3">
+                                            <?php echo date("d M Y",strtotime($doc['document_date'])); ?>
+                                        </td>
                                         <td class="py-3">
                                             <div class="flex items-center gap-3">
                                                 <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
                                                     <i data-lucide="file-text" class="w-5 h-5 text-blue-600"></i>
                                                 </div>
                                                 <div>
-                                                    <p class="font-medium text-gray-800"><?php echo htmlspecialchars($doc['document_name']); ?></p>
-                                                    <p class="text-xs text-gray-500"><?php echo basename($doc['upload_file']); ?></p>
+                                                    <p class="font-medium text-gray-800">
+                                                        <?php echo htmlspecialchars($doc['document_name']); ?>
+                                                    </p>
+                                                    <p class="text-xs text-gray-500">
+                                                        <?php echo basename($doc['upload_file']); ?>
+                                                    </p>
                                                 </div>
                                             </div>
                                         </td>
@@ -825,17 +1077,26 @@ $appointment_info = $conn->query($patient_appointment);
                                                 <?php echo htmlspecialchars($doc['document_type']); ?>
                                             </span>
                                         </td>
-                                        <td class="py-3"><?php echo htmlspecialchars($doc['uploaded_by_name']); ?></td>
+                                        <td class="py-3">
+                                            <?php echo htmlspecialchars($doc['uploaded_by_name']); ?>
+                                        </td>
                                         <td class="py-3">
                                             <div class="flex items-center gap-2">
-                                                <button onclick="viewDocument('<?php echo $doc['upload_file']; ?>')"
-                                                        class="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs">
+                                                <button
+                                                    onclick="viewDocument('<?php echo $doc['upload_file']; ?>')"
+                                                    class="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs">
                                                     View
                                                 </button>
-                                                <button onclick="downloadDocument('<?php echo $doc['upload_file']; ?>','<?php echo htmlspecialchars($doc['document_name']); ?>')"
-                                                        class="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs">
+                                                <button
+                                                    onclick="downloadDocument('<?php echo $doc['upload_file']; ?>','<?php echo htmlspecialchars($doc['document_name']); ?>')"
+                                                    class="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 text-xs">
                                                     Download
                                                 </button>
+                                                <a href="delete_patient_document.php?id=<?php echo $doc['document_id']; ?>&patient_id=<?php echo $patient_id; ?>"
+                                                onclick="return confirm('Delete this document?')"
+                                                class="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 text-xs">
+                                                    Delete
+                                                </a>
                                             </div>
                                         </td>
                                     </tr>
@@ -849,7 +1110,8 @@ $appointment_info = $conn->query($patient_appointment);
                                                 </div>
                                                 <h3 class="text-base font-semibold">No Documents Found</h3>
                                                 <p class="text-sm text-gray-500 mt-1">
-                                                    No documents available under <strong><?php echo $active_tab; ?></strong>
+                                                    No documents available under
+                                                    <strong><?php echo $active_tab; ?></strong>
                                                 </p>
                                             </div>
                                         </td>
@@ -859,7 +1121,6 @@ $appointment_info = $conn->query($patient_appointment);
                             </table>
                         </div>
                     </div>
-
                 </div>
             </main>
         </div>

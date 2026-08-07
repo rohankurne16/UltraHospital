@@ -1,9 +1,17 @@
 <?php
+// ============================================================
+// PRINT BILL – Clean printable layout
+// ============================================================
+
 session_start();
 require_once '../config/hospital.php';
+
 $id = (int)$_GET['id'];
 $hospital_id = $_SESSION['hospital_id'] ?? 0;
-$query = "SELECT b.*, p.patient_name, p.mobile, p.address FROM billing b LEFT JOIN patients p ON b.patient_id = p.patient_id WHERE b.id = $id AND b.hospital_id = $hospital_id";
+
+$query = "SELECT b.*, p.patient_name, p.mobile, p.address FROM billing b
+          LEFT JOIN patients p ON b.patient_id = p.patient_id
+          WHERE b.id = $id AND b.hospital_id = $hospital_id AND b.delete_flag = 0";
 $result = $conn->query($query);
 if (!$result || $result->num_rows == 0) { die('Bill not found'); }
 $bill = $result->fetch_assoc();
@@ -14,12 +22,13 @@ $bill = $result->fetch_assoc();
     <meta charset="UTF-8">
     <title>Invoice #<?php echo $bill['bill_no']; ?></title>
     <style>
-        body { font-family: 'Courier New', monospace; padding: 20px; max-width: 700px; margin: auto; }
+        body { font-family: 'Courier New', monospace; padding: 20px; max-width: 700px; margin: auto; background: white; }
         .header { text-align:center; border-bottom:2px solid #333; padding-bottom:10px; margin-bottom:16px; }
         .row { display:flex; justify-content:space-between; padding:4px 0; }
         .total { font-weight:bold; border-top:2px solid #333; margin-top:10px; padding-top:10px; }
         .footer { text-align:center; margin-top:20px; font-size:12px; border-top:1px dashed #333; padding-top:10px; }
         .btn { display:inline-block; padding:6px 16px; background:#ed8936; color:white; border:none; border-radius:4px; cursor:pointer; margin-top:12px; }
+        @media print { .btn { display:none; } }
     </style>
 </head>
 <body>

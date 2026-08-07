@@ -15,8 +15,8 @@ if(!isset($_GET['id']) || empty($_GET['id'])){
 
 $patient_id = $_GET['id'];
 $hid = $_SESSION['hospital_id'];
-$hospital_name = $_SESSION['hospital_name'];
-$hospital_logo = $_SESSION['hospital_logo'];
+$hospital_name = $_SESSION['hospital_name'] ?? '';
+$hospital_logo = $_SESSION['hospital_logo'] ?? '';
 
 // Fetch Patient Name
 $patient_query = "SELECT patient_name FROM patients WHERE patient_id='$patient_id' AND hospital_id='$hid'";
@@ -35,89 +35,167 @@ $hospital_query = mysqli_query($conn, "SELECT * FROM hospital_master WHERE hospi
 $hospital = mysqli_fetch_assoc($hospital_query);
 
 // FULL TIMELINE QUERY
+// ============================================================
 $timeline_query = "
-(SELECT 
-    'appointment' as event_type,
-    a.appointment_date as event_date,
-    a.appointment_time as event_time,
-    CONCAT('Appointment - ', a.status) as title,
-    CONCAT(COALESCE(d.doctor_name,'Unknown'),' • ',a.opd_ipd_type,' Consultation') as description,
-    a.created_at as created_date
-FROM appointments a
-LEFT JOIN doctor d ON a.doctor_id = d.doctor_id
-WHERE a.patient_id='$patient_id'
-AND a.hospital_id='$hid'
-AND (a.delete_flag=0 OR a.delete_flag IS NULL))
-
-UNION ALL
-
-(SELECT
-    'prescription' as event_type,
-    p.created_at as event_date,
-    NULL as event_time,
-    'Prescription Created' as title,
-    CONCAT('Prescription Added') as description,
-    p.created_at as created_date
-FROM prescriptions p
-WHERE p.patient_id='$patient_id'
-AND p.hospital_id='$hid'
-AND (p.delete_flag=0 OR p.delete_flag IS NULL))
-
-UNION ALL
-
-(SELECT
-    'surgery' as event_type,
-    s.surgery_date as event_date,
-    s.surgery_time as event_time,
-    CONCAT('Surgery - ',s.surgery_title) as title,
-    CONCAT(
-        COALESCE(s.surgeon_name,'Unknown'),
-        ' • ',
-        COALESCE(s.surgery_type,'Surgery')
-    ) as description,
-    s.created_at as created_date
-FROM surgeries s
-WHERE s.patient_id='$patient_id'
-AND s.hospital_id='$hid'
-AND (s.delete_flag=0 OR s.delete_flag IS NULL))
-
-UNION ALL
-
-(SELECT
-    'diagnosis' as event_type,
-    p2.created_at as event_date,
-    NULL as event_time,
-    'Diagnosis Added' as title,
-    p2.medical_history as description,
-    p2.created_at as created_date
-FROM patients p2
-WHERE p2.patient_id='$patient_id'
-AND p2.hospital_id='$hid'
-AND p2.medical_history IS NOT NULL
-AND p2.medical_history!='')
-
-UNION ALL
-
-(SELECT
-    'registration' as event_type,
-    p3.created_at as event_date,
-    NULL as event_time,
-    'Patient Registered' as title,
-    'Patient registration completed' as description,
-    p3.created_at as created_date
-FROM patients p3
-WHERE p3.patient_id='$patient_id'
-AND p3.hospital_id='$hid')
-
-ORDER BY created_date DESC
+    (SELECT 
+        'appointment' as event_type,
+        a.appointment_date as event_date,
+        a.appointment_time as event_time,
+        CONCAT('Appointment - ', a.status) as title,
+        CONCAT(COALESCE(d.doctor_name, 'Unknown'), ' • ', a.opd_ipd_type, ' Consultation') as description,
+        a.created_at as created_date,
+        a.appointment_id as event_id,
+        a.status as event_status
+    FROM appointments a
+    LEFT JOIN doctor d ON a.doctor_id = d.doctor_id
+    WHERE a.patient_id = '$patient_id' 
+    AND (a.delete_flag = 0 OR a.delete_flag IS NULL))
+    
+    UNION
+    
+    (SELECT 
+        'prescription' as event_type,
+        p.created_at as event_date,
+        NULL as event_time,
+        'Prescription Created' as title,
+        CONCAT(COUNT(pd.detail_id), ' Medicines Prescribed') as description,
+        p.created_at as created_date,
+        p.prescription_id as event_id,
+        NULL as event_status
+    FROM prescription_master p
+    LEFT JOIN prescription_details pd ON p.prescription_id = pd.prescription_id
+    WHERE p.patient_id = '$patient_id' 
+    AND (p.delete_flag = 0 OR p.delete_flag IS NULL)
+    GROUP BY p.prescription_id)
+    
+    UNION
+    
+    (SELECT 
+        'surgery' as event_type,
+        s.surgery_date as event_date,
+        s.surgery_time as event_time,
+        CONCAT('Surgery - ', s.status) as title,
+        s.surgery_title as description,
+        s.created_at as created_date,
+        s.surgery_id as event_id,
+        s.status as event_status
+    FROM surgeries s
+    WHERE s.patient_id = '$patient_id' 
+    AND (s.delete_flag = 0 OR s.delete_flag IS NULL))
+    
+    UNION
+    
+    (SELECT 
+        'vitals' as event_type,
+        v.recorded_at as event_date,
+        NULL as event_time,
+        'Vitals Recorded' as title,
+        CONCAT('BP: ', v.bp, ' | Pulse: ', v.pulse, ' | Temp: ', v.temperature, '°C') as description,
+        v.recorded_at as created_date,
+        v.vital_id as event_id,
+        NULL as event_status
+    FROM patient_vitals v
+    WHERE v.patient_id = '$patient_id' 
+    AND (v.delete_flag = 0 OR v.delete_flag IS NULL))
+    
+    UNION
+    
+    (SELECT 
+        'lab_report' as event_type,
+        lr.created_at as event_date,
+        NULL as event_time,
+        'Lab Report' as title,
+        CONCAT('Report #', lr.report_no, ' - ', lr.report_status) as description,
+        lr.created_at as created_date,
+        lr.report_id as event_id,
+        lr.report_status as event_status
+    FROM lab_reports lr
+    WHERE lr.patient_id = '$patient_id' 
+    AND (lr.delete_flag = 0 OR lr.delete_flag IS NULL))
+    
+    UNION
+    
+    (SELECT 
+        'ipd_admission' as event_type,
+        ia.admission_date as event_date,
+        ia.appointment_time as event_time,
+        CONCAT('IPD Admission - ', ia.status) as title,
+        CONCAT('Department: ', COALESCE(ia.department, 'N/A')) as description,
+        ia.created_at as created_date,
+        ia.id as event_id,
+        ia.status as event_status
+    FROM ipd_admissions ia
+    WHERE ia.patient_id = '$patient_id' 
+    AND (ia.delete_flag = 0 OR ia.delete_flag IS NULL))
+    
+    UNION
+    
+    (SELECT 
+        'diagnosis' as event_type,
+        p2.modified_at as event_date,
+        NULL as event_time,
+        'Diagnosis Added' as title,
+        COALESCE(p2.medical_history, 'No diagnosis') as description,
+        p2.modified_at as created_date,
+        p2.patient_id as event_id,
+        NULL as event_status
+    FROM patients p2
+    WHERE p2.patient_id = '$patient_id' 
+    AND p2.medical_history IS NOT NULL 
+    AND p2.medical_history != '')
+    
+    UNION
+    
+    (SELECT 
+        'registration' as event_type,
+        p3.created_at as event_date,
+        NULL as event_time,
+        'Patient Registered' as title,
+        CONCAT('Registered as ', p3.patient_admission_type, ' patient') as description,
+        p3.created_at as created_date,
+        p3.patient_id as event_id,
+        NULL as event_status
+    FROM patients p3
+    WHERE p3.patient_id = '$patient_id')
+    
+    ORDER BY created_date DESC
+    LIMIT 10
 ";
 
-$result = $conn->query($timeline_query);
-$timeline_events=[];
+$timeline_result = $conn->query($timeline_query);
 
-if($result && $result->num_rows>0){
-    while($row=$result->fetch_assoc()){
-        $timeline_events[]=$row;
+if (!$timeline_result) {
+    die("Timeline Query Error: " . $conn->error);
+}
+
+$timeline_events = [];
+if ($timeline_result && $timeline_result->num_rows > 0) {
+    while ($event = $timeline_result->fetch_assoc()) {
+        $timeline_events[] = $event;
+    }
+}
+
+// If no events found, add a default registration event
+if (empty($timeline_events)) {
+    $default_sql = "
+        SELECT 
+            'registration' as event_type,
+            created_at as event_date,
+            NULL as event_time,
+            'Patient Registered' as title,
+            CONCAT('Registered as ', patient_admission_type, ' patient') as description,
+            created_at as created_date,
+            patient_id as event_id,
+            NULL as event_status
+        FROM patients
+        WHERE patient_id = '$patient_id'
+    ";
+    
+    $default_result = $conn->query($default_sql);
+    if ($default_result && $default_result->num_rows > 0) {
+        while ($event = $default_result->fetch_assoc()) {
+            $timeline_events[] = $event;
+        }
     }
 }
 ?>
@@ -127,8 +205,8 @@ if($result && $result->num_rows>0){
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($hospital['hospital_name']); ?> - Patient Timeline</title>
-    <link rel="icon" type="image/png" href="../<?php echo htmlspecialchars($hospital['hospital_logo']); ?>">
+    <title><?php echo htmlspecialchars($hospital['hospital_name'] ?? 'Hospital'); ?> - Patient Timeline</title>
+    <link rel="icon" type="image/png" href="../<?php echo htmlspecialchars($hospital['hospital_logo'] ?? ''); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -147,7 +225,6 @@ if($result && $result->num_rows>0){
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
-        /* Main wrapper - accounts for header and sidebar */
         .main-wrapper {
             margin-left: 250px;
             margin-top: 70px;
@@ -273,13 +350,11 @@ if($result && $result->num_rows>0){
             transform: translateY(-2px);
         }
 
-        /* Timeline with progress bar */
         .timeline-wrapper {
             position: relative;
             padding-left: 40px;
         }
 
-        /* Progress Bar (Vertical line on the left) */
         .timeline-progress {
             position: absolute;
             left: 14px;
@@ -311,7 +386,6 @@ if($result && $result->num_rows>0){
             box-shadow: 0 0 12px rgba(139, 92, 246, 0.5);
         }
 
-        /* Individual timeline items */
         .timeline-item {
             position: relative;
             padding-bottom: 32px;
@@ -373,7 +447,6 @@ if($result && $result->num_rows>0){
             }
         }
 
-        /* Stagger animation delay */
         .timeline-item:nth-child(1) { animation-delay: 0.1s; }
         .timeline-item:nth-child(2) { animation-delay: 0.2s; }
         .timeline-item:nth-child(3) { animation-delay: 0.3s; }
@@ -436,6 +509,9 @@ if($result && $result->num_rows>0){
         .icon-surgery { background: #f5f3ff; color: #8b5cf6; }
         .icon-diagnosis { background: #fef2f2; color: #ef4444; }
         .icon-registration { background: #f3f4f6; color: #6b7280; }
+        .icon-vitals { background: #eef2ff; color: #6366f1; }
+        .icon-lab_report { background: #fefce8; color: #eab308; }
+        .icon-ipd_admission { background: #ecfeff; color: #06b6d4; }
 
         .timeline-item-date {
             font-size: 0.75rem;
@@ -481,6 +557,9 @@ if($result && $result->num_rows>0){
         .tag-purple { background: #f5f3ff; color: #8b5cf6; }
         .tag-red { background: #fef2f2; color: #ef4444; }
         .tag-gray { background: #f3f4f6; color: #6b7280; }
+        .tag-indigo { background: #eef2ff; color: #6366f1; }
+        .tag-yellow { background: #fefce8; color: #eab308; }
+        .tag-cyan { background: #ecfeff; color: #06b6d4; }
 
         .timeline-empty {
             text-align: center;
@@ -495,7 +574,6 @@ if($result && $result->num_rows>0){
             display: block;
         }
 
-        /* Stats bar */
         .timeline-stats {
             display: flex;
             gap: 24px;
@@ -535,7 +613,6 @@ if($result && $result->num_rows>0){
         .stat-dot-purple { background: #8b5cf6; }
         .stat-dot-red { background: #ef4444; }
 
-        /* Download progress overlay */
         .download-overlay {
             display: none;
             position: fixed;
@@ -589,7 +666,6 @@ if($result && $result->num_rows>0){
             font-size: 0.875rem;
         }
 
-        /* Responsive */
         @media (max-width: 768px) {
             .main-wrapper {
                 margin-left: 0;
@@ -704,7 +780,7 @@ if($result && $result->num_rows>0){
                 <!-- Header -->
                 <div class="timeline-header">
                     <div class="timeline-title">
-                        <h1 id="patientName"><?php echo htmlspecialchars($patient_name); ?></h1>
+                        <h1 id="patientName"><?php echo htmlspecialchars($patient_name ?? 'Patient'); ?></h1>
                         <span class="badge">Full Timeline</span>
                     </div>
                     <div class="timeline-actions">
@@ -781,7 +857,10 @@ if($result && $result->num_rows>0){
                                 "prescription" => "pill",
                                 "surgery" => "scissors",
                                 "diagnosis" => "stethoscope",
-                                "registration" => "user-plus"
+                                "registration" => "user-plus",
+                                "vitals" => "activity",
+                                "lab_report" => "flask",
+                                "ipd_admission" => "hospital"
                             ];
 
                             $colors = [
@@ -789,7 +868,10 @@ if($result && $result->num_rows>0){
                                 "prescription" => "icon-prescription",
                                 "surgery" => "icon-surgery",
                                 "diagnosis" => "icon-diagnosis",
-                                "registration" => "icon-registration"
+                                "registration" => "icon-registration",
+                                "vitals" => "icon-vitals",
+                                "lab_report" => "icon-lab_report",
+                                "ipd_admission" => "icon-ipd_admission"
                             ];
 
                             $tag_colors = [
@@ -797,7 +879,10 @@ if($result && $result->num_rows>0){
                                 "prescription" => "tag-green",
                                 "surgery" => "tag-purple",
                                 "diagnosis" => "tag-red",
-                                "registration" => "tag-gray"
+                                "registration" => "tag-gray",
+                                "vitals" => "tag-indigo",
+                                "lab_report" => "tag-yellow",
+                                "ipd_admission" => "tag-cyan"
                             ];
 
                             $event_type_labels = [
@@ -805,7 +890,10 @@ if($result && $result->num_rows>0){
                                 "prescription" => "Prescription",
                                 "surgery" => "Surgery",
                                 "diagnosis" => "Diagnosis",
-                                "registration" => "Registration"
+                                "registration" => "Registration",
+                                "vitals" => "Vitals",
+                                "lab_report" => "Lab Report",
+                                "ipd_admission" => "IPD Admission"
                             ];
 
                             $item_class = 'timeline-item';
@@ -814,19 +902,28 @@ if($result && $result->num_rows>0){
                             } elseif ($index < $total_events) {
                                 $item_class .= ' completed';
                             }
+                            
+                            $event_type = $event['event_type'] ?? 'registration';
+                            $icon = $icons[$event_type] ?? 'clock';
+                            $color = $colors[$event_type] ?? 'icon-registration';
+                            $tag_color = $tag_colors[$event_type] ?? 'tag-gray';
+                            $event_label = $event_type_labels[$event_type] ?? 'Event';
                         ?>
                         <div class="<?php echo $item_class; ?>" data-progress="<?php echo $progress; ?>">
                             <div class="timeline-item-content">
                                 <div class="timeline-item-header">
                                     <div class="timeline-item-title">
-                                        <div class="timeline-item-icon <?php echo $colors[$event['event_type']]; ?>">
-                                            <i data-lucide="<?php echo $icons[$event['event_type']]; ?>" class="w-4 h-4"></i>
+                                        <div class="timeline-item-icon <?php echo $color; ?>">
+                                            <i data-lucide="<?php echo $icon; ?>" class="w-4 h-4"></i>
                                         </div>
-                                        <h3><?php echo htmlspecialchars($event['title']); ?></h3>
+                                        <h3><?php echo htmlspecialchars($event['title'] ?? 'Event'); ?></h3>
                                     </div>
                                     <span class="timeline-item-date">
                                         <i data-lucide="calendar" class="w-3 h-3 inline"></i>
-                                        <?php echo date("d M Y", strtotime($event['event_date'])); ?>
+                                        <?php 
+                                        $event_date = $event['event_date'] ?? $event['created_date'] ?? date('Y-m-d');
+                                        echo date("d M Y", strtotime($event_date)); 
+                                        ?>
                                         <?php if (!empty($event['event_time'])): ?>
                                             <i data-lucide="clock" class="w-3 h-3 inline ml-1"></i>
                                             <?php echo date("h:i A", strtotime($event['event_time'])); ?>
@@ -834,16 +931,21 @@ if($result && $result->num_rows>0){
                                     </span>
                                 </div>
                                 <div class="timeline-item-description">
-                                    <p><?php echo nl2br(htmlspecialchars($event['description'])); ?></p>
+                                    <p><?php echo nl2br(htmlspecialchars($event['description'] ?? '')); ?></p>
                                 </div>
                                 <div class="timeline-item-tags">
-                                    <span class="tag <?php echo $tag_colors[$event['event_type']]; ?>">
-                                        <?php echo $event_type_labels[$event['event_type']]; ?>
+                                    <span class="tag <?php echo $tag_color; ?>">
+                                        <?php echo $event_label; ?>
                                     </span>
                                     <?php if (!empty($event['event_time'])): ?>
                                     <span class="tag tag-gray">
                                         <i data-lucide="clock" class="w-3 h-3 inline"></i>
                                         <?php echo date("h:i A", strtotime($event['event_time'])); ?>
+                                    </span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($event['event_status'])): ?>
+                                    <span class="tag tag-gray">
+                                        Status: <?php echo htmlspecialchars($event['event_status']); ?>
                                     </span>
                                     <?php endif; ?>
                                 </div>
@@ -880,7 +982,6 @@ if($result && $result->num_rows>0){
             const progressFill = document.getElementById('progressFill');
             
             if (items.length > 0) {
-                // Set initial progress
                 setTimeout(() => {
                     const lastItem = items[items.length - 1];
                     if (lastItem) {
@@ -916,21 +1017,17 @@ if($result && $result->num_rows>0){
 
             const card = document.getElementById('timelineCard');
             
-            // Set up for clean capture
             const originalOverflow = document.body.style.overflow;
             document.body.style.overflow = 'hidden';
             
-            // Force all timeline items to be visible for capture
             document.querySelectorAll('.timeline-item').forEach(item => {
                 item.style.opacity = '1';
                 item.style.transform = 'translateX(0)';
                 item.style.animation = 'none';
             });
 
-            // Add a print class for better rendering
             card.classList.add('printing');
 
-            // Use html2canvas with better quality
             html2canvas(card, {
                 scale: 2,
                 useCORS: true,
@@ -940,22 +1037,19 @@ if($result && $result->num_rows>0){
                 windowWidth: card.scrollWidth,
                 windowHeight: card.scrollHeight,
                 onclone: function(document) {
-                    // Ensure all icons are rendered
                     document.querySelectorAll('[data-lucide]').forEach(el => {
                         el.style.display = 'inline-block';
                     });
                 }
             }).then(function(canvas) {
-                // Remove print class
                 card.classList.remove('printing');
                 
-                // Create download link
                 const link = document.createElement('a');
-                link.download = `Patient_Timeline_${document.getElementById('patientName').textContent.trim()}_${new Date().toISOString().split('T')[0]}.png`;
+                const patientName = document.getElementById('patientName')?.textContent?.trim() || 'Patient';
+                link.download = `Patient_Timeline_${patientName}_${new Date().toISOString().split('T')[0]}.png`;
                 link.href = canvas.toDataURL('image/png');
                 link.click();
                 
-                // Restore styles
                 document.body.style.overflow = originalOverflow;
                 overlay.classList.remove('active');
             }).catch(function(err) {

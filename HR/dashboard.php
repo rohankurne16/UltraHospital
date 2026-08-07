@@ -503,22 +503,22 @@ function formatNumber($num) {
                 </div>
                 <div class="card-body">
                     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;">
-                        <a href="HR/add_employee.php" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;border:1px solid #e5e7eb;text-decoration:none;color:#0f172a;font-weight:500;font-size:14px;background:#fafcff;transition:all 0.2s;">
+                        <a href="add_employee.php" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;border:1px solid #e5e7eb;text-decoration:none;color:#0f172a;font-weight:500;font-size:14px;background:#fafcff;transition:all 0.2s;">
                             <i class="fas fa-user-plus text-blue-500"></i> Add Employee
                         </a>
-                        <a href="HR/mark_attendance.php" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;border:1px solid #e5e7eb;text-decoration:none;color:#0f172a;font-weight:500;font-size:14px;background:#fafcff;transition:all 0.2s;">
+                        <a href="mark_attendance.php" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;border:1px solid #e5e7eb;text-decoration:none;color:#0f172a;font-weight:500;font-size:14px;background:#fafcff;transition:all 0.2s;">
                             <i class="fas fa-check-double text-green-500"></i> Mark Attendance
                         </a>
-                        <a href="HR/apply_leave.php" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;border:1px solid #e5e7eb;text-decoration:none;color:#0f172a;font-weight:500;font-size:14px;background:#fafcff;transition:all 0.2s;">
+                        <a href="leave_requests.php" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;border:1px solid #e5e7eb;text-decoration:none;color:#0f172a;font-weight:500;font-size:14px;background:#fafcff;transition:all 0.2s;">
                             <i class="fas fa-calendar-plus text-yellow-500"></i> Apply for Leave
                         </a>
-                        <a href="HR/generate_payroll.php" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;border:1px solid #e5e7eb;text-decoration:none;color:#0f172a;font-weight:500;font-size:14px;background:#fafcff;transition:all 0.2s;">
+                        <a href="generate_salary.php" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;border:1px solid #e5e7eb;text-decoration:none;color:#0f172a;font-weight:500;font-size:14px;background:#fafcff;transition:all 0.2s;">
                             <i class="fas fa-file-invoice-dollar text-purple-500"></i> Generate Payroll
                         </a>
-                        <a href="HR/departments.php" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;border:1px solid #e5e7eb;text-decoration:none;color:#0f172a;font-weight:500;font-size:14px;background:#fafcff;transition:all 0.2s;">
+                        <a href="departments.php" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;border:1px solid #e5e7eb;text-decoration:none;color:#0f172a;font-weight:500;font-size:14px;background:#fafcff;transition:all 0.2s;">
                             <i class="fas fa-building text-indigo-500"></i> Add Department
                         </a>
-                        <a href="HR/reports/hr_report.php" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;border:1px solid #e5e7eb;text-decoration:none;color:#0f172a;font-weight:500;font-size:14px;background:#fafcff;transition:all 0.2s;">
+                        <a href="reports/hr_report.php" class="quick-link" style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;border:1px solid #e5e7eb;text-decoration:none;color:#0f172a;font-weight:500;font-size:14px;background:#fafcff;transition:all 0.2s;">
                             <i class="fas fa-chart-bar text-pink-500"></i> HR Reports
                         </a>
                     </div>

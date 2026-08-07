@@ -152,47 +152,95 @@ $timeline_query = "
         a.appointment_id as event_id
     FROM appointments a
     LEFT JOIN doctor d ON a.doctor_id = d.doctor_id
-    WHERE a.patient_id='$patient_id' AND (a.delete_flag=0 OR a.delete_flag IS NULL))
+    WHERE a.patient_id = '$patient_id' 
+    AND (a.delete_flag = 0 OR a.delete_flag IS NULL))
     
     UNION
     
     (SELECT 
         'prescription' as event_type,
-        MAX(p.created_at) as event_date,
+        p.created_at as event_date,
         NULL as event_time,
         'Prescription Created' as title,
-        CONCAT(COUNT(*), ' Medicines Prescribed') as description,
-        MAX(p.created_at) as created_date,
-        MAX(p.id) as event_id
-    FROM prescriptions p
-    WHERE p.patient_id='$patient_id' AND (p.delete_flag=0 OR p.delete_flag IS NULL))
+        CONCAT(COUNT(pd.detail_id), ' Medicines Prescribed') as description,
+        p.created_at as created_date,
+        p.prescription_id as event_id
+    FROM prescription_master p
+    LEFT JOIN prescription_details pd ON p.prescription_id = pd.prescription_id
+    WHERE p.patient_id = '$patient_id' 
+    AND (p.delete_flag = 0 OR p.delete_flag IS NULL)
+    GROUP BY p.prescription_id)
     
     UNION
     
     (SELECT 
         'surgery' as event_type,
-        ia.created_at as event_date,
+        s.surgery_date as event_date,
+        s.surgery_time as event_time,
+        CONCAT('Surgery - ', s.status) as title,
+        s.surgery_title as description,
+        s.created_at as created_date,
+        s.surgery_id as event_id
+    FROM surgeries s
+    WHERE s.patient_id = '$patient_id' 
+    AND (s.delete_flag = 0 OR s.delete_flag IS NULL))
+    
+    UNION
+    
+    (SELECT 
+        'vitals' as event_type,
+        v.recorded_at as event_date,
         NULL as event_time,
-        'Surgery Recorded' as title,
-        'Surgery Procedure' as description,
+        'Vitals Recorded' as title,
+        CONCAT('BP: ', v.bp, ' | Pulse: ', v.pulse, ' | Temp: ', v.temperature, '°C') as description,
+        v.recorded_at as created_date,
+        v.vital_id as event_id
+    FROM patient_vitals v
+    WHERE v.patient_id = '$patient_id' 
+    AND (v.delete_flag = 0 OR v.delete_flag IS NULL))
+    
+    UNION
+    
+    (SELECT 
+        'lab_report' as event_type,
+        lr.created_at as event_date,
+        NULL as event_time,
+        'Lab Report' as title,
+        CONCAT('Report #', lr.report_no, ' - ', lr.report_status) as description,
+        lr.created_at as created_date,
+        lr.report_id as event_id
+    FROM lab_reports lr
+    WHERE lr.patient_id = '$patient_id' 
+    AND (lr.delete_flag = 0 OR lr.delete_flag IS NULL))
+    
+    UNION
+    
+    (SELECT 
+        'ipd_admission' as event_type,
+        ia.admission_date as event_date,
+        ia.appointment_time as event_time,
+        CONCAT('IPD Admission - ', ia.status) as title,
+        CONCAT('Department: ', COALESCE(ia.department, 'N/A')) as description,
         ia.created_at as created_date,
         ia.id as event_id
     FROM ipd_admissions ia
-    WHERE ia.patient_id='$patient_id' AND (ia.delete_flag=0 OR ia.delete_flag IS NULL)
-    LIMIT 1)
+    WHERE ia.patient_id = '$patient_id' 
+    AND (ia.delete_flag = 0 OR ia.delete_flag IS NULL))
     
     UNION
     
     (SELECT 
         'diagnosis' as event_type,
-        p2.created_at as event_date,
+        p2.modified_at as event_date,
         NULL as event_time,
         'Diagnosis Added' as title,
         COALESCE(p2.medical_history, 'No diagnosis') as description,
         p2.modified_at as created_date,
         p2.patient_id as event_id
     FROM patients p2
-    WHERE p2.patient_id='$patient_id' AND p2.medical_history IS NOT NULL AND p2.medical_history != '')
+    WHERE p2.patient_id = '$patient_id' 
+    AND p2.medical_history IS NOT NULL 
+    AND p2.medical_history != '')
     
     UNION
     
@@ -201,23 +249,52 @@ $timeline_query = "
         p3.created_at as event_date,
         NULL as event_time,
         'Patient Registered' as title,
-        'By Admin' as description,
+        CONCAT('Registered as ', p3.patient_admission_type, ' patient') as description,
         p3.created_at as created_date,
         p3.patient_id as event_id
     FROM patients p3
-    WHERE p3.patient_id='$patient_id')
+    WHERE p3.patient_id = '$patient_id')
     
     ORDER BY created_date DESC
-    LIMIT 5
+    LIMIT 10
 ";
 
 $timeline_result = $conn->query($timeline_query);
+
+if (!$timeline_result) {
+    // For debugging - remove in production
+    die("Timeline Query Error: " . $conn->error);
+}
+
 $timeline_events = [];
-if($timeline_result && $timeline_result->num_rows > 0){
-    while($event = $timeline_result->fetch_assoc()){
+if ($timeline_result && $timeline_result->num_rows > 0) {
+    while ($event = $timeline_result->fetch_assoc()) {
         $timeline_events[] = $event;
     }
 }
+
+// If no events found, add a default registration event
+if (empty($timeline_events)) {
+    $default_sql = "
+        SELECT 
+            'registration' as event_type,
+            created_at as event_date,
+            NULL as event_time,
+            'Patient Registered' as title,
+            CONCAT('Registered as ', patient_admission_type, ' patient') as description,
+            created_at as created_date,
+            patient_id as event_id
+        FROM patients
+        WHERE patient_id = '$patient_id'
+    ";
+    
+    $default_result = $conn->query($default_sql);
+    if ($default_result && $default_result->num_rows > 0) {
+        while ($event = $default_result->fetch_assoc()) {
+            $timeline_events[] = $event;
+        }
+    }
+} 
 
 // ============================================================
 // FETCH ALL SURGERIES FOR HISTORY TABLE - FIXED (removed admission_time)
@@ -672,7 +749,66 @@ $appointment_info = $conn->query($patient_appointment);
                         <!-- ============================================================ -->
                         <!-- LEFT COLUMN - TIMELINE -->
                         <!-- ============================================================ -->
-                        <div class="lg:col-span-2">
+                        <style>
+    .timeline-list { position: relative; }
+    .timeline-list::before {
+        content: '';
+        position: absolute;
+        top: .75rem;
+        bottom: .75rem;
+        left: .75rem;
+        width: 2px;
+        background: linear-gradient(to bottom, #bfdbfe, #e5e7eb 85%, transparent);
+    }
+    .timeline-item { position: relative; padding-left: 2.75rem; padding-bottom: 1.25rem; }
+    .timeline-item:last-child { padding-bottom: 0; }
+    .timeline-marker {
+        position: absolute;
+        z-index: 1;
+        top: .15rem;
+        left: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.55rem;
+        height: 1.55rem;
+        border: 4px solid #fff;
+        border-radius: 9999px;
+        box-shadow: 0 0 0 1px rgba(148,163,184,.35), 0 3px 8px rgba(15,23,42,.08);
+    }
+    .timeline-card {
+        border: 1px solid #eef2f7;
+        border-radius: .875rem;
+        background: #fff;
+        padding: .9rem 1rem;
+        box-shadow: 0 3px 12px rgba(15,23,42,.04);
+        transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+    }
+    .timeline-card:hover {
+        transform: translateY(-2px);
+        border-color: #dbeafe;
+        box-shadow: 0 10px 22px rgba(15,23,42,.08);
+    }
+    .timeline-date {
+        flex-shrink: 0;
+        color: #64748b;
+        font-size: .7rem;
+        font-weight: 600;
+        letter-spacing: .02em;
+        line-height: 1.35;
+        text-align: right;
+    }
+    @media (max-width: 640px) {
+        .timeline-item { padding-left: 2.35rem; }
+        .timeline-list::before { left: .65rem; }
+        .timeline-marker { width: 1.35rem; height: 1.35rem; }
+        .timeline-card { padding: .8rem; }
+        .timeline-card > div:first-child { flex-direction: column; gap: .45rem; }
+        .timeline-date { text-align: left; }
+    }
+</style>
+
+<div class="lg:col-span-2">
                             <div class="bg-white rounded-xl border border-gray-200 p-4">
                                 <div class="flex items-center justify-between mb-4">
                                     <h3 class="text-lg font-semibold text-gray-900">Patient Timeline</h3>
@@ -684,7 +820,7 @@ $appointment_info = $conn->query($patient_appointment);
 
                                     </button>
                                 </div>
-                                <div class="space-y-4">
+                                <div class="timeline-list">
                                     <?php if(!empty($timeline_events)): ?>
                                         <?php foreach($timeline_events as $event): 
                                             $icon = match($event['event_type']) {
@@ -712,18 +848,16 @@ $appointment_info = $conn->query($patient_appointment);
                                                 default => 'bg-gray-50'
                                             };
                                         ?>
-                                        <div class="flex space-x-3">
-                                            <div class="flex-shrink-0">
-                                                <div class="w-8 h-8 <?php echo $bg_color; ?> rounded-full flex items-center justify-center">
-                                                    <i data-lucide="<?php echo $icon; ?>" class="w-4 h-4 <?php echo $color; ?>"></i>
-                                                </div>
+                                        <div class="timeline-item">
+                                            <div class="timeline-marker <?php echo $bg_color; ?> <?php echo $color; ?>">
+                                                <i data-lucide="<?php echo $icon; ?>" class="w-4 h-4"></i>
                                             </div>
-                                            <div class="flex-1">
-                                                <div class="flex items-center justify-between">
+                                            <div class="timeline-card">
+                                                <div class="flex items-start justify-between gap-4">
                                                     <p class="font-medium text-gray-900"><?php echo $event['title']; ?></p>
-                                                    <span class="text-xs text-gray-500"><?php echo date("d M Y", strtotime($event['event_date'])); ?><?php echo !empty($event['event_time']) ? ', ' . date("h:i A", strtotime($event['event_time'])) : ''; ?></span>
+                                                    <span class="timeline-date"><?php echo date("d M Y", strtotime($event['event_date'])); ?><?php echo !empty($event['event_time']) ? ', ' . date("h:i A", strtotime($event['event_time'])) : ''; ?></span>
                                                 </div>
-                                                <p class="text-sm text-gray-600"><?php echo $event['description']; ?></p>
+                                                <p class="text-sm text-gray-600 mt-1"><?php echo $event['description']; ?></p>
                                             </div>
                                         </div>
                                         <?php endforeach; ?>
@@ -733,6 +867,7 @@ $appointment_info = $conn->query($patient_appointment);
                                 </div>
                             </div>
                         </div>
+
 
                         <!-- ============================================================ -->
                         <!-- RIGHT COLUMN -->

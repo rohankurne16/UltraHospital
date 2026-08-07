@@ -1,11 +1,11 @@
 -- phpMyAdmin SQL Dump
--- version 5.2.1
+-- version 5.2.3deb1
 -- https://www.phpmyadmin.net/
 --
--- Host: 127.0.0.1:3306
--- Generation Time: Aug 05, 2026 at 09:15 AM
--- Server version: 10.4.32-MariaDB
--- PHP Version: 8.0.30
+-- Host: localhost:3306
+-- Generation Time: Aug 05, 2026 at 10:36 AM
+-- Server version: 11.8.6-MariaDB-5ubuntu0.1 from Ubuntu
+-- PHP Version: 8.5.4
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -18,7 +18,7 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `ultra_hospital`
+-- Database: `Ultra_Hospital`
 --
 
 -- --------------------------------------------------------
@@ -70,7 +70,7 @@ CREATE TABLE `admin_profile` (
 --
 
 INSERT INTO `admin_profile` (`admin_id`, `register_id`, `full_name`, `mobile`, `profile_image`, `created_at`, `updated_at`, `delete_flag`) VALUES
-(5, 1006, 'Super Admin', '7261998814', '../../documents/admin/images/1785325370_Abhishek.png', '2026-07-19 16:43:52', '2026-07-29 11:42:50', 0),
+(5, 1006, 'Super Admin', '7261998814', 'documents/admin/images/1784720492_Abhishek.png', '2026-07-19 16:43:52', '2026-08-05 10:28:38', 0),
 (6, 1008, 'Dr. Sanket Pawar', '7894512458', 'documents/admin/images/1784720492_Abhishek.png', '2026-07-20 05:59:41', '2026-07-22 11:41:32', 0),
 (7, 1009, 'Abhishek mandhare', '', 'documents/admin/images/Ultra_Rohan.PNG', '2026-07-20 07:46:59', '2026-07-20 10:49:01', 0),
 (8, 1011, 'Dr. Sam Dapal', '', 'documents/admin/images/rohan.jpeg', '2026-07-20 12:48:53', '2026-07-20 12:49:09', 0),
@@ -1239,7 +1239,30 @@ INSERT INTO `audit_logs` (`log_id`, `hospital_id`, `register_id`, `user_name`, `
 (1062, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'Chrome', '2026-08-05 04:23:23', 0),
 (1063, NULL, 1006, 'Super Admin', 'Super Admin', 'Permission', 'Updated permissions for role ID: 3, ALL HOSPITALS', 'Permission', 'Updated permissions for role ID: 3, ALL HOSPITALS', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'Chrome', '2026-08-05 06:36:33', 0),
 (1064, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'Chrome', '2026-08-05 06:53:06', 0),
-(1065, NULL, 1006, 'Super Admin', 'Super Admin', 'Logout', 'User logged out', 'Logout', 'User logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'Chrome', '2026-08-05 06:55:37', 0);
+(1065, NULL, 1006, 'Super Admin', 'Super Admin', 'Logout', 'User logged out', 'Logout', 'User logged out', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'Chrome', '2026-08-05 06:55:37', 0),
+(1066, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 09:44:41', 0),
+(1067, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 09:46:01', 0),
+(1068, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.3', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'Chrome', '2026-08-05 09:46:56', 0),
+(1069, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.3', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'Chrome', '2026-08-05 09:47:44', 0),
+(1070, NULL, 1006, 'Super Admin', 'Super Admin', 'Logout', 'User logged out', 'Logout', 'User logged out', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 09:47:51', 0),
+(1071, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:06:24', 0),
+(1072, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.3', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'Chrome', '2026-08-05 10:07:24', 0),
+(1073, NULL, 1006, 'Super Admin', 'Super Admin', 'Logout', 'User logged out', 'Logout', 'User logged out', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:23:56', 0),
+(1074, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:24:03', 0),
+(1075, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:24:08', 0),
+(1076, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:25:01', 0),
+(1077, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:25:20', 0),
+(1078, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:27:48', 0),
+(1079, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:28:40', 0),
+(1080, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:28:41', 0),
+(1081, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:29:02', 0),
+(1082, NULL, 1006, 'Super Admin', 'Super Admin', 'Logout', 'User logged out', 'Logout', 'User logged out', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:32:16', 0),
+(1083, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:32:23', 0),
+(1084, NULL, 1006, 'Super Admin', 'Super Admin', 'Logout', 'User logged out', 'Logout', 'User logged out', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:32:44', 0),
+(1085, 5, 1028, 'Ayush Nipane', 'Doctor', 'Logout', 'User logged out', 'Logout', 'User logged out', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:34:37', 0),
+(1086, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:34:43', 0),
+(1087, NULL, 1006, 'Super Admin', 'Super Admin', 'Dashboard', 'Super Admin accessed dashboard', 'Dashboard', 'Super Admin accessed dashboard', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:35:02', 0),
+(1088, NULL, 1006, 'Super Admin', 'Super Admin', 'Audit Logs', 'User viewed audit logs', 'Audit Logs', 'User viewed audit logs', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Chrome', '2026-08-05 10:35:21', 0);
 
 -- --------------------------------------------------------
 
@@ -1404,7 +1427,7 @@ CREATE TABLE `doctor` (
 
 INSERT INTO `doctor` (`doctor_id`, `register_id`, `doctor_name`, `doctor_image`, `mobile`, `email`, `department`, `qualification`, `specialization`, `experience`, `consultation_fee`, `timing`, `address`, `status`, `created_at`, `modified_at`, `delete_flag`, `hospital_id`) VALUES
 (5, 1015, 'Chaitanya Patil', '', '', 'wchaitanyapatil@gmail.com', 'Pediatricss', '', '', 0, 0.00, '', 'Powai Naka', 'Active', '2026-07-20 13:08:12', '2026-07-23 14:56:08', 0, 5),
-(8, 1028, 'Ayush Nipane', 'documents/patients/images/1784726240_images.jpg', '7058094949', 'ayushhnipane@gmail.com', 'Cardiology', 'BTech', 'MBBS', 8, 300.00, '9:00 to 5:00', 'Ambedare, Dhanavadewadi', 'Active', '2026-07-21 06:45:02', '2026-08-01 14:54:17', 0, 5),
+(8, 1028, 'Ayush Nipane', '../documents/doctors/images/1000963819.jpg', '7058094949', 'ayushhnipane@gmail.com', 'Cardiology', 'BTech', 'MBBS', 8, 300.00, '9:00 to 5:00', 'Ambedare, Dhanavadewadi', 'Active', '2026-07-21 06:45:02', '2026-08-05 10:33:24', 0, 5),
 (9, 1029, 'Dr Shivatej Katkar', '', '4654617845', 'shivatejk033@gmail.com', 'Cardiology', 'hvh', 'Btech', 5, 5609.00, '', '', 'Active', '2026-07-21 06:51:12', '2026-07-23 14:56:03', 0, 6),
 (13, 1061, 'Rohan Kurne', '', '7261998814', 'rohan@gmail.com', 'Cardiology', '', '', 0, 0.00, '', 'NA', 'Active', '2026-07-30 07:32:59', '2026-07-30 07:42:26', 1, 5),
 (16, 1066, 'Vedant Mohite', 'documents/doctors/images/WhatsApp Image 2025-04-25 at 7.23.13 PM.jpeg', '', 'abhimandhare@gmail.com', '', '', '', 0, 0.00, '', '', 'Active', '2026-07-30 16:41:11', '2026-08-01 05:24:32', 0, 6),
@@ -1859,6 +1882,43 @@ INSERT INTO `lab_test_results` (`result_id`, `order_detail_id`, `result_value`, 
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `leave_requests`
+--
+
+CREATE TABLE `leave_requests` (
+  `leave_id` int(11) NOT NULL,
+  `hospital_id` int(11) NOT NULL,
+  `employee_id` int(11) NOT NULL,
+  `employee_name` varchar(150) NOT NULL,
+  `employee_code` varchar(50) DEFAULT NULL,
+  `department_id` int(11) DEFAULT NULL,
+  `designation_id` int(11) DEFAULT NULL,
+  `leave_type` enum('Casual','Sick','Earned','Maternity','Paternity','Compensatory','Without Pay','Half Day','Emergency','Bereavement','Other') NOT NULL,
+  `from_date` date NOT NULL,
+  `to_date` date NOT NULL,
+  `total_days` decimal(5,2) DEFAULT 0.00,
+  `reason` text DEFAULT NULL,
+  `attachment` varchar(255) DEFAULT NULL,
+  `status` enum('Pending','Approved','Rejected','Cancelled') DEFAULT 'Pending',
+  `approved_by` int(11) DEFAULT NULL,
+  `approved_date` datetime DEFAULT NULL,
+  `rejected_by` int(11) DEFAULT NULL,
+  `rejected_date` datetime DEFAULT NULL,
+  `rejection_reason` text DEFAULT NULL,
+  `hr_remarks` text DEFAULT NULL,
+  `is_half_day` tinyint(1) DEFAULT 0,
+  `half_day_session` enum('Morning','Afternoon') DEFAULT NULL,
+  `emergency_contact` varchar(20) DEFAULT NULL,
+  `delete_flag` tinyint(1) DEFAULT 0,
+  `created_by` int(11) DEFAULT NULL,
+  `updated_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `login_logs`
 --
 
@@ -2116,7 +2176,17 @@ INSERT INTO `login_logs` (`login_id`, `register_id`, `hospital_id`, `login_time`
 (250, 1006, NULL, '2026-08-03 17:27:28', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'Desktop'),
 (251, 1006, NULL, '2026-08-05 09:51:09', '2026-08-05 12:25:37', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'Desktop'),
 (252, 1028, 5, '2026-08-05 09:53:38', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0', 'Desktop'),
-(253, 1008, 5, '2026-08-05 12:25:41', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'Desktop');
+(253, 1008, 5, '2026-08-05 12:25:41', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'Desktop'),
+(254, 1006, NULL, '2026-08-05 09:44:41', NULL, '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Mobile'),
+(255, 1006, NULL, '2026-08-05 09:46:56', '2026-08-05 09:47:51', '192.168.1.3', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'Desktop'),
+(256, 1008, 5, '2026-08-05 09:48:10', NULL, '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Mobile'),
+(257, 1008, 5, '2026-08-05 09:48:59', NULL, '192.168.1.3', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'Desktop'),
+(258, 1006, NULL, '2026-08-05 10:06:24', NULL, '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Mobile'),
+(259, 1006, NULL, '2026-08-05 10:07:24', '2026-08-05 10:23:56', '192.168.1.3', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'Desktop'),
+(260, 1006, NULL, '2026-08-05 10:24:03', '2026-08-05 10:32:16', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Mobile'),
+(261, 1006, NULL, '2026-08-05 10:32:23', '2026-08-05 10:32:44', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Mobile'),
+(262, 1028, 5, '2026-08-05 10:33:05', '2026-08-05 10:34:37', '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Mobile'),
+(263, 1006, NULL, '2026-08-05 10:34:43', NULL, '192.168.1.2', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'Mobile');
 
 -- --------------------------------------------------------
 
@@ -2599,7 +2669,7 @@ CREATE TABLE `register` (
 --
 
 INSERT INTO `register` (`id`, `role_id`, `name`, `email`, `password`, `created_by`, `modified_by`, `delete_flag`, `reg_date`, `role`, `hospital_id`) VALUES
-(1006, 1, 'Super Admin', 'superadmin@gmail.com', '1234', 'System', '1006', 0, '2026-07-29 11:42:50', 'Super Admin', NULL),
+(1006, 1, 'Super Admin', 'superadmin@gmail.com', '1234', 'System', '1006', 0, '2026-08-05 09:47:36', 'Super Admin', NULL),
 (1008, 2, 'Dr. Sanket Pawar', 'rohankurne12@gmail.com', 'Roh@1234', 'Super Admin', '1008', 0, '2026-07-22 11:41:32', 'Admin', 5),
 (1009, 2, 'Abhishek mandhare', 'abhimandhare469@gmail.com', '$2y$10$5R0i1xosT40WQWjvxBHf..fnNRUbXtca6PU78UazijBOh8iCFt64y', 'Super Admin', 'Super Admin', 0, '2026-07-20 07:36:19', 'Admin', 6),
 (1011, 2, 'Dr. Sam Dapal', 'rahulkumbhar2801@gmail.com', '$2y$10$NiLbbxHv1DY7iLKBaNQpYOo6rGXJzJzkSntQgvWct/3/MWz6n8fLW', 'Super Admin', 'Super Admin', 0, '2026-07-20 11:49:54', 'Admin', 7),
@@ -4261,6 +4331,17 @@ ALTER TABLE `lab_test_results`
   ADD PRIMARY KEY (`result_id`);
 
 --
+-- Indexes for table `leave_requests`
+--
+ALTER TABLE `leave_requests`
+  ADD PRIMARY KEY (`leave_id`),
+  ADD KEY `hospital_id` (`hospital_id`),
+  ADD KEY `employee_id` (`employee_id`),
+  ADD KEY `status` (`status`),
+  ADD KEY `from_date` (`from_date`),
+  ADD KEY `to_date` (`to_date`);
+
+--
 -- Indexes for table `login_logs`
 --
 ALTER TABLE `login_logs`
@@ -4451,7 +4532,7 @@ ALTER TABLE `appointments`
 -- AUTO_INCREMENT for table `audit_logs`
 --
 ALTER TABLE `audit_logs`
-  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1066;
+  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1089;
 
 --
 -- AUTO_INCREMENT for table `bed_allocation`
@@ -4580,10 +4661,16 @@ ALTER TABLE `lab_test_results`
   MODIFY `result_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
+-- AUTO_INCREMENT for table `leave_requests`
+--
+ALTER TABLE `leave_requests`
+  MODIFY `leave_id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `login_logs`
 --
 ALTER TABLE `login_logs`
-  MODIFY `login_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=254;
+  MODIFY `login_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=264;
 
 --
 -- AUTO_INCREMENT for table `nursing_notes`

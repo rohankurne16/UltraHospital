@@ -25,6 +25,31 @@ include "config/encryption.php";
 
 // NOTE: hasPerm(), hasAnyPerm(), getDashboardUrl() are already defined
 // in config/permission.php - DO NOT redefine them here!
+
+// ============================================================
+// HELPER: Clean image path (remove leading ./ and ../)
+// ============================================================
+function cleanImagePath($path) {
+    if (empty($path)) return '';
+    // Remove leading ./ or ../
+    $clean = ltrim($path, './');
+    $clean = preg_replace('/^(\.\.\/)+/', '', $clean);
+    return $clean;
+}
+
+// ============================================================
+// HELPER: Get correct image src (absolute from root)
+// ============================================================
+function getImageSrc($path, $default = 'documents/default.webp') {
+    $clean = cleanImagePath($path);
+    if (!empty($clean)) {
+        $full_path = $_SERVER['DOCUMENT_ROOT'] . '/' . $clean;
+        if (file_exists($full_path)) {
+            return '/' . $clean; // absolute path from root
+        }
+    }
+    return $default; // fallback
+}
 ?>
 <style>
 /* ============================================================
@@ -212,12 +237,12 @@ include "config/encryption.php";
         <!-- Header -->
         <div class="sidebar-header">
             <a class="sidebar-brand" href="<?php echo getDashboardUrl($user_role); ?>">
-                <?php if ($hospital_logo): ?>
-                    <?php if (strtolower(trim($user_role)) == 'admin') { ?>
-                        <img alt="Hospital Logo" src="<?php echo $hospital_logo; ?>" class="brand-logo" />
-                    <?php } else { ?>
-                        <img alt="Hospital Logo" src="../<?php echo $hospital_logo; ?>" class="brand-logo" />
-                    <?php } ?>
+                <?php 
+                // Clean logo path and get correct src
+                $logo_src = getImageSrc($hospital_logo, 'documents/hospital/default_logo.png');
+                ?>
+                <?php if ($hospital_logo && file_exists($_SERVER['DOCUMENT_ROOT'] . '/' . cleanImagePath($hospital_logo))): ?>
+                    <img alt="Hospital Logo" src="<?php echo $logo_src; ?>" class="brand-logo" />
                 <?php else: ?>
                     <span class="brand-icon">H</span>
                 <?php endif; ?>
@@ -762,11 +787,7 @@ if (hasAnyPerm(['hr-dashboard-view', 'hr-attendance-view', 'hr-leave-view', 'hr-
             <?php if (hasAnyPerm(['accountant-dashboard-view', 'accountant-salary-view', 'accountant-expense-view', 'accountant-payment-view', 'accountant-invoice-view', 'accountant-ledger-view'])): ?>
             <div class="sidebar-section-label">Accounting</div>
 
-            <?php if (hasPerm('accountant-dashboard-view')): ?>
-            <a href="accounts/dashboard.php" class="sidebar-link <?php echo $current_page == 'dashboard.php' && strpos($_SERVER['PHP_SELF'], '/accounts/') !== false ? 'active' : ''; ?>">
-                <i class="fas fa-calculator"></i> Accounts Dashboard
-            </a>
-            <?php endif; ?>
+           
 
             <div class="sidebar-dropdown">
                 <button class="dropdown-toggle" onclick="toggleMenu('accountantMenu')">
@@ -775,31 +796,31 @@ if (hasAnyPerm(['hr-dashboard-view', 'hr-attendance-view', 'hr-leave-view', 'hr-
                 </button>
                 <div id="accountantMenu" class="dropdown-menu">
                     <?php if (hasPerm('accountant-salary-view')): ?>
-                    <a href="accounts/salary_management.php" class="sidebar-link sub-link">
+                    <a href="salary_management.php" class="sidebar-link sub-link">
                         <i class="fas fa-money-bill-wave"></i> Salary Management
                     </a>
                     <?php endif; ?>
 
                     <?php if (hasPerm('accountant-expense-view')): ?>
-                    <a href="accounts/expenses.php" class="sidebar-link sub-link">
+                    <a href="expenses.php" class="sidebar-link sub-link">
                         <i class="fas fa-receipt"></i> Expenses
                     </a>
                     <?php endif; ?>
 
                     <?php if (hasPerm('accountant-payment-view')): ?>
-                    <a href="accounts/payments.php" class="sidebar-link sub-link">
+                    <a href="payments.php" class="sidebar-link sub-link">
                         <i class="fas fa-credit-card"></i> Payments
                     </a>
                     <?php endif; ?>
 
                     <?php if (hasPerm('accountant-invoice-view')): ?>
-                    <a href="accounts/invoices.php" class="sidebar-link sub-link">
+                    <a href="invoices.php" class="sidebar-link sub-link">
                         <i class="fas fa-file-invoice-dollar"></i> Invoices
                     </a>
                     <?php endif; ?>
 
                     <?php if (hasPerm('accountant-ledger-view')): ?>
-                    <a href="accounts/ledger.php" class="sidebar-link sub-link">
+                    <a href="ledger.php" class="sidebar-link sub-link">
                         <i class="fas fa-book"></i> Ledger
                     </a>
                     <?php endif; ?>
@@ -883,17 +904,93 @@ if (hasAnyPerm(['hr-dashboard-view', 'hr-attendance-view', 'hr-leave-view', 'hr-
                 case 'super admin': $profilePage = "superadmin/dashboard.php"; break;
                 case 'admin': $profilePage = "dashboard.php"; break;
                 case 'doctor': $profilePage = "update_adminprofile.php"; break;
-                case 'nurse': case 'ward boy': case 'staff': $profilePage = "staff/dashboard.php"; break;
+                case 'nurse': case 'ward boy': case 'staff': $profilePage = "update_adminprofile.php"; break;
                 case 'hr': $profilePage = "HR/dashboard.php"; break;
-                case 'lab technician': $profilePage = "labtechnician/update_profile.php"; break;
-                case 'patient': $profilePage = "patients/profile.php"; break;
-                case 'billing staff': $profilePage = "staff/billing_profile.php"; break;
+                case 'lab technician': $profilePage = "update_adminprofile.php"; break;
+                case 'patient': $profilePage = "update_adminprofile.php"; break;
+                case 'billing staff': $profilePage = "update_adminprofile.php"; break;
                 case 'accountant': $profilePage = "update_adminprofile.php"; break;
-                case 'pharmacist': $profilePage = "staff/pharmacist_profile.php"; break;
-                case 'receptionist': $profilePage = "staff/reception_profile.php"; break;
+                case 'pharmacist': $profilePage = "update_adminprofile.php"; break;
+                case 'receptionist': $profilePage = "update_adminprofile.php"; break;
                 default: $profilePage = "dashboard.php";
             }
             ?>
+
+            <!-- ============================================================ -->
+<!-- ==================== NURSE SECTION ========================= -->
+<!-- ============================================================ -->
+
+<?php if (hasAnyPerm(['vitals-view', 'vitals-add', 'vitals-update'])): ?>
+
+<div class="sidebar-section-label">Nursing</div>
+
+<!-- Vitals Management -->
+<div class="sidebar-dropdown">
+
+    <button class="dropdown-toggle" onclick="toggleMenu('nurseMenu')">
+        <span>
+            <i class="fas fa-heartbeat"></i> Vitals Management
+        </span>
+        <i class="fas fa-chevron-down dropdown-arrow"></i>
+    </button>
+
+    <div id="nurseMenu" class="dropdown-menu">
+
+        <?php if (hasPerm('vitals-view')): ?>
+        <a href="vitals.php" class="sidebar-link sub-link">
+            <i class="fas fa-eye"></i> View Vitals
+        </a>
+        <?php endif; ?>
+
+        <?php if (hasPerm('vitals-add')): ?>
+        <a href="add_vitals.php" class="sidebar-link sub-link">
+            <i class="fas fa-plus-circle"></i> Add Vitals
+        </a>
+        <?php endif; ?>
+
+      
+
+    </div>
+</div>
+
+<?php endif; ?>
+
+<?php if (hasAnyPerm([
+    'nursing-notes-view',
+    'nursing-notes-add',
+    'nursing-notes-edit'
+])): ?>
+
+<div class="sidebar-dropdown">
+
+    <button class="dropdown-toggle" onclick="toggleMenu('nursingNotesMenu')">
+        <span>
+            <i class="fas fa-notes-medical"></i> Nursing Notes
+        </span>
+        <i class="fas fa-chevron-down dropdown-arrow"></i>
+    </button>
+
+    <div id="nursingNotesMenu" class="dropdown-menu">
+
+        <?php if (hasPerm('nursing-notes-view')): ?>
+        <a href="nursing_notes.php" class="sidebar-link sub-link">
+            <i class="fas fa-eye"></i> View Nursing Notes
+        </a>
+        <?php endif; ?>
+
+        <?php if (hasPerm('nursing-notes-add')): ?>
+        <a href="add_nursing_note.php" class="sidebar-link sub-link">
+            <i class="fas fa-plus-circle"></i> Add Nursing Note
+        </a>
+        <?php endif; ?>
+
+   
+
+    </div>
+
+</div>
+
+<?php endif; ?>
 
             <div class="sidebar-section-label">Account</div>
             <a href="<?php echo $profilePage; ?>"
@@ -920,31 +1017,22 @@ if (hasAnyPerm(['hr-dashboard-view', 'hr-attendance-view', 'hr-leave-view', 'hr-
             </div>
         </nav>
 
-        <!-- Footer -->
-       <div class="sidebar-footer">
+      <!-- Footer -->
+        <div class="sidebar-footer">
     <div class="user-avatar">
-        <?php
-        $profile = $profile_image;
-
-        // Remove wrong ../../ if stored in database
-        if (!empty($profile) && strpos($profile, '../../') === 0) {
-            $profile = str_replace('../../', '', $profile);
-        }
-
-        // Check file from project root
-        if (!empty($profile) && file_exists(__DIR__ . '/' . $profile)):
-        ?>
-            <img src="<?php echo htmlspecialchars($profile); ?>" alt="User">
+        <?php if ($profile_image && strtolower(trim($user_role)) == 'admin'): ?>
+            <img src="<?php echo $profile_image; ?>" alt="User">
+        <?php elseif ('../' . $profile_image ): ?>
+            <img src="<?php echo $profile_image; ?>" alt="User">
         <?php else: ?>
-            <img src="documents/default.webp" alt="User">
+            <?php echo strtoupper(substr($user_name, 0, 1)); ?>
         <?php endif; ?>
     </div>
-
-    <div class="user-info">
-        <p class="user-name"><?php echo htmlspecialchars($user_name); ?></p>
-        <p class="user-role"><?php echo htmlspecialchars($user_role); ?></p>
-    </div>
-</div>
+            <div class="user-info">
+                <p class="user-name"><?php echo htmlspecialchars($user_name); ?></p>
+                <p class="user-role"><?php echo htmlspecialchars($user_role); ?></p>
+            </div>
+        </div>
 </aside>
 </div>
 

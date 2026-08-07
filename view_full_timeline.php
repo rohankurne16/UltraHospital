@@ -15,8 +15,8 @@ if(!isset($_GET['id']) || empty($_GET['id'])){
 
 $patient_id = $_GET['id'];
 $hid = $_SESSION['hospital_id'];
-$hospital_name = $_SESSION['hospital_name'];
-$hospital_logo = $_SESSION['hospital_logo'];
+$hospital_name = $_SESSION['hospital_name'] ?? '';
+$hospital_logo = $_SESSION['hospital_logo'] ?? '';
 
 // Fetch Patient Name
 $patient_query = "SELECT patient_name FROM patients WHERE patient_id='$patient_id' AND hospital_id='$hid'";
@@ -34,7 +34,7 @@ if($patient_result && $patient_result->num_rows > 0){
 $hospital_query = mysqli_query($conn, "SELECT * FROM hospital_master WHERE hospital_id = '$hid'");
 $hospital = mysqli_fetch_assoc($hospital_query);
 
-// FULL TIMELINE QUERY
+// FULL TIMELINE QUERY - FIXED
 $timeline_query = "
 (SELECT 
     'appointment' as event_type,
@@ -58,7 +58,7 @@ UNION ALL
     'Prescription Created' as title,
     CONCAT('Prescription Added') as description,
     p.created_at as created_date
-FROM prescriptions p
+FROM prescription_master p
 WHERE p.patient_id='$patient_id'
 AND p.hospital_id='$hid'
 AND (p.delete_flag=0 OR p.delete_flag IS NULL))
@@ -85,11 +85,11 @@ UNION ALL
 
 (SELECT
     'diagnosis' as event_type,
-    p2.created_at as event_date,
+    p2.modified_at as event_date,
     NULL as event_time,
     'Diagnosis Added' as title,
-    p2.medical_history as description,
-    p2.created_at as created_date
+    COALESCE(p2.medical_history, 'No diagnosis') as description,
+    p2.modified_at as created_date
 FROM patients p2
 WHERE p2.patient_id='$patient_id'
 AND p2.hospital_id='$hid'
@@ -103,7 +103,7 @@ UNION ALL
     p3.created_at as event_date,
     NULL as event_time,
     'Patient Registered' as title,
-    'Patient registration completed' as description,
+    CONCAT('Registered as ', COALESCE(p3.patient_admission_type, 'OPD'), ' patient') as description,
     p3.created_at as created_date
 FROM patients p3
 WHERE p3.patient_id='$patient_id'
@@ -113,11 +113,39 @@ ORDER BY created_date DESC
 ";
 
 $result = $conn->query($timeline_query);
+
+if (!$result) {
+    die("Timeline Query Error: " . $conn->error);
+}
+
 $timeline_events=[];
 
 if($result && $result->num_rows>0){
     while($row=$result->fetch_assoc()){
         $timeline_events[]=$row;
+    }
+}
+
+// If no events found, add a default registration event
+if (empty($timeline_events)) {
+    $default_sql = "
+        SELECT 
+            'registration' as event_type,
+            created_at as event_date,
+            NULL as event_time,
+            'Patient Registered' as title,
+            CONCAT('Registered as ', COALESCE(patient_admission_type, 'OPD'), ' patient') as description,
+            created_at as created_date
+        FROM patients
+        WHERE patient_id = '$patient_id'
+        AND hospital_id = '$hid'
+    ";
+    
+    $default_result = $conn->query($default_sql);
+    if ($default_result && $default_result->num_rows > 0) {
+        while ($row = $default_result->fetch_assoc()) {
+            $timeline_events[] = $row;
+        }
     }
 }
 ?>
@@ -127,8 +155,8 @@ if($result && $result->num_rows>0){
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars($hospital['hospital_name']); ?> - Patient Timeline</title>
-    <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($hospital['hospital_logo']); ?>">
+    <title><?php echo htmlspecialchars($hospital['hospital_name'] ?? 'Hospital'); ?> - Patient Timeline</title>
+    <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($hospital['hospital_logo'] ?? ''); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -147,7 +175,6 @@ if($result && $result->num_rows>0){
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
-        /* Main wrapper - accounts for header and sidebar */
         .main-wrapper {
             margin-left: 250px;
             margin-top: 70px;
@@ -273,13 +300,11 @@ if($result && $result->num_rows>0){
             transform: translateY(-2px);
         }
 
-        /* Timeline with progress bar */
         .timeline-wrapper {
             position: relative;
             padding-left: 40px;
         }
 
-        /* Progress Bar (Vertical line on the left) */
         .timeline-progress {
             position: absolute;
             left: 14px;
@@ -311,7 +336,6 @@ if($result && $result->num_rows>0){
             box-shadow: 0 0 12px rgba(139, 92, 246, 0.5);
         }
 
-        /* Individual timeline items */
         .timeline-item {
             position: relative;
             padding-bottom: 32px;
@@ -373,7 +397,6 @@ if($result && $result->num_rows>0){
             }
         }
 
-        /* Stagger animation delay */
         .timeline-item:nth-child(1) { animation-delay: 0.1s; }
         .timeline-item:nth-child(2) { animation-delay: 0.2s; }
         .timeline-item:nth-child(3) { animation-delay: 0.3s; }
@@ -495,7 +518,6 @@ if($result && $result->num_rows>0){
             display: block;
         }
 
-        /* Stats bar */
         .timeline-stats {
             display: flex;
             gap: 24px;
@@ -535,7 +557,6 @@ if($result && $result->num_rows>0){
         .stat-dot-purple { background: #8b5cf6; }
         .stat-dot-red { background: #ef4444; }
 
-        /* Download progress overlay */
         .download-overlay {
             display: none;
             position: fixed;
@@ -589,7 +610,6 @@ if($result && $result->num_rows>0){
             font-size: 0.875rem;
         }
 
-        /* Responsive */
         @media (max-width: 768px) {
             .main-wrapper {
                 margin-left: 0;
@@ -704,7 +724,7 @@ if($result && $result->num_rows>0){
                 <!-- Header -->
                 <div class="timeline-header">
                     <div class="timeline-title">
-                        <h1 id="patientName"><?php echo htmlspecialchars($patient_name); ?></h1>
+                        <h1 id="patientName"><?php echo htmlspecialchars($patient_name ?? 'Patient'); ?></h1>
                         <span class="badge">Full Timeline</span>
                     </div>
                     <div class="timeline-actions">
@@ -814,19 +834,28 @@ if($result && $result->num_rows>0){
                             } elseif ($index < $total_events) {
                                 $item_class .= ' completed';
                             }
+                            
+                            $event_type = $event['event_type'] ?? 'registration';
+                            $icon = $icons[$event_type] ?? 'clock';
+                            $color = $colors[$event_type] ?? 'icon-registration';
+                            $tag_color = $tag_colors[$event_type] ?? 'tag-gray';
+                            $event_label = $event_type_labels[$event_type] ?? 'Event';
                         ?>
                         <div class="<?php echo $item_class; ?>" data-progress="<?php echo $progress; ?>">
                             <div class="timeline-item-content">
                                 <div class="timeline-item-header">
                                     <div class="timeline-item-title">
-                                        <div class="timeline-item-icon <?php echo $colors[$event['event_type']]; ?>">
-                                            <i data-lucide="<?php echo $icons[$event['event_type']]; ?>" class="w-4 h-4"></i>
+                                        <div class="timeline-item-icon <?php echo $color; ?>">
+                                            <i data-lucide="<?php echo $icon; ?>" class="w-4 h-4"></i>
                                         </div>
-                                        <h3><?php echo htmlspecialchars($event['title']); ?></h3>
+                                        <h3><?php echo htmlspecialchars($event['title'] ?? 'Event'); ?></h3>
                                     </div>
                                     <span class="timeline-item-date">
                                         <i data-lucide="calendar" class="w-3 h-3 inline"></i>
-                                        <?php echo date("d M Y", strtotime($event['event_date'])); ?>
+                                        <?php 
+                                        $event_date = $event['event_date'] ?? $event['created_date'] ?? date('Y-m-d');
+                                        echo date("d M Y", strtotime($event_date)); 
+                                        ?>
                                         <?php if (!empty($event['event_time'])): ?>
                                             <i data-lucide="clock" class="w-3 h-3 inline ml-1"></i>
                                             <?php echo date("h:i A", strtotime($event['event_time'])); ?>
@@ -834,11 +863,11 @@ if($result && $result->num_rows>0){
                                     </span>
                                 </div>
                                 <div class="timeline-item-description">
-                                    <p><?php echo nl2br(htmlspecialchars($event['description'])); ?></p>
+                                    <p><?php echo nl2br(htmlspecialchars($event['description'] ?? '')); ?></p>
                                 </div>
                                 <div class="timeline-item-tags">
-                                    <span class="tag <?php echo $tag_colors[$event['event_type']]; ?>">
-                                        <?php echo $event_type_labels[$event['event_type']]; ?>
+                                    <span class="tag <?php echo $tag_color; ?>">
+                                        <?php echo $event_label; ?>
                                     </span>
                                     <?php if (!empty($event['event_time'])): ?>
                                     <span class="tag tag-gray">
@@ -880,7 +909,6 @@ if($result && $result->num_rows>0){
             const progressFill = document.getElementById('progressFill');
             
             if (items.length > 0) {
-                // Set initial progress
                 setTimeout(() => {
                     const lastItem = items[items.length - 1];
                     if (lastItem) {
@@ -916,21 +944,17 @@ if($result && $result->num_rows>0){
 
             const card = document.getElementById('timelineCard');
             
-            // Set up for clean capture
             const originalOverflow = document.body.style.overflow;
             document.body.style.overflow = 'hidden';
             
-            // Force all timeline items to be visible for capture
             document.querySelectorAll('.timeline-item').forEach(item => {
                 item.style.opacity = '1';
                 item.style.transform = 'translateX(0)';
                 item.style.animation = 'none';
             });
 
-            // Add a print class for better rendering
             card.classList.add('printing');
 
-            // Use html2canvas with better quality
             html2canvas(card, {
                 scale: 2,
                 useCORS: true,
@@ -940,22 +964,19 @@ if($result && $result->num_rows>0){
                 windowWidth: card.scrollWidth,
                 windowHeight: card.scrollHeight,
                 onclone: function(document) {
-                    // Ensure all icons are rendered
                     document.querySelectorAll('[data-lucide]').forEach(el => {
                         el.style.display = 'inline-block';
                     });
                 }
             }).then(function(canvas) {
-                // Remove print class
                 card.classList.remove('printing');
                 
-                // Create download link
                 const link = document.createElement('a');
-                link.download = `Patient_Timeline_${document.getElementById('patientName').textContent.trim()}_${new Date().toISOString().split('T')[0]}.png`;
+                const patientName = document.getElementById('patientName')?.textContent?.trim() || 'Patient';
+                link.download = `Patient_Timeline_${patientName}_${new Date().toISOString().split('T')[0]}.png`;
                 link.href = canvas.toDataURL('image/png');
                 link.click();
                 
-                // Restore styles
                 document.body.style.overflow = originalOverflow;
                 overlay.classList.remove('active');
             }).catch(function(err) {

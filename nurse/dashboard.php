@@ -1,19 +1,7 @@
 <?php
-/**
- * Nurse Dashboard - Ultra Hospital Management System
- * 
- * This dashboard provides nurses with a comprehensive view of their daily tasks,
- * assigned patients, medication schedules, and patient vitals.
- * 
- * @package UltraHospital
- * @subpackage Nurse
- * @author Ultra Hospital Team
- * @version 1.0
- */
 
 session_start();
 
-// Include configuration files
 require_once '../config/permission.php';
 require_once '../config/hospital.php';
 
@@ -22,10 +10,67 @@ if (!isset($_SESSION['id'])) {
     header("Location: ../auth/logout.php");
     exit();
 }
-
-// Get session variables
 $nurse_id = $_SESSION['id'];
-$hospital_id = $_SESSION['hospital_id'] ?? 0;
+
+$nurseQuery = "SELECT * FROM staff 
+               WHERE register_id = '$nurse_id'
+               AND role = 'Nurse'
+               AND delete_flag = 0
+               LIMIT 1";
+
+/* ============================================================
+   ADD SELECTED TASKS
+   ============================================================ */
+if (isset($_POST['add_nursing_tasks'])) {
+    $task_ids = $_POST['task_ids'] ?? [];
+    foreach ($task_ids as $task_id) {
+        $task_id = (int)$task_id;
+        $checkSql = "
+            SELECT daily_task_id
+            FROM nurse_daily_tasks
+            WHERE task_id = '$task_id'
+            AND nurse_id = '$nurse_id'
+            AND task_date = '$today'
+            AND (delete_flag = 0 OR delete_flag IS NULL)
+        ";
+        $checkResult = $conn->query($checkSql);
+        if ($checkResult && $checkResult->num_rows == 0) {
+            $insertSql = "
+                INSERT INTO nurse_daily_tasks
+                (
+                    task_id,
+                    nurse_id,
+                    task_date,
+                    status,
+                    delete_flag
+                )
+                VALUES
+                (
+                    '$task_id',
+                    '$nurse_id',
+                    '$today',
+                    'Pending',
+                    0
+                )
+            ";
+            $conn->query($insertSql);
+        }
+    }
+}
+
+$nurseResult = mysqli_query($conn, $nurseQuery);
+if ($nurseResult && mysqli_num_rows($nurseResult) > 0) {
+    $nurse = mysqli_fetch_assoc($nurseResult);
+    $_SESSION['nurse'] = $nurse;
+    $_SESSION['nurse_id'] = $nurse['staff_id'];
+    $_SESSION['nurse_name'] = $nurse['name'];
+    $_SESSION['nurse_email'] = $nurse['email'];
+    $_SESSION['nurse_mobile'] = $nurse['mobile'];
+    $_SESSION['nurse_role'] = $nurse['role'];
+    $_SESSION['nurse_hospital_id'] = $nurse['hospital_id'];
+} else {
+    die("Nurse information not found.");
+}
 
 // Set timezone
 date_default_timezone_set('Asia/Kolkata');
@@ -34,8 +79,6 @@ $today = date('Y-m-d');
 // ============================================
 // 1. SUMMARY STATISTICS QUERIES
 // ============================================
-
-// 1.2 Today's OPD Patients
 $todayOPDQuery = "
     SELECT COUNT(DISTINCT a.patient_id) as total
     FROM appointments a
@@ -45,11 +88,9 @@ $todayOPDQuery = "
     AND a.status IN ('Scheduled', 'Confirmed')
     AND a.delete_flag = 0
 ";
-
 $todayOPDResult = $conn->query($todayOPDQuery);
 $todayOPDPatients = $todayOPDResult->num_rows > 0 ? $todayOPDResult->fetch_assoc()['total'] : 0;
 
-// 1.3 IPD Patients Count
 $ipdPatientsQuery = "
     SELECT COUNT(DISTINCT p.patient_id) as total
     FROM ipd_admissions ia
@@ -59,9 +100,12 @@ $ipdPatientsQuery = "
     AND ia.delete_flag = 0
     AND p.delete_flag = 0
 ";
-
 $ipdResult = $conn->query($ipdPatientsQuery);
 $ipdPatients = $ipdResult->num_rows > 0 ? $ipdResult->fetch_assoc()['total'] : 0;
+
+$totalAppointmentsQuery = "SELECT COUNT(*) as total FROM appointments WHERE hospital_id='$hospital_id' AND delete_flag=0";
+$totalAppointmentsResult = $conn->query($totalAppointmentsQuery);
+$totalAppointments = $totalAppointmentsResult->num_rows > 0 ? $totalAppointmentsResult->fetch_assoc()['total'] : 0;
 
 // ============================================
 // 2. OPD PATIENTS QUERY
@@ -96,7 +140,6 @@ $opdPatientsQuery = "
     ORDER BY a.appointment_date DESC, a.appointment_time ASC
     LIMIT 15
 ";
-
 $opdPatientsResult = $conn->query($opdPatientsQuery);
 
 // ============================================
@@ -135,7 +178,6 @@ $ipdPatientsQuery = "
     ORDER BY ia.admission_date DESC
     LIMIT 15
 ";
-
 $ipdPatientsResult = $conn->query($ipdPatientsQuery);
 
 // ============================================
@@ -160,29 +202,10 @@ WHERE pm.hospital_id = '$hospital_id'
     AND ia.status = 'Admitted'
 GROUP BY p.patient_id, p.patient_name
 ORDER BY last_prescribed DESC";
-
 $medicationScheduleResult = $conn->query($medicationScheduleQuery);
 
-if (!$medicationScheduleResult) {
-    die("SQL Error: " . mysqli_error($conn));
-}
-
 // ============================================
-// 5. TODAY'S NURSING TASKS
-// ============================================
-$nursingTasks = [
-    ['icon' => 'fa-heartbeat', 'task' => 'Record BP', 'priority' => 'High'],
-    ['icon' => 'fa-thermometer-half', 'task' => 'Record Temperature', 'priority' => 'High'],
-    ['icon' => 'fa-flask', 'task' => 'IV Fluid Check', 'priority' => 'Medium'],
-    ['icon' => 'fa-syringe', 'task' => 'Injection', 'priority' => 'High'],
-    ['icon' => 'fa-flask', 'task' => 'Sample Collection', 'priority' => 'Medium'],
-    ['icon' => 'fa-band-aid', 'task' => 'Dressing', 'priority' => 'Low'],
-    ['icon' => 'fa-ambulance', 'task' => 'Shift Patient', 'priority' => 'Medium'],
-    ['icon' => 'fa-pencil-alt', 'task' => 'Update Nursing Notes', 'priority' => 'Low']
-];
-
-// ============================================
-// 6. PATIENTS REQUIRING VITALS QUERY
+// 5. PATIENTS REQUIRING VITALS QUERY
 // ============================================
 $vitalsPatientsQuery = "
   SELECT
@@ -207,14 +230,12 @@ WHERE
     AND pv.delete_flag = 0
 ORDER BY pv.recorded_at DESC
 LIMIT 10";
-
 $vitalsPatientsResult = $conn->query($vitalsPatientsQuery);
 
 // ============================================
-// 7. DOCTOR INSTRUCTIONS QUERY
+// 6. DOCTOR INSTRUCTIONS QUERY
 // ============================================
 $doctorInstructionsQuery = "
-
 SELECT
     di.instruction_id,
     p.patient_name,
@@ -235,12 +256,10 @@ ORDER BY
     di.created_at DESC
 LIMIT 5
 ";
-
-
 $doctorInstructionsResult = $conn->query($doctorInstructionsQuery);
 
 // ============================================
-// 8. RECENT NURSING NOTES QUERY
+// 7. RECENT NURSING NOTES QUERY
 // ============================================
 $nursingNotesQuery = "
 SELECT
@@ -248,7 +267,7 @@ SELECT
     p.patient_name,
     r.name AS nurse_name,
     nn.note,
-    DATE_FORMAT(nn.created_at,'%d-%m-%Y %H:%i') AS note_date
+    DATE_FORMAT(nn.recorded_at,'%d-%m-%Y %H:%i') AS note_date
 FROM nursing_notes nn
 JOIN patients p
     ON nn.patient_id = p.patient_id
@@ -256,22 +275,14 @@ JOIN register r
     ON nn.nurse_id = r.id
 WHERE nn.hospital_id = '$hospital_id'
 AND nn.delete_flag = 0
-ORDER BY nn.created_at DESC
+ORDER BY nn.recorded_at DESC
 LIMIT 10
 ";
 $nursingNotesResult = $conn->query($nursingNotesQuery);
 
-$nursingNotesResult = mysqli_query($conn, $nursingNotesQuery);
-
-if (!$nursingNotesResult) {
-    die("SQL Error: " . mysqli_error($conn));
-}
-
 // ============================================
-// 9. CHART DATA QUERIES
+// 8. CHART DATA QUERIES
 // ============================================
-
-// 9.1 Patient Status Chart Data
 $patientStatusQuery = "
     SELECT
     CASE
@@ -287,14 +298,13 @@ WHERE hospital_id = '$hospital_id'
 AND delete_flag = 0
 GROUP BY status_label;
 ";
-
 $patientStatusResult = $conn->query($patientStatusQuery);
 $patientStatusData = [];
 while ($row = $patientStatusResult->fetch_assoc()) {
     $patientStatusData[] = $row;
 }
 
-// 9.2 Medicine Status Chart Data
+// 8.2 Medicine Status Chart Data
 $medicineStatusData = [
     ['status' => 'Pending', 'count' => 12],
     ['status' => 'Given', 'count' => 45],
@@ -360,7 +370,7 @@ if ($hour < 12) {
         }
         
         /* ============================================
-           BOOTSTRAP REPLACEMENT UTILITIES
+           UTILITY CLASSES
            ============================================ */
         .d-flex { display: flex; }
         .d-block { display: block; }
@@ -369,8 +379,10 @@ if ($hour < 12) {
         .flex-column { flex-direction: column; }
         .align-items-center { align-items: center; }
         .align-items-start { align-items: flex-start; }
+        .align-items-stretch { align-items: stretch; }
         .justify-content-between { justify-content: space-between; }
         .justify-content-center { justify-content: center; }
+        .justify-content-end { justify-content: flex-end; }
         .text-center { text-align: center; }
         .text-muted { color: #718096; }
         .text-primary { color: #2b6cb5; }
@@ -524,6 +536,8 @@ if ($hour < 12) {
             position: relative;
             overflow: hidden;
             cursor: pointer;
+            display: flex;
+            flex-direction: column;
         }
         
         .stat-card::before {
@@ -559,6 +573,7 @@ if ($hour < 12) {
             color: white;
             margin-bottom: 12px;
             transition: all 0.3s ease;
+            flex-shrink: 0;
         }
         
         .stat-card:hover .stat-icon {
@@ -570,6 +585,7 @@ if ($hour < 12) {
         .stat-card.orange .stat-icon { background: linear-gradient(135deg, #f6ad55, #ed8936); }
         .stat-card.red .stat-icon { background: linear-gradient(135deg, #fc8181, #e53e3e); }
         .stat-card.purple .stat-icon { background: linear-gradient(135deg, #b794f4, #805ad5); }
+        .stat-card.teal .stat-icon { background: linear-gradient(135deg, #4fd1c5, #319795); }
         
         .stat-card .stat-number {
             font-size: 32px;
@@ -611,6 +627,9 @@ if ($hour < 12) {
             overflow: hidden;
             margin-bottom: 24px;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            height: 100%;
+            display: flex;
+            flex-direction: column;
         }
         
         .section-card:hover {
@@ -626,6 +645,7 @@ if ($hour < 12) {
             justify-content: space-between;
             flex-wrap: wrap;
             gap: 10px;
+            flex-shrink: 0;
         }
         
         .section-card .card-header-custom h5 {
@@ -653,6 +673,8 @@ if ($hour < 12) {
         
         .section-card .card-body-custom {
             padding: 20px 24px;
+            flex: 1;
+            overflow: hidden;
         }
         
         /* ============================================
@@ -699,6 +721,7 @@ if ($hour < 12) {
         .table-responsive {
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
+            flex: 1;
         }
         
         /* ============================================
@@ -781,28 +804,6 @@ if ($hour < 12) {
             color: white;
         }
         
-        .btn-outline-success {
-            background: transparent;
-            color: #38a169;
-            border: 2px solid #38a169;
-        }
-        .btn-outline-success:hover {
-            background: linear-gradient(135deg, #48bb78, #38a169);
-            color: white;
-            transform: translateY(-2px);
-        }
-        
-        .btn-outline-danger {
-            background: transparent;
-            color: #e53e3e;
-            border: 2px solid #e53e3e;
-        }
-        .btn-outline-danger:hover {
-            background: linear-gradient(135deg, #fc8181, #e53e3e);
-            color: white;
-            transform: translateY(-2px);
-        }
-        
         /* ============================================
            ACTION BUTTONS
            ============================================ */
@@ -864,122 +865,14 @@ if ($hour < 12) {
             color: #7f1d1d;
         }
         
-        /* ============================================
-           TASK LIST GROUP
-           ============================================ */
-        .task-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 10px;
+        .btn-action-info {
+            background: #e0f2fe;
+            color: #0369a1;
+            border: none;
         }
-        
-        .task-item {
-            background: #f8fafc;
-            border-radius: 12px;
-            padding: 14px 18px;
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            border: 1px solid transparent;
-            cursor: pointer;
-        }
-        
-        .task-item:hover {
-            background: #f1f5f9;
-            border-color: #e2e8f0;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-        }
-        
-        .task-item .task-icon {
-            width: 38px;
-            height: 38px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            color: white;
-            flex-shrink: 0;
-        }
-        
-        .task-item .task-icon.high { background: linear-gradient(135deg, #fc8181, #e53e3e); }
-        .task-item .task-icon.medium { background: linear-gradient(135deg, #f6ad55, #ed8936); }
-        .task-item .task-icon.low { background: linear-gradient(135deg, #68d391, #38a169); }
-        
-        .task-item .task-info {
-            flex: 1;
-        }
-        
-        .task-item .task-info .task-name {
-            font-size: 14px;
-            font-weight: 600;
-            color: #1a202c;
-        }
-        
-        .task-item .task-info .task-priority {
-            font-size: 11px;
-            font-weight: 500;
-        }
-        
-        .task-item .task-info .task-priority.high { color: #e53e3e; }
-        .task-item .task-info .task-priority.medium { color: #ed8936; }
-        .task-item .task-info .task-priority.low { color: #38a169; }
-        
-        .task-item .task-check {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            border: 2px solid #cbd5e0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            flex-shrink: 0;
-        }
-        
-        .task-item .task-check:hover {
-            border-color: #667eea;
-            background: #ebf4ff;
-        }
-        
-        /* ============================================
-           CHART CONTAINERS
-           ============================================ */
-        .chart-container {
-            position: relative;
-            height: 220px;
-            width: 100%;
-        }
-        
-        .chart-card {
-            background: white;
-            border-radius: 16px;
-            padding: 20px;
-            border: 1px solid rgba(226, 232, 240, 0.8);
-            height: 100%;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        .chart-card:hover {
-            box-shadow: 0 8px 25px -8px rgba(0,0,0,0.08);
-            transform: translateY(-2px);
-        }
-        
-        .chart-card h6 {
-            font-weight: 600;
-            color: #1a202c;
-            margin-bottom: 16px;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .chart-card h6 i {
-            color: #667eea;
+        .btn-action-info:hover {
+            background: #bae6fd;
+            color: #075985;
         }
         
         /* ============================================
@@ -1034,26 +927,6 @@ if ($hour < 12) {
         }
         
         /* ============================================
-           DATE TIME DISPLAY
-           ============================================ */
-        .datetime-display {
-            background: white;
-            padding: 10px 20px;
-            border-radius: 12px;
-            border: 1px solid rgba(226, 232, 240, 0.8);
-            font-size: 14px;
-            color: #4a5568;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-        }
-        
-        .datetime-display i {
-            color: #667eea;
-        }
-        
-        /* ============================================
            MAIN CONTENT AREA
            ============================================ */
         .main-content {
@@ -1064,9 +937,20 @@ if ($hour < 12) {
             transition: margin-left 0.3s ease;
         }
         
+        .main-content > * {
+            max-width: 1680px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
         /* ============================================
-           BREADCRUMB
+           PAGE HEADER
            ============================================ */
+        .page-header {
+            margin-bottom: 24px;
+            width: 100%;
+        }
+        
         .page-header .breadcrumb {
             background: transparent;
             padding: 0;
@@ -1104,6 +988,46 @@ if ($hour < 12) {
         }
         
         /* ============================================
+           CHART CONTAINERS
+           ============================================ */
+        .chart-container {
+            position: relative;
+            height: 220px;
+            width: 100%;
+        }
+        
+        .chart-card {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            height: 100%;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chart-card:hover {
+            box-shadow: 0 8px 25px -8px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
+        }
+        
+        .chart-card h6 {
+            font-weight: 600;
+            color: #1a202c;
+            margin-bottom: 16px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        
+        .chart-card h6 i {
+            color: #667eea;
+        }
+        
+        /* ============================================
            RESPONSIVE
            ============================================ */
         @media (max-width: 1200px) {
@@ -1136,10 +1060,6 @@ if ($hour < 12) {
                 align-items: flex-start;
             }
             
-            .task-list {
-                grid-template-columns: 1fr;
-            }
-            
             .table-nurse {
                 font-size: 12px;
             }
@@ -1158,15 +1078,9 @@ if ($hour < 12) {
             .col-xl-3 { flex: 0 0 100%; max-width: 100%; }
             .col-xl-4 { flex: 0 0 100%; max-width: 100%; }
             
-            .datetime-display {
-                margin-top: 12px;
-                width: 100%;
-                justify-content: center;
-            }
-            
-            .page-header .d-flex {
-                flex-direction: column;
-                align-items: flex-start;
+            .floating-shapes span:nth-child(2),
+            .floating-shapes span:nth-child(4) {
+                display: none;
             }
         }
         
@@ -1181,10 +1095,9 @@ if ($hour < 12) {
             
             .section-card .card-body-custom {
                 padding: 12px 16px;
-                overflow-x: auto;
             }
             
-            .card-header-custom {
+            .section-card .card-header-custom {
                 padding: 14px 16px;
             }
         }
@@ -1211,17 +1124,6 @@ if ($hour < 12) {
         }
         
         /* ============================================
-           UTILITY HELPERS
-           ============================================ */
-        .shadow-sm { box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
-        .shadow-md { box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
-        
-        .border-0 { border: none; }
-        .rounded { border-radius: 8px; }
-        .rounded-lg { border-radius: 12px; }
-        .rounded-xl { border-radius: 16px; }
-        
-        /* ============================================
            PRINT STYLES
            ============================================ */
         @media print {
@@ -1244,8 +1146,7 @@ if ($hour < 12) {
             }
             
             .btn,
-            .btn-action,
-            .task-check {
+            .btn-action {
                 display: none !important;
             }
             
@@ -1257,13 +1158,28 @@ if ($hour < 12) {
         }
         
         /* ============================================
-           ADDITIONAL FLOATING SHAPES FOR SMALL SCREENS
+           INSTRUCTION ITEMS
            ============================================ */
-        @media (max-width: 768px) {
-            .floating-shapes span:nth-child(2),
-            .floating-shapes span:nth-child(4) {
-                display: none;
-            }
+        .instruction-item {
+            border-bottom: 1px solid #f1f5f9;
+            padding-bottom: 16px;
+            margin-bottom: 16px;
+            transition: background 0.2s ease;
+        }
+        
+        .instruction-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        
+        .instruction-item:hover {
+            background: #f8fafc;
+            margin-left: -8px;
+            margin-right: -8px;
+            padding-left: 8px;
+            padding-right: 8px;
+            border-radius: 8px;
         }
     </style>
 </head>
@@ -1313,7 +1229,6 @@ if ($hour < 12) {
                             </p>
                         </div>
                         <div class="d-flex gap-3" style="flex-wrap: wrap;">
-                         
                             <button class="btn" style="background: rgba(255,255,255,0.2); backdrop-filter: blur(10px); color: white; border: 1px solid rgba(255,255,255,0.3);" onclick="window.location.href='profile.php'">
                                 <i class="fas fa-user"></i> My Profile
                             </button>
@@ -1326,7 +1241,7 @@ if ($hour < 12) {
             SECTION 1: SUMMARY STATISTICS
             ============================================ -->
             <div class="row g-4 mb-4">
-                <!-- Card 2: Today's OPD Patients -->
+                <!-- Card 1: Today's OPD Patients -->
                 <div class="col-xl-3 col-lg-6 col-md-6">
                     <div class="stat-card green" onclick="window.location.href='opd_patients.php'">
                         <div class="stat-icon">
@@ -1340,7 +1255,7 @@ if ($hour < 12) {
                     </div>
                 </div>
                 
-                <!-- Card 3: IPD Patients -->
+                <!-- Card 2: IPD Patients -->
                 <div class="col-xl-3 col-lg-6 col-md-6">
                     <div class="stat-card purple" onclick="window.location.href='ipd_patients.php'">
                         <div class="stat-icon">
@@ -1354,16 +1269,13 @@ if ($hour < 12) {
                     </div>
                 </div>
                 
-                <!-- Card: Total Appointments -->
+                <!-- Card 3: Total Appointments -->
                 <div class="col-xl-3 col-lg-6 col-md-6">
                     <div class="stat-card blue" onclick="window.location.href='appointments.php'">
                         <div class="stat-icon">
                             <i class="fas fa-calendar-check"></i>
                         </div>
-                        <div class="stat-number"><?php 
-                            $totalAppointments = $conn->query("SELECT COUNT(*) as total FROM appointments WHERE hospital_id='$hospital_id' AND delete_flag=0")->fetch_assoc()['total'];
-                            echo $totalAppointments; 
-                        ?></div>
+                        <div class="stat-number"><?php echo $totalAppointments; ?></div>
                         <div class="stat-label">Total Appointments</div>
                         <div class="stat-change up">
                             <i class="fas fa-arrow-up"></i> 12% from last month
@@ -1371,16 +1283,21 @@ if ($hour < 12) {
                     </div>
                 </div>
                 
-                <!-- Card: Pending Tasks -->
+                <!-- Card 4: Total Patients -->
                 <div class="col-xl-3 col-lg-6 col-md-6">
-                    <div class="stat-card orange" onclick="window.location.href='tasks.php'">
+                    <div class="stat-card teal" onclick="window.location.href='patients.php'">
                         <div class="stat-icon">
-                            <i class="fas fa-tasks"></i>
+                            <i class="fas fa-users"></i>
                         </div>
-                        <div class="stat-number"><?php echo count($nursingTasks); ?></div>
-                        <div class="stat-label">Pending Tasks</div>
-                        <div class="stat-change down">
-                            <i class="fas fa-arrow-down"></i> 3 tasks overdue
+                        <div class="stat-number">
+                            <?php 
+                                $totalPatients = $conn->query("SELECT COUNT(*) as total FROM patients WHERE hospital_id='$hospital_id' AND delete_flag=0 AND status='Active'")->fetch_assoc()['total'];
+                                echo $totalPatients; 
+                            ?>
+                        </div>
+                        <div class="stat-label">Total Active Patients</div>
+                        <div class="stat-change up">
+                            <i class="fas fa-arrow-up"></i> 3% from last month
                         </div>
                     </div>
                 </div>
@@ -1398,9 +1315,6 @@ if ($hour < 12) {
                     </h5>
                     <div class="d-flex gap-2">
                         <span class="patient-type-badge opd"><i class="fas fa-circle" style="font-size: 6px; margin-right: 4px;"></i> OPD</span>
-                        <button class="btn btn-sm btn-outline-primary">
-                            <i class="fas fa-print"></i> Print
-                        </button>
                         <button class="btn btn-sm btn-primary" onclick="window.location.href='opd_patients.php'">
                             <i class="fas fa-arrow-right"></i> View All
                         </button>
@@ -1493,9 +1407,6 @@ if ($hour < 12) {
                     </h5>
                     <div class="d-flex gap-2">
                         <span class="patient-type-badge ipd"><i class="fas fa-circle" style="font-size: 6px; margin-right: 4px;"></i> IPD</span>
-                        <button class="btn btn-sm btn-outline-primary">
-                            <i class="fas fa-print"></i> Print
-                        </button>
                         <button class="btn btn-sm btn-primary" onclick="window.location.href='ipd_patients.php'">
                             <i class="fas fa-arrow-right"></i> View All
                         </button>
@@ -1602,26 +1513,26 @@ if ($hour < 12) {
                                         <th>Patient</th>
                                         <th>Total Prescriptions</th>
                                         <th>Total Medicines</th>
-                                        <th>Action</th>
+                                        <th class="text-center">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php while($row = $medicationScheduleResult->fetch_assoc()): ?>
                                         <tr>
                                             <td>
-                                                <strong><?= htmlspecialchars($row['patient_name']) ?></strong>
+                                                <strong><?php echo htmlspecialchars($row['patient_name']); ?></strong>
                                                 <div class="text-muted small">
-                                                    #<?= str_pad($row['patient_id'],4,'0',STR_PAD_LEFT) ?>
+                                                    #<?php echo str_pad($row['patient_id'],4,'0',STR_PAD_LEFT); ?>
                                                 </div>
                                             </td>
-                                            <td><?= $row['total_prescriptions'] ?></td>
+                                            <td><?php echo $row['total_prescriptions']; ?></td>
                                             <td>
                                                 <span class="badge-status" style="background: #dbeafe; color: #1e40af;">
-                                                    <?= $row['total_medicines'] ?> Medicines
+                                                    <?php echo $row['total_medicines']; ?> Medicines
                                                 </span>
                                             </td>
-                                            <td>
-                                                <button class="btn btn-sm btn-primary" onclick="window.location.href='patient_medications.php?patient_id=<?= $row['patient_id'] ?>'">
+                                            <td class="text-center">
+                                                <button class="btn btn-sm btn-primary" onclick="window.location.href='patient_medications.php?patient_id=<?php echo $row['patient_id']; ?>'">
                                                     <i class="fas fa-eye"></i> View
                                                 </button>
                                             </td>
@@ -1641,52 +1552,22 @@ if ($hour < 12) {
             </div>
             
             <!-- ============================================
-            SECTION 5: TODAY'S NURSING TASKS + VITALS + INSTRUCTIONS
-            3 COLUMN GRID
+            SECTION 5: VITALS + INSTRUCTIONS
+            2 COLUMN GRID
             ============================================ -->
             <div class="row g-4">
-                <!-- Column 1: Today's Nursing Tasks -->
-                <div class="col-xl-4 col-lg-6">
-                    <div class="section-card h-100">
-                        <div class="card-header-custom">
-                            <h5>
-                                <i class="fas fa-tasks"></i>
-                                Today's Nursing Tasks
-                                <span class="badge-count"><?php echo count($nursingTasks); ?></span>
-                            </h5>
-                        </div>
-                        <div class="card-body-custom">
-                            <div class="task-list">
-                                <?php foreach ($nursingTasks as $task): ?>
-                                    <div class="task-item">
-                                        <div class="task-icon <?php echo strtolower($task['priority']); ?>">
-                                            <i class="fas <?php echo $task['icon']; ?>"></i>
-                                        </div>
-                                        <div class="task-info">
-                                            <div class="task-name"><?php echo $task['task']; ?></div>
-                                            <div class="task-priority <?php echo strtolower($task['priority']); ?>">
-                                                <i class="fas fa-circle" style="font-size: 6px;"></i> <?php echo $task['priority']; ?> Priority
-                                            </div>
-                                        </div>
-                                        <div class="task-check">
-                                            <i class="fas fa-check" style="font-size: 12px; color: transparent;"></i>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Column 2: Patients Requiring Vitals -->
-                <div class="col-xl-4 col-lg-6">
-                    <div class="section-card h-100">
+                <!-- Column 1: Patients Requiring Vitals -->
+                <div class="col-xl-6 col-lg-6">
+                    <div class="section-card">
                         <div class="card-header-custom">
                             <h5>
                                 <i class="fas fa-heartbeat"></i>
                                 Patients Requiring Vitals
                                 <span class="badge-count"><?php echo $vitalsPatientsResult->num_rows; ?></span>
                             </h5>
+                            <button class="btn btn-sm btn-primary" onclick="window.location.href='add_vitals.php'">
+                                <i class="fas fa-plus"></i> Record Vitals
+                            </button>
                         </div>
                         <div class="card-body-custom">
                             <?php if ($vitalsPatientsResult->num_rows > 0): ?>
@@ -1698,24 +1579,20 @@ if ($hour < 12) {
                                                 <th>BP</th>
                                                 <th>Pulse</th>
                                                 <th>Temp</th>
-                                                <th>Action</th>
+                                                <th class="text-center">Action</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <?php while ($row = $vitalsPatientsResult->fetch_assoc()): 
-                                                $bp = rand(110, 140) . '/' . rand(70, 90);
-                                                $pulse = rand(60, 100);
-                                                $temp = number_format(rand(970, 1010) / 10, 1);
-                                            ?>
+                                            <?php while ($row = $vitalsPatientsResult->fetch_assoc()): ?>
                                                 <tr>
                                                     <td>
                                                         <strong><?php echo htmlspecialchars($row['patient_name']); ?></strong>
                                                         <div class="text-muted small">#<?php echo str_pad($row['patient_id'], 4, '0', STR_PAD_LEFT); ?></div>
                                                     </td>
-                                                    <td><?php echo $bp; ?></td>
-                                                    <td><?php echo $pulse; ?> bpm</td>
-                                                    <td><?php echo $temp; ?>°F</td>
-                                                    <td>
+                                                    <td><?php echo htmlspecialchars($row['bp'] ?? 'N/A'); ?></td>
+                                                    <td><?php echo htmlspecialchars($row['pulse'] ?? 'N/A'); ?> bpm</td>
+                                                    <td><?php echo htmlspecialchars($row['temperature'] ?? 'N/A'); ?>°F</td>
+                                                    <td class="text-center">
                                                         <button class="btn-action btn-action-primary" title="Record Vitals" onclick="window.location.href='add_vitals.php?patient_id=<?php echo $row['patient_id']; ?>'">
                                                             <i class="fas fa-edit"></i>
                                                         </button>
@@ -1736,33 +1613,36 @@ if ($hour < 12) {
                     </div>
                 </div>
                 
-                <!-- Column 3: Doctor Instructions -->
-                <div class="col-xl-4 col-lg-12">
-                    <div class="section-card h-100">
+                <!-- Column 2: Doctor Instructions -->
+                <div class="col-xl-6 col-lg-6">
+                    <div class="section-card">
                         <div class="card-header-custom">
                             <h5>
                                 <i class="fas fa-stethoscope"></i>
                                 Doctor Instructions
                                 <span class="badge-count">Recent</span>
                             </h5>
+                            <button class="btn btn-sm btn-outline-primary" onclick="window.location.href='doctor_instructions.php'">
+                                <i class="fas fa-arrow-right"></i> View All
+                            </button>
                         </div>
                         <div class="card-body-custom">
                             <?php if ($doctorInstructionsResult->num_rows > 0): ?>
                                 <?php while ($row = $doctorInstructionsResult->fetch_assoc()): ?>
-                                    <div class="d-flex border-bottom pb-3 mb-3 align-items-start" style="border-color: #f1f5f9 !important;">
-                                        <div class="me-3">
+                                    <div class="instruction-item d-flex align-items-start">
+                                        <div class="me-3 flex-shrink-0">
                                             <div class="d-flex align-items-center justify-content-center" 
                                                  style="width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #1e40af; font-size: 18px;">
                                                 <i class="fas fa-user-md"></i>
                                             </div>
                                         </div>
                                         <div class="flex-grow-1">
-                                            <div class="d-flex justify-content-between align-items-start">
+                                            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
                                                 <div>
                                                     <strong><?php echo htmlspecialchars($row['patient_name']); ?></strong>
                                                     <div class="text-muted small">Dr. <?php echo htmlspecialchars($row['doctor_name']); ?></div>
                                                 </div>
-                                                <span class="text-muted small"><?php echo $row['instruction_date']; ?></span>
+                                                <span class="text-muted small flex-shrink-0"><?php echo $row['instruction_date']; ?></span>
                                             </div>
                                             <p class="mb-0 mt-1 text-muted small">
                                                 <i class="fas fa-notes-medical" style="color: #667eea;"></i>
@@ -1888,41 +1768,6 @@ if ($hour < 12) {
     JAVASCRIPT - Charts & Functions
     ============================================ -->
     <script>
-        // ============================================
-        // TASK CHECKBOX TOGGLE
-        // ============================================
-        document.querySelectorAll('.task-check').forEach(function(check) {
-            check.addEventListener('click', function(e) {
-                e.stopPropagation();
-                const icon = this.querySelector('i');
-                if (icon.style.color === 'transparent' || icon.style.color === '') {
-                    icon.style.color = '#667eea';
-                    this.style.borderColor = '#667eea';
-                    this.style.background = '#ebf4ff';
-                    // Add completion animation
-                    this.style.transform = 'scale(0.9)';
-                    setTimeout(() => {
-                        this.style.transform = 'scale(1)';
-                    }, 150);
-                } else {
-                    icon.style.color = 'transparent';
-                    this.style.borderColor = '#cbd5e0';
-                    this.style.background = 'transparent';
-                }
-            });
-        });
-        
-        // ============================================
-        // MARK MEDICINE AS GIVEN
-        // ============================================
-        function markAsGiven(id) {
-            if (confirm('Mark this medication as Given?')) {
-                // AJAX call would go here
-                alert('Medication #' + id + ' marked as Given');
-                location.reload();
-            }
-        }
-        
         // ============================================
         // CHART.JS - Patient Status Pie Chart
         // ============================================
