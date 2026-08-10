@@ -1,170 +1,145 @@
 <?php
-
 // ============================================================
-// START SESSION
+// OUTPUT BUFFERING - prevent "headers already sent" errors
 // ============================================================
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+if (ob_get_level() === 0) {
+    ob_start();
 }
 
+// ============================================================
+// START SESSION (only if not already started)
+// ============================================================
+if (session_status() === PHP_SESSION_NONE) {
+    @session_start();
+}
+
+// ============================================================
+// SUPPRESS NON-FATAL ERRORS DURING LOGOUT
+// (we don't want warnings to break the redirect)
+// ============================================================
+error_reporting(E_ERROR | E_PARSE);
 
 // ============================================================
 // LOAD CONFIGURATION
 // ============================================================
-include_once '../config/hospital.php';
-include_once '../config/permission.php';
-
+@include_once '../config/hospital.php';
+@include_once '../config/permission.php';
 
 // ============================================================
-// SAVE REQUIRED SESSION DATA BEFORE DESTROYING SESSION
+// CAPTURE SESSION DATA BEFORE DESTROYING
 // ============================================================
-$register_id = isset($_SESSION['id']) ? (int) $_SESSION['id'] : 0;
-$login_id    = isset($_SESSION['login_id']) ? (int) $_SESSION['login_id'] : 0;
-$session_id  = session_id();
-
+ $register_id = isset($_SESSION['id']) ? (int) $_SESSION['id'] : 0;
+ $login_id    = isset($_SESSION['login_id']) ? (int) $_SESSION['login_id'] : 0;
+ $session_id  = session_id();
 
 // ============================================================
 // GET HOSPITAL ID
 // ============================================================
-// First try GET parameter
-$hid = isset($_GET['hid']) ? trim($_GET['hid']) : '';
-
-
-// If hid is not present in URL, try session
-if (empty($hid) && isset($_SESSION['hid'])) {
+ $hid = '';
+if (isset($_GET['hid']) && $_GET['hid'] !== '') {
+    $hid = trim($_GET['hid']);
+} elseif (isset($_SESSION['hid']) && $_SESSION['hid'] !== '') {
     $hid = trim($_SESSION['hid']);
-}
-
-
-// If your project uses hospital_id instead of hid
-if (empty($hid) && isset($_SESSION['hospital_id'])) {
+} elseif (isset($_SESSION['hospital_id']) && $_SESSION['hospital_id'] !== '') {
     $hid = trim($_SESSION['hospital_id']);
 }
-
 
 // ============================================================
 // UPDATE LOGOUT TIME
 // ============================================================
-if ($register_id > 0 && isset($conn) && $conn) {
+ $logoutUpdated = false;
+
+if ($register_id > 0 && isset($conn) && $conn instanceof mysqli) {
 
     // --------------------------------------------------------
-    // CASE 1: login_id is available
+    // CASE 1: Update by login_id + register_id
     // --------------------------------------------------------
     if ($login_id > 0) {
-
         $stmt = mysqli_prepare(
             $conn,
             "UPDATE login_logs
              SET logout_time = NOW()
              WHERE login_id = ?
-             AND register_id = ?
-             AND logout_time IS NULL
+               AND register_id = ?
+               AND logout_time IS NULL
              LIMIT 1"
         );
-
         if ($stmt) {
-
-            mysqli_stmt_bind_param(
-                $stmt,
-                "ii",
-                $login_id,
-                $register_id
-            );
-
+            mysqli_stmt_bind_param($stmt, "ii", $login_id, $register_id);
             mysqli_stmt_execute($stmt);
+            if (mysqli_affected_rows($conn) > 0) {
+                $logoutUpdated = true;
+            }
             mysqli_stmt_close($stmt);
         }
     }
 
-
     // --------------------------------------------------------
-    // CASE 2: login_id unavailable OR no row updated
-    // Use session_id
+    // CASE 2: Fallback by session_id + register_id
     // --------------------------------------------------------
-    if ($login_id <= 0 || mysqli_affected_rows($conn) == 0) {
-
+    if (!$logoutUpdated && $session_id !== '') {
         $stmt = mysqli_prepare(
             $conn,
             "UPDATE login_logs
              SET logout_time = NOW()
              WHERE register_id = ?
-             AND session_id = ?
-             AND logout_time IS NULL
+               AND session_id = ?
+               AND logout_time IS NULL
              LIMIT 1"
         );
-
         if ($stmt) {
-
-            mysqli_stmt_bind_param(
-                $stmt,
-                "is",
-                $register_id,
-                $session_id
-            );
-
+            mysqli_stmt_bind_param($stmt, "is", $register_id, $session_id);
             mysqli_stmt_execute($stmt);
+            if (mysqli_affected_rows($conn) > 0) {
+                $logoutUpdated = true;
+            }
             mysqli_stmt_close($stmt);
         }
     }
 
-
     // --------------------------------------------------------
-    // CASE 3: Final fallback
-    // Update latest active login for this user
+    // CASE 3: Final fallback - latest active login only
+    // (Runs ONLY if CASE 1 and CASE 2 both failed)
     // --------------------------------------------------------
-    $stmt = mysqli_prepare(
-        $conn,
-        "UPDATE login_logs
-         SET logout_time = NOW()
-         WHERE register_id = ?
-         AND logout_time IS NULL
-         ORDER BY login_time DESC
-         LIMIT 1"
-    );
-
-    if ($stmt) {
-
-        mysqli_stmt_bind_param(
-            $stmt,
-            "i",
-            $register_id
+    if (!$logoutUpdated) {
+        $stmt = mysqli_prepare(
+            $conn,
+            "UPDATE login_logs
+             SET logout_time = NOW()
+             WHERE register_id = ?
+               AND logout_time IS NULL
+             ORDER BY login_time DESC
+             LIMIT 1"
         );
-
-        mysqli_stmt_execute($stmt);
-        mysqli_stmt_close($stmt);
+        if ($stmt) {
+            mysqli_stmt_bind_param($stmt, "i", $register_id);
+            mysqli_stmt_execute($stmt);
+            mysqli_stmt_close($stmt);
+        }
     }
 }
-
 
 // ============================================================
 // AUDIT LOG
 // ============================================================
 if ($register_id > 0 && function_exists('logAudit')) {
-
     try {
-        logAudit(
-            'Logout',
-            'User logged out'
-        );
+        logAudit('Logout', 'User logged out');
     } catch (Throwable $e) {
-        // Do not stop logout if audit logging fails
+        // Silent fail - logout must continue
     }
 }
-
 
 // ============================================================
 // CLEAR SESSION VARIABLES
 // ============================================================
-$_SESSION = array();
-
+ $_SESSION = array();
 
 // ============================================================
 // DELETE SESSION COOKIE
 // ============================================================
 if (ini_get('session.use_cookies')) {
-
     $params = session_get_cookie_params();
-
     setcookie(
         session_name(),
         '',
@@ -176,39 +151,63 @@ if (ini_get('session.use_cookies')) {
     );
 }
 
-
 // ============================================================
 // DESTROY SESSION
 // ============================================================
-session_destroy();
-
+@session_destroy();
 
 // ============================================================
-// PREVENT BROWSER CACHE
+// BUILD ABSOLUTE REDIRECT URL
+// (HTTP/1.1 requires absolute URI; some servers reject relative)
+// ============================================================
+ $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
+    ? 'https' : 'http';
+
+ $host   = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
+ $script = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '';
+// We are in /logout/ (or similar) folder, go up one level to reach index.php
+ $baseDir = rtrim(dirname(dirname($script)), '/\\') . '/';
+
+ $indexUrl = $protocol . '://' . $host . $baseDir . 'index.php';
+
+if ($hid !== '') {
+    $redirect_url = $indexUrl . '?hid=' . urlencode($hid);
+} else {
+    $redirect_url = $indexUrl;
+}
+
+// ============================================================
+// PREVENT BROWSER CACHE (must be sent before Location)
 // ============================================================
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Cache-Control: post-check=0, pre-check=0', false);
 header('Pragma: no-cache');
 header('Expires: 0');
-
+header('Clear-Site-Data: "cache", "cookies", "storage"');
 
 // ============================================================
-// REDIRECT TO LOGIN PAGE
+// FLUSH OUTPUT BUFFER
 // ============================================================
-if (!empty($hid)) {
-
-    $redirect_url = '../index.php?hid=' . urlencode($hid);
-
-} else {
-
-    $redirect_url = '../index.php';
+if (ob_get_level() > 0) {
+    ob_end_clean();
 }
 
-
 // ============================================================
-// SERVER-SIDE REDIRECT
+// REDIRECT - Server-side with JS fallback
 // ============================================================
-header('Location: ' . $redirect_url, true, 302);
+if (!headers_sent()) {
+    header('Location: ' . $redirect_url, true, 302);
+    echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url='
+        . htmlspecialchars($redirect_url, ENT_QUOTES) . '">';
+    echo '<script>window.location.href="' . htmlspecialchars($redirect_url, ENT_QUOTES) . '";</script>';
+    echo '</head><body>Redirecting…</body></html>';
+} else {
+    // Headers already sent - use HTML/JS fallback
+    echo '<!DOCTYPE html><html><head>';
+    echo '<meta http-equiv="refresh" content="0;url=' . htmlspecialchars($redirect_url, ENT_QUOTES) . '">';
+    echo '<script>window.location.href="' . htmlspecialchars($redirect_url, ENT_QUOTES) . '";</script>';
+    echo '</head><body>Redirecting…</body></html>';
+}
 exit();
-
 ?>
