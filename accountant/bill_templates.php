@@ -123,7 +123,7 @@ if ($action == 'edit' && $id) {
 <body>
     <?php include '../header.php'; ?>
     <div class="d-flex">
-        <?php include '../sidebar.php'; ?>
+        <?php include '../Sidebar.php'; ?>
         <main class="main-content">
             <?php if ($action == 'create' || ($action == 'edit' && $edit_template)): ?>
             <!-- Create / Edit Form -->

@@ -964,7 +964,7 @@ function getBadgeClass(roleSlug) {
         'pharmacist': 'role-badge-pharmacist',
         'staff': 'role-badge-staff',
         'receptionist': 'role-badge-receptionist',
-        'hr': 'role-badge-hr'
+        
     };
     return classes[roleSlug] || 'role-badge-staff';
 }
@@ -1021,6 +1021,7 @@ document.querySelector('input[name="dob"]').addEventListener('change', function(
         this.value = '';
     }
 });
+
 
 console.log('Add Form Loaded Successfully!');
 </script>
