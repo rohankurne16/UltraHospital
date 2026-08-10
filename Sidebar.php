@@ -1006,11 +1006,11 @@ if (hasAnyPerm(['hr-dashboard-view', 'hr-attendance-view', 'hr-leave-view', 'hr-
 
             <div class="logout-section">
                 <?php if(strtolower(trim($user_role)) == 'admin'){ ?>
-                    <a href="auth/logout.php?hid=<?php echo $encrypted_hid; ?>" class="sidebar-link logout">
+                    <a href="auth/Logout.php?hid=<?php echo $encrypted_hid; ?>" class="sidebar-link logout">
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </a>
                 <?php } else { ?>
-                    <a href="../auth/logout.php?hid=<?php echo $encrypted_hid; ?>" class="sidebar-link logout">
+                    <a href="../auth/Logout.php?hid=<?php echo $encrypted_hid; ?>" class="sidebar-link logout">
                         <i class="fas fa-sign-out-alt"></i> Logout
                     </a>
                 <?php } ?>
