@@ -57,6 +57,30 @@ function fetchData($conn, $query) {
     return $data;
 }
 
+// Function to convert 12-hour time to 24-hour time for MySQL
+function convertTimeToMySQL($time12) {
+    if (empty($time12)) {
+        return null;
+    }
+    // If it's already in 24-hour format (HH:MM:SS or HH:MM)
+    if (preg_match('/^\d{2}:\d{2}(:\d{2})?$/', $time12)) {
+        return $time12 . (strlen($time12) == 5 ? ':00' : '');
+    }
+    
+    // Convert from 12-hour format (e.g., "03:30 PM")
+    $datetime = DateTime::createFromFormat('h:i A', $time12);
+    if ($datetime) {
+        return $datetime->format('H:i:s');
+    }
+    // Try without seconds
+    $datetime = DateTime::createFromFormat('h:i:s A', $time12);
+    if ($datetime) {
+        return $datetime->format('H:i:s');
+    }
+    // Fallback: return as is
+    return $time12;
+}
+
 // Get the doctor ID from session (or fallback to GET)
 $doctor_id = isset($_SESSION['doctor_id']) ? $_SESSION['doctor_id'] : (isset($_GET['doctor_id']) ? $_GET['doctor_id'] : null);
 
@@ -149,7 +173,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $doctor_id = mysqli_real_escape_string($conn, getPostData('doctor_id'));
     $appointment_type = mysqli_real_escape_string($conn, getPostData('appointment_type'));
     $appointment_date = mysqli_real_escape_string($conn, getPostData('appointment_date'));
-    $appointment_time = mysqli_real_escape_string($conn, getPostData('appointment_time'));
+    $appointment_time_raw = getPostData('appointment_time');
+    // Convert time to MySQL format
+    $appointment_time = convertTimeToMySQL($appointment_time_raw);
     $duration = mysqli_real_escape_string($conn, getPostData('duration'));
     $reason = mysqli_real_escape_string($conn, getPostData('reason'));
     $symptoms = mysqli_real_escape_string($conn, getPostData('symptoms'));
@@ -169,22 +195,47 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $room_id = mysqli_real_escape_string($conn, getPostData('room_id'));
     $bed_id = mysqli_real_escape_string($conn, getPostData('bed_id'));
     
-    // File upload handling - Store file names
-    $upload_dir = "uploads/documents/";
-    if (!file_exists($upload_dir)) {
-        mkdir($upload_dir, 0777, true);
-    }
+    // ========== FIX: File upload handling with proper permissions ==========
+    $upload_dir = "../uploads/documents/";
     
-    // Function to upload file
-    function uploadFile($file, $upload_dir) {
-        if (isset($file) && $file['error'] == 0 && !empty($file['name'])) {
-            $file_name = time() . '_' . basename($file['name']);
-            $target_path = $upload_dir . $file_name;
-            if (move_uploaded_file($file['tmp_name'], $target_path)) {
-                return $file_name;
+    // Create directory with proper permissions if it doesn't exist
+    if (!file_exists($upload_dir)) {
+        // Try to create with 0755 permissions (owner can write, others can read/execute)
+        if (!mkdir($upload_dir, 0755, true)) {
+            // If that fails, try with 0777 (less secure but works on some servers)
+            if (!mkdir($upload_dir, 0777, true)) {
+                $message = "Unable to create upload directory. Please check permissions.";
+                $messageType = "error";
+                $error = true;
             }
         }
-        return '';
+        // Try to set proper ownership/permissions
+        if (file_exists($upload_dir)) {
+            chmod($upload_dir, 0755);
+        }
+    }
+    
+    // Function to upload file with error handling
+    function uploadFile($file, $upload_dir) {
+        if (!isset($file) || $file['error'] != 0 || empty($file['name'])) {
+            return '';
+        }
+        
+        // Check if upload directory exists and is writable
+        if (!is_dir($upload_dir) || !is_writable($upload_dir)) {
+            error_log("Upload directory not writable: " . $upload_dir);
+            return '';
+        }
+        
+        $file_name = time() . '_' . basename($file['name']);
+        $target_path = $upload_dir . $file_name;
+        
+        if (move_uploaded_file($file['tmp_name'], $target_path)) {
+            return $file_name;
+        } else {
+            error_log("Failed to move uploaded file: " . $file['name']);
+            return '';
+        }
     }
     
     // IPD Document Uploads
@@ -379,6 +430,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     
                     // Update bed status
                     $conn->query("UPDATE bed_master SET status='Occupied' WHERE bed_id='$bed_id'");
+                    
                     // Check if all beds in this room are occupied
                     $room_check = $conn->query("
                         select count(*) total,
@@ -411,20 +463,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         $conn->query("update ward_master set status='Occupied' where ward_id='$ward_id'");
                     } else {
                         $conn->query("update ward_master set status='Available' where ward_id='$ward_id'");
-                    }
-                    
-                    // Check if all beds in room are occupied
-                    $room_check = $conn->query("SELECT COUNT(*) as total, SUM(CASE WHEN status = 'Occupied' THEN 1 ELSE 0 END) as occupied FROM bed_master WHERE room_id = '$room_id' AND delete_flag = 0");
-                    $room_data = $room_check->fetch_assoc();
-                    if ($room_data && $room_data['total'] == $room_data['occupied'] && $room_data['total'] > 0) {
-                        $conn->query("UPDATE room_master SET status='Occupied' WHERE room_id='$room_id'");
-                    }
-                    
-                    // Check if all rooms in ward are occupied
-                    $ward_check = $conn->query("SELECT COUNT(*) as total, SUM(CASE WHEN status = 'Occupied' THEN 1 ELSE 0 END) as occupied FROM room_master WHERE ward_id = '$ward_id' AND delete_flag = 0");
-                    $ward_data = $ward_check->fetch_assoc();
-                    if ($ward_data && $ward_data['total'] == $ward_data['occupied'] && $ward_data['total'] > 0) {
-                        $conn->query("UPDATE ward_master SET status='Occupied' WHERE ward_id='$ward_id'");
                     }
                     
                     // Update appointment status
