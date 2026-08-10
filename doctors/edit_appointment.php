@@ -1,17 +1,27 @@
 <?php
+// FIX: Start Output Buffering to prevent "headers already sent" errors during redirect
+if (ob_get_level() === 0) {
+    ob_start();
+}
+
 session_start();
 include '../config/hospital.php';
 
 include '../config/permission.php';
 checkPermission('appointment-edit'); 
 
-$conn->set_charset("utf8");
-$hid = $_SESSION['hospital_id'];
-$logged_doctor_id = $_SESSION['doctor_id'] ?? null; // may be null for admin
+// FIX: Ensure $conn exists before calling set_charset to prevent HTTP 500
+if (isset($conn) && $conn) {
+    $conn->set_charset("utf8");
+}
 
-$id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-$type = isset($_GET['type']) ? $_GET['type'] : 'OPD';
-$redirect_page = isset($_GET['redirect']) ? $_GET['redirect'] : 'show_opd_appointments.php';
+// FIX: Safely fetch hospital_id to prevent undefined index warnings
+ $hid = $_SESSION['hospital_id'] ?? '';
+ $logged_doctor_id = $_SESSION['doctor_id'] ?? null; // may be null for admin
+
+ $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+ $type = isset($_GET['type']) ? $_GET['type'] : 'OPD';
+ $redirect_page = isset($_GET['redirect']) ? $_GET['redirect'] : 'show_opd_appointments.php';
 
 // If redirect is not set properly, determine based on type
 if (empty($_GET['redirect'])) {
@@ -32,7 +42,7 @@ if ($id == 0) {
 }
 
 // Fetch appointment details with hospital check
-$sql = "SELECT a.*, p.patient_name, p.mobile, p.email, p.address, p.age, p.gender, p.blood_group,
+ $sql = "SELECT a.*, p.patient_name, p.mobile, p.email, p.address, p.age, p.gender, p.blood_group,
         d.doctor_name, d.department as doctor_dept, d.specialization, d.qualification, d.experience, d.consultation_fee
         FROM appointments a 
         JOIN patients p ON a.patient_id = p.patient_id 
@@ -40,7 +50,7 @@ $sql = "SELECT a.*, p.patient_name, p.mobile, p.email, p.address, p.age, p.gende
         WHERE a.appointment_id = '$id' 
         AND a.hospital_id = '$hid'
         AND (a.delete_flag = 0 OR a.delete_flag IS NULL)";
-$result = mysqli_query($conn, $sql);
+ $result = mysqli_query($conn, $sql);
 
 if (!$result || mysqli_num_rows($result) == 0) {
     $_SESSION['toast'] = [
@@ -51,7 +61,7 @@ if (!$result || mysqli_num_rows($result) == 0) {
     exit();
 }
 
-$appointment = mysqli_fetch_assoc($result);
+ $appointment = mysqli_fetch_assoc($result);
 
 // If doctor is logged in, ensure this appointment belongs to them
 if ($logged_doctor_id) {
@@ -66,7 +76,7 @@ if ($logged_doctor_id) {
 }
 
 // Fetch IPD details if exists
-$ipd_details = null;
+ $ipd_details = null;
 if ($appointment['opd_ipd_type'] == 'IPD') {
     $ipd_sql = "SELECT * FROM ipd_admissions WHERE appointment_id = '$id' AND delete_flag = 0 AND hospital_id = '$hid'";
     $ipd_result = mysqli_query($conn, $ipd_sql);
@@ -76,11 +86,11 @@ if ($appointment['opd_ipd_type'] == 'IPD') {
 }
 
 // Fetch doctors for dropdown (filtered by hospital)
-$doctorQuery = "SELECT doctor_id, doctor_name, department FROM doctor 
+ $doctorQuery = "SELECT doctor_id, doctor_name, department FROM doctor 
                 WHERE hospital_id = '$hid' AND (delete_flag = 0 OR delete_flag IS NULL)
                 ORDER BY doctor_name ASC";
-$doctorResult = $conn->query($doctorQuery);
-$doctors = array();
+ $doctorResult = $conn->query($doctorQuery);
+ $doctors = array();
 if ($doctorResult && $doctorResult->num_rows > 0) {
     while ($row = $doctorResult->fetch_assoc()) {
         $doctors[] = $row;
@@ -88,7 +98,7 @@ if ($doctorResult && $doctorResult->num_rows > 0) {
 }
 
 // Get unique departments
-$departments = array();
+ $departments = array();
 foreach ($doctors as $doctor) {
     if (!in_array($doctor['department'], $departments)) {
         $departments[] = $doctor['department'];
@@ -97,11 +107,11 @@ foreach ($doctors as $doctor) {
 sort($departments);
 
 // Fetch wards (filtered by hospital)
-$wards = array();
-$wardQuery = "SELECT ward_id, ward_name FROM ward_master 
+ $wards = array();
+ $wardQuery = "SELECT ward_id, ward_name FROM ward_master 
               WHERE status='Active' AND hospital_id = '$hid'
               AND (delete_flag=0 OR delete_flag IS NULL)";
-$wardResult = $conn->query($wardQuery);
+ $wardResult = $conn->query($wardQuery);
 if ($wardResult && $wardResult->num_rows > 0) {
     while ($row = $wardResult->fetch_assoc()) {
         $wards[] = $row;
@@ -109,7 +119,7 @@ if ($wardResult && $wardResult->num_rows > 0) {
 }
 
 // Fetch rooms based on ward (filtered by hospital)
-$rooms = array();
+ $rooms = array();
 if (!empty($ipd_details['ward_id'])) {
     $roomQuery = "SELECT room_id, room_no FROM room_master 
                   WHERE ward_id = '{$ipd_details['ward_id']}' 
@@ -190,7 +200,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                         previous_history = '$previous_history',
                                         current_medicines = '$current_medicines'
                                       WHERE appointment_id = '$id' AND hospital_id = '$hid'";
-                    mysqli_query($conn, $ipdUpdateSql);
+                    // FIX: Check for IPD update errors
+                    if (!mysqli_query($conn, $ipdUpdateSql)) {
+                        $_SESSION['toast'] = [
+                            'type' => 'error',
+                            'message' => 'IPD Update Error: ' . mysqli_error($conn)
+                        ];
+                        header("Location: edit_appointment.php?id=$id&type=$opd_ipd_type&redirect=" . urlencode($redirect_page));
+                        exit();
+                    }
                 } else {
                     // Insert new IPD record
                     $admission_no = "IPD-" . date('Ymd') . "-" . rand(1000, 9999);
@@ -205,7 +223,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                         '$reason', '$note', '$symptoms', '$severity', '$previous_history',
                                         '$current_medicines', 'Admitted', '0', '$hid'
                                     )";
-                    mysqli_query($conn, $ipdInsertSql);
+                    // FIX: Check for IPD insert errors
+                    if (!mysqli_query($conn, $ipdInsertSql)) {
+                        $_SESSION['toast'] = [
+                            'type' => 'error',
+                            'message' => 'IPD Insert Error: ' . mysqli_error($conn)
+                        ];
+                        header("Location: edit_appointment.php?id=$id&type=$opd_ipd_type&redirect=" . urlencode($redirect_page));
+                        exit();
+                    }
                 }
             }
             
@@ -220,6 +246,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             } else {
                 header("Location: show_opd_appointments.php");
             }
+            // FIX: Clean the buffer before exiting
+            if (ob_get_level() > 0) { ob_end_clean(); }
             exit();
         } else {
             $_SESSION['toast'] = [
@@ -227,6 +255,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 'message' => 'Error: ' . mysqli_error($conn)
             ];
             header("Location: edit_appointment.php?id=$id&type=$opd_ipd_type&redirect=" . urlencode($redirect_page));
+            if (ob_get_level() > 0) { ob_end_clean(); }
             exit();
         }
     }

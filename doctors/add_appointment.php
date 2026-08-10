@@ -81,6 +81,44 @@ function convertTimeToMySQL($time12) {
     return $time12;
 }
 
+// ============================================================
+// FIX: Function to validate and format severity
+// ============================================================
+function validateSeverity($severity) {
+    // Define allowed severity values based on your database ENUM
+    $allowedSeverities = ['Mild', 'Moderate', 'Severe', 'Critical', 'None'];
+    
+    // If empty, return NULL or default
+    if (empty($severity)) {
+        return null;
+    }
+    
+    // Trim and capitalize first letter
+    $severity = trim($severity);
+    $severity = ucfirst(strtolower($severity));
+    
+    // Check if it's in allowed list
+    if (in_array($severity, $allowedSeverities)) {
+        return $severity;
+    }
+    
+    // If not in allowed list, return null or default
+    return null;
+}
+
+// ============================================================
+// FIX: Function to truncate string to database column length
+// ============================================================
+function truncateToLength($string, $maxLength) {
+    if (empty($string)) {
+        return $string;
+    }
+    if (strlen($string) > $maxLength) {
+        return substr($string, 0, $maxLength);
+    }
+    return $string;
+}
+
 // Get the doctor ID from session (or fallback to GET)
 $doctor_id = isset($_SESSION['doctor_id']) ? $_SESSION['doctor_id'] : (isset($_GET['doctor_id']) ? $_GET['doctor_id'] : null);
 
@@ -180,7 +218,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $reason = mysqli_real_escape_string($conn, getPostData('reason'));
     $symptoms = mysqli_real_escape_string($conn, getPostData('symptoms'));
     $since_when = mysqli_real_escape_string($conn, getPostData('since_when'));
-    $severity = mysqli_real_escape_string($conn, getPostData('severity'));
+    
+    // ============================================================
+    // FIX: Validate and format severity before using
+    // ============================================================
+    $severity_raw = getPostData('severity');
+    $severity = validateSeverity($severity_raw);
+    // If severity is null, use empty string or a default value
+    if ($severity === null) {
+        $severity = ''; // or use a default like 'None'
+    }
+    $severity = mysqli_real_escape_string($conn, $severity);
+    
     $allergies = mysqli_real_escape_string($conn, getPostData('allergies'));
     $current_medicines = mysqli_real_escape_string($conn, getPostData('current_medicines'));
     $note = mysqli_real_escape_string($conn, getPostData('note'));
@@ -813,6 +862,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                     <option value="Mild" <?php echo (($form_data['severity'] ?? '') == 'Mild') ? 'selected' : ''; ?>>Mild</option>
                                     <option value="Moderate" <?php echo (($form_data['severity'] ?? '') == 'Moderate') ? 'selected' : ''; ?>>Moderate</option>
                                     <option value="Severe" <?php echo (($form_data['severity'] ?? '') == 'Severe') ? 'selected' : ''; ?>>Severe</option>
+                                    <option value="Critical" <?php echo (($form_data['severity'] ?? '') == 'Critical') ? 'selected' : ''; ?>>Critical</option>
+                                    <option value="None" <?php echo (($form_data['severity'] ?? '') == 'None') ? 'selected' : ''; ?>>None</option>
                                 </select>
                             </div>
                         </div>
