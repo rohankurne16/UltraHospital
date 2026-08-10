@@ -57,6 +57,40 @@ function fetchData($conn, $query) {
     return $data;
 }
 
+// ============================================================
+// FIX: Better appointment number generation
+// ============================================================
+function generateAppointmentNumber($conn, $hospital_id) {
+    // Get the current year and month for the appointment number
+    $year = date('Y');
+    $month = date('m');
+    
+    // Find the last appointment number for this hospital
+    $query = "SELECT appointment_no FROM appointments 
+              WHERE hospital_id = '$hospital_id' 
+              AND appointment_no LIKE 'APP-$year$month%' 
+              ORDER BY appointment_id DESC LIMIT 1";
+    
+    $result = $conn->query($query);
+    
+    if ($result && $result->num_rows > 0) {
+        $row = $result->fetch_assoc();
+        $last_no = $row['appointment_no'];
+        // Extract the number part (e.g., APP-202412-0045 -> 45)
+        $parts = explode('-', $last_no);
+        $last_sequence = isset($parts[2]) ? (int)$parts[2] : 0;
+        $new_sequence = $last_sequence + 1;
+    } else {
+        // Start with 1 if no previous appointments this month
+        $new_sequence = 1;
+    }
+    
+    // Format: APP-YYYYMM-SEQ (e.g., APP-202412-0045)
+    $appointment_no = "APP-" . $year . $month . "-" . str_pad($new_sequence, 4, '0', STR_PAD_LEFT);
+    
+    return $appointment_no;
+}
+
 // Function to convert 12-hour time to 24-hour time for MySQL
 function convertTimeToMySQL($time12) {
     if (empty($time12)) {
@@ -106,19 +140,6 @@ function validateSeverity($severity) {
     return null;
 }
 
-// ============================================================
-// FIX: Function to truncate string to database column length
-// ============================================================
-function truncateToLength($string, $maxLength) {
-    if (empty($string)) {
-        return $string;
-    }
-    if (strlen($string) > $maxLength) {
-        return substr($string, 0, $maxLength);
-    }
-    return $string;
-}
-
 // Get the doctor ID from session (or fallback to GET)
 $doctor_id = isset($_SESSION['doctor_id']) ? $_SESSION['doctor_id'] : (isset($_GET['doctor_id']) ? $_GET['doctor_id'] : null);
 
@@ -158,10 +179,12 @@ foreach ($doctors as $doctor) {
 }
 sort($departments);
 
-// ========== FIX: Appointment number generation with session persistence ==========
+// ============================================================
+// FIX: Generate appointment number with uniqueness check
+// ============================================================
 // Generate a new appointment number only if not already set in session
 if (!isset($_SESSION['appointment_no'])) {
-    $_SESSION['appointment_no'] = "APP-" . rand(1, 9999);
+    $_SESSION['appointment_no'] = generateAppointmentNumber($conn, $hid);
 }
 $appointment_no = $_SESSION['appointment_no'];
 
@@ -219,14 +242,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $symptoms = mysqli_real_escape_string($conn, getPostData('symptoms'));
     $since_when = mysqli_real_escape_string($conn, getPostData('since_when'));
     
-    // ============================================================
-    // FIX: Validate and format severity before using
-    // ============================================================
+    // Validate and format severity
     $severity_raw = getPostData('severity');
     $severity = validateSeverity($severity_raw);
-    // If severity is null, use empty string or a default value
     if ($severity === null) {
-        $severity = ''; // or use a default like 'None'
+        $severity = '';
     }
     $severity = mysqli_real_escape_string($conn, $severity);
     
