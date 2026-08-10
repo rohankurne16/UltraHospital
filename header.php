@@ -1,19 +1,38 @@
 <?php
 // ============================================================
-// DYNAMIC HEADER - ENTERPRISE LEVEL
+// DYNAMIC HEADER - ENTERPRISE LEVEL (PHP 8.4 Compatible)
 // ============================================================
 
 // Start session if not started
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-  $role= $_SESSION['role'];
-                
+$role = $_SESSION['role'] ?? '';
+
 // ============================================================
 // FIX: Include required config files
 // ============================================================
 require_once 'config/hospital.php';
 require_once 'config/permission.php';
+
+// ============================================================
+// FIX: Helper function to check database connection
+// ============================================================
+
+if (!function_exists('isDbConnected')) {
+    function isDbConnected($conn) {
+        if (!isset($conn) || $conn === null) {
+            return false;
+        }
+        try {
+            // Use a simple query instead of ping()
+            $result = @mysqli_query($conn, "SELECT 1");
+            return ($result !== false);
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+}
 
 // ============================================================
 // FIX: Define missing functions if they don't exist
@@ -23,14 +42,17 @@ if (!function_exists('getUserProfile')) {
     function getUserProfile($user_id) {
         global $conn;
         
-        // Check if connection exists and is open
-        if (!isset($conn) || $conn === null || !$conn->ping()) {
+        // Check if connection exists and is open using our new function
+        if (!isDbConnected($conn)) {
             // Connection is closed or not available, use session data
             return [
                 'name' => $_SESSION['name'] ?? 'User', 
                 'profile_image' => $_SESSION['profile_image'] ?? ''
             ];
         }
+        
+        // Sanitize user_id to prevent SQL injection
+        $user_id = mysqli_real_escape_string($conn, $user_id);
         
         // Get profile image from admin_profile table
         $query = "SELECT 
@@ -71,11 +93,14 @@ if (!function_exists('getNotificationCount')) {
     function getNotificationCount($user_id) {
         global $conn;
 
-        // Check if connection exists and is open
-        if (!isset($conn) || $conn === null || !$conn->ping()) {
+        // Check if connection exists and is open using our new function
+        if (!isDbConnected($conn)) {
             return 0;
         }
 
+        $user_id = mysqli_real_escape_string($conn, $user_id);
+        
+        // Check if is_read column exists
         $check_query = "SHOW COLUMNS FROM audit_logs LIKE 'is_read'";
         $check_result = mysqli_query($conn, $check_query);
         $has_is_read = ($check_result && mysqli_num_rows($check_result) > 0);
@@ -97,7 +122,7 @@ if (!function_exists('getNotificationCount')) {
 
         if ($result && mysqli_num_rows($result) > 0) {
             $row = mysqli_fetch_assoc($result);
-            return $row['count'];
+            return (int)$row['count'];
         }
 
         return 0;
@@ -109,7 +134,7 @@ if (!function_exists('hasPermission')) {
         global $permission_names;
         
         // If $permission_names is not set, get from session
-        if (!isset($permission_names)) {
+        if (!isset($permission_names) || empty($permission_names)) {
             if (isset($_SESSION['permissions']) && !empty($_SESSION['permissions'])) {
                 $session_perms = $_SESSION['permissions'];
                 if (is_array($session_perms)) {
@@ -183,7 +208,7 @@ if (!isset($_SESSION['profile_image']) || empty($_SESSION['profile_image'])) {
     display: flex;
     align-items: center;
     justify-content: space-between;
-   min-height: 67px;
+    min-height: 67px;
     position: sticky;
     top: 0;
     z-index: 100;
@@ -394,13 +419,10 @@ if (!isset($_SESSION['profile_image']) || empty($_SESSION['profile_image'])) {
         <button class="hamburger" onclick="toggleMobileSidebar()">
             <i class="fas fa-bars"></i>
         </button>
-       
     </div>
 
     <!-- Right Side -->
     <div class="header-right">
-      
-
         <!-- Notifications -->
         <?php if (hasPermission('notifications-view')): ?>
         <div class="nav-item">
@@ -466,7 +488,6 @@ if (!isset($_SESSION['profile_image']) || empty($_SESSION['profile_image'])) {
                 // Get profile image from session
                 $profile_image = $_SESSION['profile_image'] ?? '';
                 $user_name = $_SESSION['name'] ?? 'User';
-         
                 ?>
                 <?php if (!empty($profile_image) && file_exists($profile_image)): ?>
                 <div class="avatar">
@@ -488,20 +509,16 @@ if (!isset($_SESSION['profile_image']) || empty($_SESSION['profile_image'])) {
                     </div>
                 </div>
                 <div class="dropdown-divider"></div>
-                <?php if($role=='Patient' || $role=='patient'){ ?>
-
+                <?php if($role == 'Patient' || $role == 'patient'): ?>
                     <a href="profile.php" class="dropdown-item">
-                          <i class="fas fa-user"></i> My Profile
+                        <i class="fas fa-user"></i> My Profile
                     </a>
-                      
-              <?php  }else{ ?>
+                <?php else: ?>
                     <a href="update_adminprofile.php" class="dropdown-item">
-                             <i class="fas fa-user"></i> My Profile
+                        <i class="fas fa-user"></i> My Profile
                     </a>
-                <?php    } ?>
-               
+                <?php endif; ?>
                 
-               
                 <?php if (hasPermission('system-settings') || strtolower($role_name) == 'super admin'): ?>
                 <div class="dropdown-divider"></div>
                 <a href="settings.php" class="dropdown-item">
@@ -578,6 +595,9 @@ function markAllRead() {
             if (badge) badge.remove();
             location.reload();
         }
+    })
+    .catch(error => {
+        console.error('Error marking notifications as read:', error);
     });
 }
 
