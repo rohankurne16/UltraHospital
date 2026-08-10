@@ -1,0 +1,709 @@
+<?php
+// ============================================================
+// PHARMACIST PROFILE - UPDATE PROFILE & PASSWORD
+// (Any logged‑in Pharmacist, Admin or Super Admin can view/edit)
+// ============================================================
+
+session_start();
+include "../config/hospital.php";
+
+// Check if user is logged in
+if (!isset($_SESSION['id']) || empty($_SESSION['id'])) {
+    header('Location: index.php');
+    exit();
+}
+
+$user_id = (int) $_SESSION['id'];
+$role    = $_SESSION['role'] ?? '';
+
+// ============================================================
+// GET USER DATA
+// ============================================================
+$admin_data = [];
+$errors = [];
+$form_data = [];
+$password_errors = [];
+
+// Allow only 'Pharmacist' (and Admins/Super Admins if needed)
+$allowed_roles = ['Pharmacist', 'Admin', 'Super Admin'];
+$role_placeholders = implode("','", $allowed_roles);
+
+$sql = "SELECT
+            r.id,
+            r.name,
+            r.email,
+            r.password,
+            r.role,
+            ap.admin_id,
+            ap.register_id,
+            ap.full_name,
+            ap.mobile,
+            ap.profile_image,
+            ap.created_at,
+            ap.updated_at
+        FROM register r
+        LEFT JOIN admin_profile ap
+        ON r.id = ap.register_id
+        WHERE r.id = '$user_id'
+        AND (r.delete_flag = 0 OR r.delete_flag IS NULL)
+        AND r.role IN ('$role_placeholders')";
+$result = $conn->query($sql);
+
+if ($result->num_rows > 0) {
+    $admin_data = $result->fetch_assoc();
+
+    // If no profile record exists, create one
+    if (empty($admin_data['register_id'])) {
+        $conn->query("INSERT INTO admin_profile(register_id, full_name)
+                      VALUES('$user_id', '".$conn->real_escape_string($admin_data['name'])."')");
+
+        $result = $conn->query($sql);
+        $admin_data = $result->fetch_assoc();
+    }
+} else {
+    echo "<script>
+            alert('Pharmacist profile not found.');
+            window.location='dashboard_pharmacist.php';
+          </script>";
+    exit();
+}
+
+// ============================================================
+// UPDATE PROFILE
+// ============================================================
+if (isset($_POST['update_profile'])) {
+    $full_name = mysqli_real_escape_string($conn, trim($_POST['full_name']));
+    $mobile    = mysqli_real_escape_string($conn, trim($_POST['mobile']));
+    $email     = mysqli_real_escape_string($conn, trim($_POST['email']));
+
+    $form_data = [
+        'full_name' => $full_name,
+        'mobile'    => $mobile,
+        'email'     => $email
+    ];
+
+    // Validation
+    if (!empty($full_name)) {
+        if (strlen($full_name) < 3) {
+            $errors['full_name'] = "Full name must be at least 3 characters.";
+        } elseif (!preg_match("/^[a-zA-Z\s\.\-']+$/", $full_name)) {
+            $errors['full_name'] = "Full name can only contain letters, spaces, dots, and hyphens.";
+        }
+    }
+
+    if (!empty($mobile)) {
+        if (!preg_match('/^[6-9][0-9]{9}$/', $mobile)) {
+            $errors['mobile'] = "Please enter a valid 10-digit mobile number starting with 6,7,8, or 9.";
+        }
+    }
+
+    if (!empty($email)) {
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $errors['email'] = "Please enter a valid email address.";
+        } else {
+            $check_sql = "SELECT id FROM register 
+                          WHERE email = '$email'
+                          AND id != '$user_id'
+                          AND (delete_flag = 0 OR delete_flag IS NULL)";
+            $check_result = $conn->query($check_sql);
+            if ($check_result->num_rows > 0) {
+                $errors['email'] = "This email is already used by another user.";
+            }
+        }
+    }
+
+    // Profile image upload
+    $profile_image = $admin_data['profile_image'] ?? '';
+    if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] == 0) {
+        $file = $_FILES['profile_image'];
+        $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        $max_size = 3 * 1024 * 1024; // 3MB
+
+        if (!in_array($file['type'], $allowed_types)) {
+            $errors['profile_image'] = "Only JPG, PNG, GIF, and WEBP images are allowed.";
+        } elseif ($file['size'] > $max_size) {
+            $errors['profile_image'] = "Image size must be less than 3MB.";
+        } elseif ($file['error'] !== UPLOAD_ERR_OK) {
+            $errors['profile_image'] = "Failed to upload image. Error code: " . $file['error'];
+        }
+
+        if (empty($errors['profile_image'])) {
+            $folder = "documents/pharmacist/images/";   // <-- changed folder
+            if (!is_dir($folder)) {
+                mkdir($folder, 0777, true);
+            }
+            $image_name = time() . '_' . basename($file['name']);
+            $image_path = $folder . $image_name;
+
+            if (move_uploaded_file($file['tmp_name'], $image_path)) {
+                // Delete old image if exists
+                if (!empty($admin_data['profile_image']) && file_exists($admin_data['profile_image'])) {
+                    unlink($admin_data['profile_image']);
+                }
+                $profile_image = $image_path;
+            } else {
+                $errors['profile_image'] = "Failed to move uploaded file.";
+            }
+        }
+    }
+
+    // If no errors, update both tables
+    if (empty($errors)) {
+        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+        $conn->begin_transaction();
+
+        try {
+            // Update admin_profile
+            $update_admin_profile = "UPDATE admin_profile SET";
+            $updates = [];
+            if (!empty($full_name)) $updates[] = "full_name='$full_name'";
+            if (!empty($mobile)) $updates[] = "mobile='$mobile'";
+            $updates[] = "profile_image='$profile_image'";
+            $updates[] = "updated_at=CURRENT_TIMESTAMP()";
+            $update_admin_profile .= " " . implode(", ", $updates);
+            $update_admin_profile .= " WHERE register_id='$user_id'";
+            $conn->query($update_admin_profile);
+
+            // Update register
+            $update_register = "UPDATE register SET";
+            $register_updates = [];
+            if (!empty($full_name)) {
+                $register_updates[] = "name='$full_name'";
+                $_SESSION['name'] = $full_name;
+            }
+            if (!empty($email)) {
+                $register_updates[] = "email='$email'";
+                $_SESSION['email'] = $email;
+            }
+            $register_updates[] = "modified_by='$user_id'";
+            $register_updates[] = "reg_date=CURRENT_TIMESTAMP()";
+            $update_register .= " " . implode(", ", $register_updates);
+            $update_register .= " WHERE id='$user_id'";
+            $conn->query($update_register);
+
+            $_SESSION['profile_image'] = $profile_image;
+
+            $conn->commit();
+
+            // Refresh data
+            $result = $conn->query($sql);
+            $admin_data = $result->fetch_assoc();
+
+            echo "<script>
+                    alert('Profile Updated Successfully');
+                    window.location='update_adminprofile.php';
+                  </script>";
+
+        } catch (Exception $e) {
+            $conn->rollback();
+            $errors['general'] = "Error updating profile: " . $e->getMessage();
+        }
+    }
+}
+
+// ============================================================
+// UPDATE PASSWORD
+// ============================================================
+if (isset($_POST['update_password'])) {
+    $current_password = mysqli_real_escape_string($conn, $_POST['current_password']);
+    $new_password     = mysqli_real_escape_string($conn, $_POST['new_password']);
+    $confirm_password = mysqli_real_escape_string($conn, $_POST['confirm_password']);
+
+    if (empty($current_password)) $password_errors['current_password'] = "Current password is required.";
+    if (empty($new_password)) $password_errors['new_password'] = "New password is required.";
+    if (empty($confirm_password)) $password_errors['confirm_password'] = "Confirm password is required.";
+    if ($new_password !== $confirm_password) $password_errors['confirm_password'] = "New password and confirm password do not match.";
+    if (!empty($new_password) && strlen($new_password) < 6) {
+        $password_errors['new_password'] = "New password must be at least 6 characters.";
+    }
+
+    if (empty($password_errors)) {
+        $stored_password = $admin_data['password'];
+        if ($current_password === $stored_password) {
+            $conn->query("
+                UPDATE register
+                SET password='$new_password',
+                    modified_by='$user_id',
+                    reg_date=CURRENT_TIMESTAMP()
+                WHERE id='$user_id'
+            ");
+            echo "<script>
+                    alert('Password Updated Successfully');
+                    window.location='update_adminprofile.php';
+                  </script>";
+        } else {
+            $password_errors['current_password'] = "Current password is incorrect.";
+        }
+    }
+}
+
+// ============================================================
+// GET HOSPITAL INFO
+// ============================================================
+$hospital_name = $hospital['hospital_name'] ?? 'Hospital';
+$hospital_logo = $hospital['hospital_logo'] ?? '';
+$user_name = $_SESSION['name'] ?? 'User';
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?php echo htmlspecialchars($hospital_name); ?> - Pharmacist Profile</title>
+    <link rel="icon" type="image/png" href="../<?php echo $hospital_logo; ?>">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #f1f5f9; }
+
+        .profile-container {
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+            padding-top: 1.5rem;
+        }
+
+        .form-card {
+            background: #ffffff;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            padding: 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            margin-bottom: 1.5rem;
+        }
+
+        .form-card .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .form-card .card-title i {
+            color: #3b82f6;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 0.4rem;
+        }
+        .form-group label .required {
+            color: #ef4444;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.7rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            background: #f8fafc;
+            color: #1e293b;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+        .form-control:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+            background: #ffffff;
+        }
+        .form-control:disabled,
+        .form-control[readonly] {
+            background: #f1f5f9;
+            cursor: not-allowed;
+            opacity: 0.8;
+        }
+        .form-control.input-error {
+            border-color: #dc2626 !important;
+            background-color: #fef2f2 !important;
+        }
+
+        .error-text {
+            color: #dc2626;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin-top: 0.25rem;
+            display: block;
+        }
+
+        .profile-image-section {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .profile-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #e2e8f0;
+            background: #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 700;
+            color: #3b82f6;
+            flex-shrink: 0;
+        }
+        .profile-avatar img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .profile-image-section .file-input {
+            flex: 1;
+            min-width: 200px;
+        }
+        .profile-image-section .file-input input[type="file"] {
+            width: 100%;
+            padding: 0.5rem;
+            font-size: 0.85rem;
+            border: 1px dashed #e2e8f0;
+            border-radius: 10px;
+            background: #f8fafc;
+            color: #475569;
+        }
+
+        .btn {
+            padding: 0.65rem 1.5rem;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+        }
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(34,197,94,0.3);
+        }
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+        }
+        .btn-secondary:hover {
+            background: #e2e8f0;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #e2e8f0;
+            margin-top: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+        }
+
+        .password-field {
+            position: relative;
+        }
+        .password-field input {
+            padding-right: 40px;
+        }
+        .password-toggle {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #94a3b8;
+            z-index: 2;
+        }
+        .password-toggle:hover {
+            color: #475569;
+        }
+
+        .back-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: white;
+            color: #475569;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+        .back-btn:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .error-summary {
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            border-radius: 12px;
+            padding: 1rem 1.2rem;
+            margin-bottom: 1.5rem;
+        }
+        .error-summary p {
+            color: #991b1b;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 0.25rem;
+        }
+        .error-summary ul {
+            margin: 0;
+            padding-left: 1.5rem;
+            color: #991b1b;
+            font-size: 0.85rem;
+        }
+        .error-summary ul li {
+            margin-bottom: 0.15rem;
+        }
+    </style>
+</head>
+<body>
+
+<?php include '../Sidebar.php'; ?>
+
+<div class="main-wrapper">
+    <main class="main-content" id="mainContent">
+        
+        <?php include '../header.php'; ?>
+
+        <div class="profile-container">
+            
+            <!-- Back Button -->
+            <div style="margin-bottom:1.5rem; display:flex; align-items:center; gap:0.75rem;">
+                <a href="dashboard_pharmacist.php" class="back-btn">
+                    <i class="fas fa-arrow-left"></i>
+                </a>
+                <span style="font-size:0.9rem; color:#94a3b8;">Back to Dashboard</span>
+            </div>
+
+            <!-- Display Profile Errors -->
+            <?php if (!empty($errors)): ?>
+                <div class="error-summary">
+                    <p><i class="fas fa-exclamation-circle"></i> Please fix the following errors:</p>
+                    <ul>
+                        <?php foreach ($errors as $field => $message): ?>
+                            <li><?php echo $message; ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
+
+            <!-- ============================================================
+            PROFILE FORM
+            ============================================================ -->
+            <div class="form-card">
+                <h2 class="card-title">
+                    <i class="fas fa-user-circle"></i>
+                    Pharmacist Profile Information
+                </h2>
+                
+                <form action="update_adminprofile.php" method="POST" enctype="multipart/form-data">
+                    <!-- Profile Image -->
+                    <div class="profile-image-section">
+                        <?php if (!empty($admin_data['profile_image']) && file_exists($admin_data['profile_image'])): ?>
+                            <div class="profile-avatar">
+                                <img src="<?php echo $admin_data['profile_image']; ?>" alt="Profile Image">
+                            </div>
+                        <?php else: ?>
+                            <div class="profile-avatar">
+                                <?php
+                                $name = !empty($admin_data['full_name']) ? $admin_data['full_name'] : $admin_data['name'];
+                                echo strtoupper(substr($name, 0, 1));
+                                ?>
+                            </div>
+                        <?php endif; ?>
+                        <div class="file-input">
+                            <label style="font-size:0.85rem; font-weight:600; color:#475569; display:block; margin-bottom:0.3rem;">Profile Image</label>
+                            <input type="file" name="profile_image" accept="image/*">
+                            <p style="font-size:0.75rem; color:#94a3b8; margin-top:0.25rem;">Leave empty to keep current image. Supported: JPG, PNG, GIF, WEBP (Max 3MB)</p>
+                        </div>
+                    </div>
+
+                    <!-- Full Name & Mobile -->
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label>Full Name</label>
+                            <input type="text" name="full_name" 
+                                   class="form-control <?php echo isset($errors['full_name']) ? 'input-error' : ''; ?>"
+                                   value="<?php echo htmlspecialchars(!empty($form_data['full_name']) ? $form_data['full_name'] : (!empty($admin_data['full_name']) ? $admin_data['full_name'] : $admin_data['name'])); ?>"
+                                   placeholder="Enter full name">
+                            <?php if (isset($errors['full_name'])): ?>
+                                <span class="error-text"><?php echo $errors['full_name']; ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="form-group">
+                            <label>Mobile Number</label>
+                            <input type="tel" name="mobile" 
+                                   class="form-control <?php echo isset($errors['mobile']) ? 'input-error' : ''; ?>"
+                                   value="<?php echo htmlspecialchars(!empty($form_data['mobile']) ? $form_data['mobile'] : ($admin_data['mobile'] ?? '')); ?>"
+                                   placeholder="Enter mobile number">
+                            <?php if (isset($errors['mobile'])): ?>
+                                <span class="error-text"><?php echo $errors['mobile']; ?></span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <!-- Email -->
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" name="email" 
+                               class="form-control <?php echo isset($errors['email']) ? 'input-error' : ''; ?>"
+                               value="<?php echo htmlspecialchars(!empty($form_data['email']) ? $form_data['email'] : ($admin_data['email'] ?? '')); ?>"
+                               placeholder="Enter email address">
+                        <?php if (isset($errors['email'])): ?>
+                            <span class="error-text"><?php echo $errors['email']; ?></span>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- Role (Read Only) -->
+                    <div class="form-group">
+                        <label>Role</label>
+                        <input type="text" class="form-control" 
+                               value="<?php echo htmlspecialchars($admin_data['role'] ?? ''); ?>" 
+                               readonly disabled>
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="form-actions">
+                        <a href="dashboard_pharmacist.php" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                        <button type="submit" name="update_profile" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Update Profile
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- ============================================================
+            CHANGE PASSWORD
+            ============================================================ -->
+            <div class="form-card">
+                <h2 class="card-title">
+                    <i class="fas fa-key" style="color:#22c55e;"></i>
+                    Change Password
+                </h2>
+
+                <?php if (!empty($password_errors)): ?>
+                    <div class="error-summary" style="margin-bottom:1.5rem;">
+                        <p><i class="fas fa-exclamation-circle"></i> Please fix the following errors:</p>
+                        <ul>
+                            <?php foreach ($password_errors as $field => $message): ?>
+                                <li><?php echo $message; ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+                
+                <form action="update_adminprofile.php" method="POST">
+                    <div class="grid-2">
+                        <div class="form-group">
+                            <label>Current Password <span class="required">*</span></label>
+                            <div class="password-field">
+                                <input type="password" name="current_password" 
+                                       class="form-control <?php echo isset($password_errors['current_password']) ? 'input-error' : ''; ?>" 
+                                       placeholder="Enter current password">
+                                <span class="password-toggle" onclick="togglePassword(this)">
+                                    <i class="fas fa-eye"></i>
+                                </span>
+                                <?php if (isset($password_errors['current_password'])): ?>
+                                    <span class="error-text"><?php echo $password_errors['current_password']; ?></span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <div></div>
+                        <div class="form-group">
+                            <label>New Password <span class="required">*</span></label>
+                            <div class="password-field">
+                                <input type="password" name="new_password" 
+                                       class="form-control <?php echo isset($password_errors['new_password']) ? 'input-error' : ''; ?>" 
+                                       placeholder="Enter new password">
+                                <span class="password-toggle" onclick="togglePassword(this)">
+                                    <i class="fas fa-eye"></i>
+                                </span>
+                                <?php if (isset($password_errors['new_password'])): ?>
+                                    <span class="error-text"><?php echo $password_errors['new_password']; ?></span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Confirm New Password <span class="required">*</span></label>
+                            <div class="password-field">
+                                <input type="password" name="confirm_password" 
+                                       class="form-control <?php echo isset($password_errors['confirm_password']) ? 'input-error' : ''; ?>" 
+                                       placeholder="Confirm new password">
+                                <span class="password-toggle" onclick="togglePassword(this)">
+                                    <i class="fas fa-eye"></i>
+                                </span>
+                                <?php if (isset($password_errors['confirm_password'])): ?>
+                                    <span class="error-text"><?php echo $password_errors['confirm_password']; ?></span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" name="update_password" class="btn btn-success">
+                            <i class="fas fa-key"></i> Update Password
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+        </div>
+
+    </main>
+</div>
+
+<script>
+// Password toggle
+function togglePassword(element) {
+    const field = element.parentElement.querySelector('input');
+    const icon = element.querySelector('i');
+    
+    if (field.type === 'password') {
+        field.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+    } else {
+        field.type = 'password';
+        icon.className = 'fas fa-eye';
+    }
+}
+</script>
+
+</body>
+</html>

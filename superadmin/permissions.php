@@ -15,105 +15,224 @@ if (!$is_super_admin) {
 // ============================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['seed_permissions'])) {
     $default_permissions = [
-        ['Dashboard', 'Dashboard View', 'dashboard-view', 'fa-chart-pie', 1, 1],
-        ['Dashboard', 'Dashboard Edit', 'dashboard-edit', 'fa-edit', 0, 0],
-        ['Patient', 'Patient View', 'patient-view', 'fa-users', 1, 1],
-        ['Patient', 'Patient Create', 'patient-create', 'fa-user-plus', 1, 1],
-        ['Patient', 'Patient Edit', 'patient-edit', 'fa-user-edit', 0, 0],
-        ['Patient', 'Patient Delete', 'patient-delete', 'fa-user-times', 0, 0],
-        ['OPD', 'OPD Visit View', 'opd-visit-view', 'fa-stethoscope', 1, 1],
-        ['OPD', 'OPD Visit Create', 'opd-visit-create', 'fa-plus-circle', 0, 0],
-        ['OPD', 'OPD Visit Edit', 'opd-visit-edit', 'fa-edit', 0, 0],
-        ['OPD', 'OPD Visit Delete', 'opd-visit-delete', 'fa-trash', 0, 0],
-        ['IPD', 'IPD Admission View', 'ipd-admission-view', 'fa-hospital-user', 1, 1],
-        ['IPD', 'IPD Admission Create', 'ipd-admission-create', 'fa-plus-circle', 0, 0],
-        ['IPD', 'IPD Admission Edit', 'ipd-admission-edit', 'fa-edit', 0, 0],
-        ['IPD', 'IPD Admission Delete', 'ipd-admission-delete', 'fa-trash', 0, 0],
-        ['Referral', 'Referral View', 'referral-view', 'fa-share-alt', 1, 1],
-        ['Referral', 'Referral Create', 'referral-create', 'fa-plus-circle', 0, 0],
-        ['Call Patient', 'Call Patient View', 'call-patient-view', 'fa-phone', 1, 1],
-        ['Call Patient', 'Call Patient Create', 'call-patient-create', 'fa-plus-circle', 0, 0],
-        ['Appointment', 'Appointment View', 'appointment-view', 'fa-calendar-check', 1, 1],
-        ['Appointment', 'Appointment Create', 'appointment-create', 'fa-plus-circle', 0, 0],
-        ['Appointment', 'Appointment Edit', 'appointment-edit', 'fa-edit', 0, 0],
-        ['Appointment', 'Appointment Delete', 'appointment-delete', 'fa-trash', 0, 0],
-        ['Prescription', 'Prescription View', 'prescription-view', 'fa-prescription', 1, 1],
-        ['Prescription', 'Prescription Create', 'prescription-create', 'fa-plus-circle', 0, 0],
-        ['Prescription', 'Prescription Edit', 'prescription-edit', 'fa-edit', 0, 0],
-        ['Prescription', 'Prescription Delete', 'prescription-delete', 'fa-trash', 0, 0],
-        ['Surgery', 'Surgery View', 'surgery-view', 'fa-procedures', 1, 1],
-        ['Surgery', 'Surgery Create', 'surgery-create', 'fa-plus-circle', 0, 0],
-        ['Surgery', 'Surgery Edit', 'surgery-edit', 'fa-edit', 0, 0],
-        ['Surgery', 'Surgery Delete', 'surgery-delete', 'fa-trash', 0, 0],
-        ['Laboratory', 'Lab Master View', 'lab-master-view', 'fa-file-alt', 1, 1],
-        ['Laboratory', 'Lab Master Create', 'lab-master-create', 'fa-plus-circle', 0, 0],
-        ['Laboratory', 'Lab Orders View', 'lab-orders-view', 'fa-vial', 1, 1],
-        ['Laboratory', 'Lab Orders Create', 'lab-orders-create', 'fa-plus-circle', 0, 0],
-        ['Laboratory', 'Lab Reports View', 'lab-reports-view', 'fa-file-medical', 1, 1],
-        ['Laboratory', 'Lab Reports Create', 'lab-reports-create', 'fa-plus-circle', 0, 0],
-        ['Pharmacy', 'Stock View', 'stock-view', 'fa-boxes', 1, 1],
-        ['Pharmacy', 'Stock Create', 'stock-create', 'fa-plus-circle', 0, 0],
-        ['Pharmacy', 'Stock Edit', 'stock-edit', 'fa-edit', 0, 0],
-        ['Pharmacy', 'Medicine Sales View', 'medicine-sales-view', 'fa-cash-register', 1, 1],
-        ['Pharmacy', 'Medicine Sales Create', 'medicine-sales-create', 'fa-plus-circle', 0, 0],
-        ['Doctor', 'Doctor View', 'doctor-view', 'fa-user-md', 1, 1],
-        ['Doctor', 'Doctor Create', 'doctor-create', 'fa-plus-circle', 0, 0],
-        ['Doctor', 'Doctor Edit', 'doctor-edit', 'fa-edit', 0, 0],
-        ['Doctor', 'Doctor Delete', 'doctor-delete', 'fa-trash', 0, 0],
-        ['Staff', 'Staff View', 'staff-view', 'fa-users-cog', 1, 1],
-        ['Staff', 'Staff Create', 'staff-create', 'fa-plus-circle', 0, 0],
-        ['Staff', 'Staff Edit', 'staff-edit', 'fa-edit', 0, 0],
-        ['Staff', 'Staff Delete', 'staff-delete', 'fa-trash', 0, 0],
-        ['Department', 'Department View', 'department-view', 'fa-layer-group', 1, 1],
-        ['Department', 'Department Create', 'department-create', 'fa-plus-circle', 0, 0],
-        ['Department', 'Department Edit', 'department-edit', 'fa-edit', 0, 0],
-        ['Department', 'Department Delete', 'department-delete', 'fa-trash', 0, 0],
-        ['Ward', 'Ward View', 'ward-view', 'fa-bed', 1, 1],
-        ['Ward', 'Ward Create', 'ward-create', 'fa-plus-circle', 0, 0],
-        ['Ward', 'Ward Edit', 'ward-edit', 'fa-edit', 0, 0],
-        ['Ward', 'Ward Delete', 'ward-delete', 'fa-trash', 0, 0],
-        ['Hospital', 'Hospital View', 'hospital-view', 'fa-hospital', 1, 1],
-        ['Hospital', 'Hospital Create', 'hospital-create', 'fa-plus-circle', 0, 0],
-        ['Hospital', 'Hospital Edit', 'hospital-edit', 'fa-edit', 0, 0],
-        ['Hospital', 'Hospital Delete', 'hospital-delete', 'fa-trash', 0, 0],
-        ['Billing', 'Billing View', 'billing-view', 'fa-file-invoice-dollar', 1, 1],
-        ['Billing', 'Billing Create', 'billing-create', 'fa-plus-circle', 0, 0],
-        ['Billing', 'Billing Edit', 'billing-edit', 'fa-edit', 0, 0],
-        ['Billing', 'Billing Delete', 'billing-delete', 'fa-trash', 0, 0],
-        ['Advance Deposit', 'Advance Deposit View', 'advance-deposit-view', 'fa-wallet', 1, 1],
-        ['Advance Deposit', 'Advance Deposit Create', 'advance-deposit-create', 'fa-plus-circle', 0, 0],
-        ['Role Management', 'Role View', 'role-view', 'fa-user-tag', 1, 1],
-        ['Role Management', 'Role Create', 'role-create', 'fa-plus-circle', 0, 0],
-        ['Role Management', 'Role Edit', 'role-edit', 'fa-edit', 0, 0],
-        ['Role Management', 'Role Delete', 'role-delete', 'fa-trash', 0, 0],
-        ['Permission Management', 'Permission View', 'permission-view', 'fa-lock', 1, 1],
-        ['Permission Management', 'Permission Manage', 'permission-manage', 'fa-key', 0, 0],
-        ['Audit Logs', 'Audit Log View', 'audit-log-view', 'fa-clipboard-list', 1, 1],
-        ['Reports', 'Report View', 'report-view', 'fa-chart-bar', 1, 1],
-        ['Reports', 'Report Export', 'report-export', 'fa-download', 0, 0],
-        ['Settings', 'Settings View', 'settings-view', 'fa-cog', 1, 1],
-        ['Settings', 'Settings Edit', 'settings-edit', 'fa-cogs', 0, 0],
-        ['Events', 'Events View', 'events-view', 'fa-calendar', 1, 1],
-        ['Events', 'Events Create', 'events-create', 'fa-plus-circle', 0, 0],
-        ['Profile', 'Profile View', 'profile-view', 'fa-user-circle', 1, 1],
-        ['Profile', 'Profile Edit', 'profile-edit', 'fa-edit', 0, 0],
-        ['HR', 'HR Dashboard View', 'hr-dashboard-view', 'fa-tachometer-alt', 1, 1],
-        ['HR', 'HR Attendance View', 'hr-attendance-view', 'fa-clock', 1, 1],
-        ['HR', 'HR Leave View', 'hr-leave-view', 'fa-calendar-minus', 1, 1],
-        ['HR', 'HR Payroll View', 'hr-payroll-view', 'fa-money-bill-wave', 1, 1],
-        ['HR', 'HR Recruitment View', 'hr-recruitment-view', 'fa-user-plus', 1, 1],
-        ['Accountant', 'Accountant Dashboard View', 'accountant-dashboard-view', 'fa-calculator', 1, 1],
-        ['Accountant', 'Accountant Salary View', 'accountant-salary-view', 'fa-money-bill-wave', 1, 1],
-        ['Accountant', 'Accountant Expense View', 'accountant-expense-view', 'fa-receipt', 1, 1],
-        ['Accountant', 'Accountant Payment View', 'accountant-payment-view', 'fa-credit-card', 1, 1],
-        ['Accountant', 'Accountant Invoice View', 'accountant-invoice-view', 'fa-file-invoice-dollar', 1, 1],
-        ['Accountant', 'Accountant Ledger View', 'accountant-ledger-view', 'fa-book', 1, 1],
-        ['Pharmacist', 'Pharmacist Dashboard View', 'pharmacist-dashboard-view', 'fa-prescription-bottle-alt', 1, 1],
-        ['Pharmacist', 'Pharmacist Medicine View', 'pharmacist-medicine-view', 'fa-capsules', 1, 1],
-        ['Pharmacist', 'Pharmacist Prescription View', 'pharmacist-prescription-view', 'fa-prescription', 1, 1],
-        ['Pharmacist', 'Pharmacist Supplier View', 'pharmacist-supplier-view', 'fa-truck', 1, 1],
-        ['Pharmacist', 'Pharmacist Expiry View', 'pharmacist-expiry-view', 'fa-exclamation-triangle', 1, 1],
-    ];
+    // ============================================================
+    // CORE MODULES (existing + fixed icons)
+    // ============================================================
+    ['Dashboard', 'Dashboard View', 'dashboard-view', 'fa-chart-pie', 1, 1],
+    ['Dashboard', 'Dashboard Edit', 'dashboard-edit', 'fa-edit', 0, 0],
+
+    ['Patient', 'Patient View', 'patient-view', 'fa-users', 1, 1],
+    ['Patient', 'Patient Create', 'patient-create', 'fa-user-plus', 1, 1],
+    ['Patient', 'Patient Edit', 'patient-edit', 'fa-user-edit', 0, 0],
+    ['Patient', 'Patient Delete', 'patient-delete', 'fa-user-times', 0, 0],
+
+    ['OPD', 'OPD Visit View', 'opd-visit-view', 'fa-stethoscope', 1, 1],
+    ['OPD', 'OPD Visit Create', 'opd-visit-create', 'fa-plus-circle', 0, 0],
+    ['OPD', 'OPD Visit Edit', 'opd-visit-edit', 'fa-edit', 0, 0],
+    ['OPD', 'OPD Visit Delete', 'opd-visit-delete', 'fa-trash', 0, 0],
+
+    ['IPD', 'IPD Admission View', 'ipd-admission-view', 'fa-hospital-user', 1, 1],
+    ['IPD', 'IPD Admission Create', 'ipd-admission-create', 'fa-plus-circle', 0, 0],
+    ['IPD', 'IPD Admission Edit', 'ipd-admission-edit', 'fa-edit', 0, 0],
+    ['IPD', 'IPD Admission Delete', 'ipd-admission-delete', 'fa-trash', 0, 0],
+
+    ['Referral', 'Referral View', 'referral-view', 'fa-share-alt', 1, 1],
+    ['Referral', 'Referral Create', 'referral-create', 'fa-plus-circle', 0, 0],
+
+    ['Call Patient', 'Call Patient View', 'call-patient-view', 'fa-phone', 1, 1],
+    ['Call Patient', 'Call Patient Create', 'call-patient-create', 'fa-plus-circle', 0, 0],
+
+    ['Appointment', 'Appointment View', 'appointment-view', 'fa-calendar-check', 1, 1],
+    ['Appointment', 'Appointment Create', 'appointment-create', 'fa-plus-circle', 0, 0],
+    ['Appointment', 'Appointment Edit', 'appointment-edit', 'fa-edit', 0, 0],
+    ['Appointment', 'Appointment Delete', 'appointment-delete', 'fa-trash', 0, 0],
+
+    ['Prescription', 'Prescription View', 'prescription-view', 'fa-prescription', 1, 1],
+    ['Prescription', 'Prescription Create', 'prescription-create', 'fa-plus-circle', 0, 0],
+    ['Prescription', 'Prescription Edit', 'prescription-edit', 'fa-edit', 0, 0],
+    ['Prescription', 'Prescription Delete', 'prescription-delete', 'fa-trash', 0, 0],
+
+    ['Surgery', 'Surgery View', 'surgery-view', 'fa-procedures', 1, 1],
+    ['Surgery', 'Surgery Create', 'surgery-create', 'fa-plus-circle', 0, 0],
+    ['Surgery', 'Surgery Edit', 'surgery-edit', 'fa-edit', 0, 0],
+    ['Surgery', 'Surgery Delete', 'surgery-delete', 'fa-trash', 0, 0],
+
+    ['Laboratory', 'Lab Master View', 'lab-master-view', 'fa-file-alt', 1, 1],
+    ['Laboratory', 'Lab Master Create', 'lab-master-create', 'fa-plus-circle', 0, 0],
+    ['Laboratory', 'Lab Orders View', 'lab-orders-view', 'fa-vial', 1, 1],
+    ['Laboratory', 'Lab Orders Create', 'lab-orders-create', 'fa-plus-circle', 0, 0],
+    ['Laboratory', 'Lab Reports View', 'lab-reports-view', 'fa-file-medical', 1, 1],
+    ['Laboratory', 'Lab Reports Create', 'lab-reports-create', 'fa-plus-circle', 0, 0],
+
+    ['Pharmacy', 'Stock View', 'stock-view', 'fa-boxes', 1, 1],
+    ['Pharmacy', 'Stock Create', 'stock-create', 'fa-plus-circle', 0, 0],
+    ['Pharmacy', 'Stock Edit', 'stock-edit', 'fa-edit', 0, 0],
+    ['Pharmacy', 'Medicine Sales View', 'medicine-sales-view', 'fa-cash-register', 1, 1],
+    ['Pharmacy', 'Medicine Sales Create', 'medicine-sales-create', 'fa-plus-circle', 0, 0],
+
+    ['Doctor', 'Doctor View', 'doctor-view', 'fa-user-md', 1, 1],
+    ['Doctor', 'Doctor Create', 'doctor-create', 'fa-plus-circle', 0, 0],
+    ['Doctor', 'Doctor Edit', 'doctor-edit', 'fa-edit', 0, 0],
+    ['Doctor', 'Doctor Delete', 'doctor-delete', 'fa-trash', 0, 0],
+
+    ['Staff', 'Staff View', 'staff-view', 'fa-users-cog', 1, 1],
+    ['Staff', 'Staff Create', 'staff-create', 'fa-plus-circle', 0, 0],
+    ['Staff', 'Staff Edit', 'staff-edit', 'fa-edit', 0, 0],
+    ['Staff', 'Staff Delete', 'staff-delete', 'fa-trash', 0, 0],
+
+    ['Department', 'Department View', 'department-view', 'fa-layer-group', 1, 1],
+    ['Department', 'Department Create', 'department-create', 'fa-plus-circle', 0, 0],
+    ['Department', 'Department Edit', 'department-edit', 'fa-edit', 0, 0],
+    ['Department', 'Department Delete', 'department-delete', 'fa-trash', 0, 0],
+
+    ['Ward', 'Ward View', 'ward-view', 'fa-bed', 1, 1],
+    ['Ward', 'Ward Create', 'ward-create', 'fa-plus-circle', 0, 0],
+    ['Ward', 'Ward Edit', 'ward-edit', 'fa-edit', 0, 0],
+    ['Ward', 'Ward Delete', 'ward-delete', 'fa-trash', 0, 0],
+
+    ['Hospital', 'Hospital View', 'hospital-view', 'fa-hospital', 1, 1],
+    ['Hospital', 'Hospital Create', 'hospital-create', 'fa-plus-circle', 0, 0],
+    ['Hospital', 'Hospital Edit', 'hospital-edit', 'fa-edit', 0, 0],
+    ['Hospital', 'Hospital Delete', 'hospital-delete', 'fa-trash', 0, 0],
+
+    ['Billing', 'Billing View', 'billing-view', 'fa-file-invoice-dollar', 1, 1],
+    ['Billing', 'Billing Create', 'billing-create', 'fa-plus-circle', 0, 0],
+    ['Billing', 'Billing Edit', 'billing-edit', 'fa-edit', 0, 0],
+    ['Billing', 'Billing Delete', 'billing-delete', 'fa-trash', 0, 0],
+
+    ['Advance Deposit', 'Advance Deposit View', 'advance-deposit-view', 'fa-wallet', 1, 1],
+    ['Advance Deposit', 'Advance Deposit Create', 'advance-deposit-create', 'fa-plus-circle', 0, 0],
+
+    ['Role Management', 'Role View', 'role-view', 'fa-user-tag', 1, 1],
+    ['Role Management', 'Role Create', 'role-create', 'fa-plus-circle', 0, 0],
+    ['Role Management', 'Role Edit', 'role-edit', 'fa-edit', 0, 0],
+    ['Role Management', 'Role Delete', 'role-delete', 'fa-trash', 0, 0],
+
+    ['Permission Management', 'Permission View', 'permission-view', 'fa-lock', 1, 1],
+    ['Permission Management', 'Permission Manage', 'permission-manage', 'fa-key', 0, 0],
+
+    ['Audit Logs', 'Audit Log View', 'audit-log-view', 'fa-clipboard-list', 1, 1],
+
+    ['Reports', 'Report View', 'report-view', 'fa-chart-bar', 1, 1],
+    ['Reports', 'Report Export', 'report-export', 'fa-download', 0, 0],
+
+    ['Settings', 'Settings View', 'settings-view', 'fa-cog', 1, 1],
+    ['Settings', 'Settings Edit', 'settings-edit', 'fa-cogs', 0, 0],
+
+    ['Events', 'Events View', 'events-view', 'fa-calendar', 1, 1],
+    ['Events', 'Events Create', 'events-create', 'fa-plus-circle', 0, 0],
+
+    ['Profile', 'Profile View', 'profile-view', 'fa-user-circle', 1, 1],
+    ['Profile', 'Profile Edit', 'profile-edit', 'fa-edit', 0, 0],
+
+    // ============================================================
+    // ACCOUNTANT MODULE (full set)
+    // ============================================================
+    ['Accountant', 'Accountant Dashboard View', 'accountant-dashboard-view', 'fa-calculator', 1, 1],
+    ['Accountant', 'Accountant Salary View', 'accountant-salary-view', 'fa-money-bill-wave', 1, 1],
+    ['Accountant', 'Accountant Salary Create', 'accountant-salary-create', 'fa-plus-circle', 0, 0],
+    ['Accountant', 'Accountant Salary Edit', 'accountant-salary-edit', 'fa-edit', 0, 0],
+    ['Accountant', 'Accountant Salary Delete', 'accountant-salary-delete', 'fa-trash', 0, 0],
+    ['Accountant', 'Accountant Expense View', 'accountant-expense-view', 'fa-receipt', 1, 1],
+    ['Accountant', 'Accountant Expense Create', 'accountant-expense-create', 'fa-plus-circle', 0, 0],
+    ['Accountant', 'Accountant Expense Edit', 'accountant-expense-edit', 'fa-edit', 0, 0],
+    ['Accountant', 'Accountant Expense Delete', 'accountant-expense-delete', 'fa-trash', 0, 0],
+    ['Accountant', 'Accountant Payment View', 'accountant-payment-view', 'fa-credit-card', 1, 1],
+    ['Accountant', 'Accountant Payment Create', 'accountant-payment-create', 'fa-plus-circle', 0, 0],
+    ['Accountant', 'Accountant Payment Edit', 'accountant-payment-edit', 'fa-edit', 0, 0],
+    ['Accountant', 'Accountant Payment Delete', 'accountant-payment-delete', 'fa-trash', 0, 0],
+    ['Accountant', 'Accountant Invoice View', 'accountant-invoice-view', 'fa-file-invoice-dollar', 1, 1],
+    ['Accountant', 'Accountant Invoice Create', 'accountant-invoice-create', 'fa-plus-circle', 0, 0],
+    ['Accountant', 'Accountant Invoice Edit', 'accountant-invoice-edit', 'fa-edit', 0, 0],
+    ['Accountant', 'Accountant Invoice Delete', 'accountant-invoice-delete', 'fa-trash', 0, 0],
+    ['Accountant', 'Accountant Ledger View', 'accountant-ledger-view', 'fa-book', 1, 1],
+
+    // ============================================================
+    // PHARMACIST MODULE (full set)
+    // ============================================================
+    ['Pharmacist', 'Pharmacist Dashboard View', 'pharmacist-dashboard-view', 'fa-prescription-bottle-alt', 1, 1],
+    ['Pharmacist', 'Pharmacist Medicine View', 'pharmacist-medicine-view', 'fa-capsules', 1, 1],
+    ['Pharmacist', 'Pharmacist Medicine Create', 'pharmacist-medicine-create', 'fa-plus-circle', 0, 0],
+    ['Pharmacist', 'Pharmacist Medicine Edit', 'pharmacist-medicine-edit', 'fa-edit', 0, 0],
+    ['Pharmacist', 'Pharmacist Medicine Delete', 'pharmacist-medicine-delete', 'fa-trash', 0, 0],
+    ['Pharmacist', 'Pharmacist Prescription View', 'pharmacist-prescription-view', 'fa-prescription', 1, 1],
+    ['Pharmacist', 'Pharmacist Prescription Dispense', 'pharmacist-prescription-dispense', 'fa-syringe', 0, 0],
+    ['Pharmacist', 'Pharmacist Supplier View', 'pharmacist-supplier-view', 'fa-truck', 1, 1],
+    ['Pharmacist', 'Pharmacist Supplier Create', 'pharmacist-supplier-create', 'fa-plus-circle', 0, 0],
+    ['Pharmacist', 'Pharmacist Supplier Edit', 'pharmacist-supplier-edit', 'fa-edit', 0, 0],
+    ['Pharmacist', 'Pharmacist Supplier Delete', 'pharmacist-supplier-delete', 'fa-trash', 0, 0],
+    ['Pharmacist', 'Pharmacist Expiry View', 'pharmacist-expiry-view', 'fa-exclamation-triangle', 1, 1],
+
+    // ============================================================
+    // HUMAN RESOURCES (HR) – FULL MODULE
+    // ============================================================
+    ['HR', 'HR Dashboard View', 'hr-dashboard-view', 'fa-tachometer-alt', 1, 1],
+
+    ['HR', 'HR Employee View', 'hr-employee-view', 'fa-user-tie', 1, 1],
+    ['HR', 'HR Employee Create', 'hr-employee-create', 'fa-user-plus', 0, 0],
+    ['HR', 'HR Employee Edit', 'hr-employee-edit', 'fa-user-edit', 0, 0],
+    ['HR', 'HR Employee Delete', 'hr-employee-delete', 'fa-user-times', 0, 0],
+
+    ['HR', 'HR Attendance View', 'hr-attendance-view', 'fa-clock', 1, 1],
+    ['HR', 'HR Attendance Create', 'hr-attendance-create', 'fa-plus-circle', 0, 0],
+    ['HR', 'HR Attendance Edit', 'hr-attendance-edit', 'fa-edit', 0, 0],
+    ['HR', 'HR Attendance Delete', 'hr-attendance-delete', 'fa-trash', 0, 0],
+
+    ['HR', 'HR Leave View', 'hr-leave-view', 'fa-calendar-minus', 1, 1],
+    ['HR', 'HR Leave Create', 'hr-leave-create', 'fa-plus-circle', 0, 0],
+    ['HR', 'HR Leave Edit', 'hr-leave-edit', 'fa-edit', 0, 0],
+    ['HR', 'HR Leave Delete', 'hr-leave-delete', 'fa-trash', 0, 0],
+
+    ['HR', 'HR Payroll View', 'hr-payroll-view', 'fa-money-bill-wave', 1, 1],
+    ['HR', 'HR Payroll Process', 'hr-payroll-process', 'fa-cogs', 0, 0],
+    ['HR', 'HR Payroll Edit', 'hr-payroll-edit', 'fa-edit', 0, 0],
+    ['HR', 'HR Payroll Delete', 'hr-payroll-delete', 'fa-trash', 0, 0],
+
+    ['HR', 'HR Salary Slip View', 'hr-salary-slip-view', 'fa-file-invoice', 1, 1],
+    ['HR', 'HR Salary Slip Generate', 'hr-salary-slip-generate', 'fa-file-pdf', 0, 0],
+
+    ['HR', 'HR PF/ESI Management', 'hr-pf-esi-management', 'fa-shield-alt', 0, 0],
+
+    ['HR', 'HR Reports View', 'hr-reports-view', 'fa-chart-bar', 1, 1],
+
+    ['HR', 'HR Employee Document Upload', 'hr-employee-document-upload', 'fa-upload', 0, 0],
+    ['HR', 'HR Employee Document View', 'hr-employee-document-view', 'fa-file-alt', 0, 0],
+
+    ['HR', 'HR Department View', 'hr-department-view', 'fa-building', 1, 1],
+    ['HR', 'HR Department Create', 'hr-department-create', 'fa-plus-circle', 0, 0],
+    ['HR', 'HR Department Edit', 'hr-department-edit', 'fa-edit', 0, 0],
+    ['HR', 'HR Department Delete', 'hr-department-delete', 'fa-trash', 0, 0],
+
+    ['HR', 'HR Designation View', 'hr-designation-view', 'fa-briefcase', 1, 1],
+    ['HR', 'HR Designation Create', 'hr-designation-create', 'fa-plus-circle', 0, 0],
+    ['HR', 'HR Designation Edit', 'hr-designation-edit', 'fa-edit', 0, 0],
+    ['HR', 'HR Designation Delete', 'hr-designation-delete', 'fa-trash', 0, 0],
+
+    ['HR', 'HR Shift View', 'hr-shift-view', 'fa-clock', 1, 1],
+    ['HR', 'HR Shift Create', 'hr-shift-create', 'fa-plus-circle', 0, 0],
+    ['HR', 'HR Shift Edit', 'hr-shift-edit', 'fa-edit', 0, 0],
+    ['HR', 'HR Shift Delete', 'hr-shift-delete', 'fa-trash', 0, 0],
+
+    ['HR', 'HR Holiday View', 'hr-holiday-view', 'fa-gift', 1, 1],
+    ['HR', 'HR Holiday Create', 'hr-holiday-create', 'fa-plus-circle', 0, 0],
+    ['HR', 'HR Holiday Edit', 'hr-holiday-edit', 'fa-edit', 0, 0],
+    ['HR', 'HR Holiday Delete', 'hr-holiday-delete', 'fa-trash', 0, 0],
+
+    ['HR', 'HR Performance View', 'hr-performance-view', 'fa-star', 1, 1],
+    ['HR', 'HR Performance Create', 'hr-performance-create', 'fa-plus-circle', 0, 0],
+    ['HR', 'HR Performance Edit', 'hr-performance-edit', 'fa-edit', 0, 0],
+    ['HR', 'HR Performance Delete', 'hr-performance-delete', 'fa-trash', 0, 0],
+
+    ['HR', 'HR Recruitment View', 'hr-recruitment-view', 'fa-user-plus', 1, 1],
+    ['HR', 'HR Recruitment Create', 'hr-recruitment-create', 'fa-plus-circle', 0, 0],
+    ['HR', 'HR Recruitment Edit', 'hr-recruitment-edit', 'fa-edit', 0, 0],
+    ['HR', 'HR Recruitment Delete', 'hr-recruitment-delete', 'fa-trash', 0, 0],
+
+    ['HR', 'HR Training View', 'hr-training-view', 'fa-graduation-cap', 1, 1],
+    ['HR', 'HR Training Create', 'hr-training-create', 'fa-plus-circle', 0, 0],
+    ['HR', 'HR Training Edit', 'hr-training-edit', 'fa-edit', 0, 0],
+    ['HR', 'HR Training Delete', 'hr-training-delete', 'fa-trash', 0, 0],
+];
 
     $seeded = 0;
     $skipped = 0;
@@ -152,7 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['seed_permissions'])) 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_permission'])) {
     $permission_group = mysqli_real_escape_string($conn, $_POST['permission_group']);
     $permission_name = mysqli_real_escape_string($conn, $_POST['permission_name']);
-    $permission_slug = mysqli_real_escape_string($conn, $_POST['permission_slug']);
+    $permission_slug = mysqli_real_escape_string($conn, $_POST['permission_slug'] ?? '');
     $permission_icon = mysqli_real_escape_string($conn, $_POST['permission_icon'] ?? 'fa-circle');
     $menu_order = intval($_POST['menu_order'] ?? 0);
     $is_sidebar = isset($_POST['is_sidebar']) ? 1 : 0;
@@ -160,7 +279,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_permission'])) {
     $sort_order = intval($_POST['sort_order'] ?? 0);
     $description = mysqli_real_escape_string($conn, $_POST['description'] ?? '');
 
-    $check_query = "SELECT permission_id FROM permissions WHERE permission_slug = '$permission_slug' AND (delete_flag = 0 OR delete_flag IS NULL)";
+    // ===== AUTO‑GENERATE SLUG IF EMPTY =====
+    if (empty($permission_slug)) {
+        // Convert name to URL‑friendly slug: lowercase, hyphens instead of spaces/special chars
+        $base_slug = strtolower(trim(preg_replace('/[^a-zA-Z0-9-]+/', '-', $permission_name)));
+        $base_slug = preg_replace('/-+/', '-', $base_slug); // remove multiple dashes
+        $base_slug = trim($base_slug, '-');
+
+        // Ensure uniqueness: append -2, -3, … if already taken
+        $slug = $base_slug;
+        $counter = 1;
+        while (true) {
+            $check = "SELECT permission_id FROM permissions 
+                       WHERE permission_slug = '$slug' 
+                       AND (delete_flag = 0 OR delete_flag IS NULL)";
+            $res = mysqli_query($conn, $check);
+            if (mysqli_num_rows($res) == 0) {
+                break;
+            }
+            $slug = $base_slug . '-' . ++$counter;
+        }
+        $permission_slug = $slug;
+    }
+
+    // Check if the final slug already exists (in case it was manually typed)
+    $check_query = "SELECT permission_id FROM permissions 
+                    WHERE permission_slug = '$permission_slug' 
+                    AND (delete_flag = 0 OR delete_flag IS NULL)";
     $check_result = mysqli_query($conn, $check_query);
 
     if (mysqli_num_rows($check_result) > 0) {

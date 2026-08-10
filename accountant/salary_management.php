@@ -4,8 +4,8 @@ include '../header.php';
 include '../Sidebar.php';
 
 // Get user name from session (fallback)
-$user_name = $_SESSION['username'] ?? $_SESSION['name'] ?? 'Accountant';
-$page_title = 'Salary Management';
+ $user_name = $_SESSION['username'] ?? $_SESSION['name'] ?? 'Accountant';
+ $page_title = 'Salary Management';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -225,16 +225,16 @@ $page_title = 'Salary Management';
         .bg-pink { background: #f472b6; color: #fff; }
         .bg-purple { background: #8b5cf6; color: #fff; }
         .text-purple { color: #8b5cf6; }
+        .text-primary { color: #3b82f6; }
+        .bg-success { background: #22c55e; color: #fff; }
+        .bg-warning { background: #f59e0b; color: #1e293b; }
+        .bg-danger { background: #ef4444; color: #fff; }
+        .bg-info { background: #3b82f6; color: #fff; }
     </style>
 </head>
 <body>
+    <!-- FIX: Added the missing main-content wrapper to fix alignment -->
     <div class="main-content">
-        <!-- Greeting -->
-        <div class="greeting">
-            <h2>Welcome, <?php echo htmlspecialchars(ucwords($user_name)); ?> 👋</h2>
-            <p>Here's an overview of your salary and payroll data.</p>
-        </div>
-
         <!-- Stat Cards (compact, 6 items) -->
         <div class="stat-grid">
             <div class="stat-card-mini border-blue">

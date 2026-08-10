@@ -1,4 +1,4 @@
-<!DOCTYPE html><!--Knsq4Bo3YhLaj0lB__YB3-->
+!DOCTYPE html><!--Knsq4Bo3YhLaj0lB__YB3-->
 <html lang="en">
 <!-- Mirrored from medixpro-one.vercel.app/pharmacy/add by HTTrack Website Copier/3.x [XR&CO'2014], Fri, 26 Jun 2026 11:11:43 GMT -->
 <!-- Added by HTTrack -->

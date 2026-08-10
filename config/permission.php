@@ -173,7 +173,7 @@ function getDashboardUrl($role) {
         'super admin' => 'superadmin/dashboard.php', 'superadmin' => 'superadmin/dashboard.php',
         'admin' => 'dashboard.php', 'hospital admin' => 'dashboard.php',
         'doctor' => 'doctors/dashboard.php', 'nurse' => 'nurse/dashboard.php',
-        'pharmacist' => 'pharmacy/dashboard.php', 'lab technician' => 'lab/dashboard.php',
+        'pharmacist' => 'pharmacist/dashboard.php', 'lab technician' => 'lab/dashboard.php',
         'labtechnician' => 'lab/dashboard.php', 'accountant' => 'accounts/dashboard.php',
         'billing staff' => 'billing/dashboard.php', 'billingstaff' => 'billing/dashboard.php',
         'receptionist' => 'staff/reception_dashboard.php', 'ward boy' => 'staff/ward_dashboard.php',
@@ -320,15 +320,15 @@ if (empty($permission_slugs) && !$is_super_admin && isset($_SESSION['id'])) {
     $profile = 'update_adminprofile.php';
     switch ($role) {
         case 'admin': case 'hospital admin': $profile = 'update_adminprofile.php'; break;
-        case 'doctor': $profile = 'doctors/doctor_profile.php'; break;
+        case 'doctor': $profile = 'doctors/update_adminprofile.php'; break;
         case 'nurse': $profile = 'nurse/nurse_profile.php'; break;
         case 'ward boy': $profile = 'staff/ward_profile.php'; break;
-        case 'lab technician': $profile = 'labtechnician/update_profile.php'; break;
-        case 'patient': $profile = 'patients/update_profile.php'; break;
-        case 'billing staff': $profile = 'billing/update_profile.php'; break;
-        case 'accountant': $profile = 'update_adminprofile.php'; break;
-        case 'pharmacist': $profile = 'pharmacy/update_profile.php'; break;
-        case 'receptionist': $profile = 'reception_profile.php'; break;
+        case 'lab technician': $profile = 'labtechnician/update_adminprofile.php'; break;
+        case 'patient': $profile = 'patients/update_adminprofile.php'; break;
+        case 'billing staff': $profile = 'billing/update_adminprofile.php'; break;
+        case 'accountant': $profile = 'accountant/update_adminprofile.php'; break;
+        case 'pharmacist': $profile = 'update_adminprofile.php'; break;
+        case 'receptionist': $profile = 'reception/update_adminprofile.php'; break;
     }
     if (basename($_SERVER['PHP_SELF']) != basename($profile)) {
         if (!headers_sent()) { header("Location: $profile"); exit(); } 
