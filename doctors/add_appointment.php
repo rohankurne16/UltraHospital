@@ -1,339 +1,524 @@
 <?php
-    session_start();
-    include("../config/hospital.php");
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
-    include '../config/permission.php';
-    checkPermission('appointment-view'); 
+session_start();
 
-    // Ensure database connection is valid before setting charset
-    if (isset($conn) && $conn instanceof mysqli) {
-        $conn->set_charset("utf8");
-    }
+// Check if hospital config exists
+if (!file_exists("../config/hospital.php")) {
+    die("Configuration file not found");
+}
+include("../config/hospital.php");
 
-    // FIX: Safely get hospital_id from session
-    $hid = $_SESSION["hospital_id"] ?? 0;
+// Make sure hospital array is set
+if (!isset($hospital) || !is_array($hospital)) {
+    $hospital = [];
+}
 
-    $pat_id = '';
+include '../config/permission.php';
+checkPermission('appointment-view'); 
 
-    if (isset($_GET['patient_id'])) {
-        $pat_id = $_GET['patient_id'];
-    } elseif (isset($_POST['patient_id'])) {
-        $pat_id = $_POST['patient_id'];
-    }
+// Ensure database connection is using UTF-8
+$conn->set_charset("utf8");
 
-    // Initialize message variables
-    $message = "";
-    $messageType = "";
+// Make sure hospital_id exists in session
+if (!isset($_SESSION["hospital_id"])) {
+    die("Hospital ID not found in session");
+}
+$hid = (int)$_SESSION["hospital_id"];
 
-    // FIX: Fetch hospital data to prevent $hospital undefined error in HTML
-    $hospital = null;
-    if (!empty($hid)) {
-        $hospQuery = $conn->query("SELECT hospital_name, hospital_logo FROM hospital_master WHERE hospital_id='$hid' LIMIT 1");
-        if ($hospQuery && $hospQuery->num_rows > 0) {
-            $hospital = $hospQuery->fetch_assoc();
+$pat_id = '';
+
+if (isset($_GET['patient_id'])) {
+    $pat_id = $_GET['patient_id'];
+} elseif (isset($_POST['patient_id'])) {
+    $pat_id = $_POST['patient_id'];
+}
+
+// Initialize message variables
+$message = "";
+$messageType = "";
+
+// Function to safely get POST data
+function getPostData($key, $default = "") {
+    return isset($_POST[$key]) ? $_POST[$key] : $default;
+}
+
+// Function to fetch data from the database
+function fetchData($conn, $query) {
+    $result = $conn->query($query);
+    $data = [];
+    if ($result && $result->num_rows > 0) {
+        while ($row = $result->fetch_assoc()) {
+            $data[] = $row;
         }
     }
-    if (!$hospital) {
-        $hospital = [
-            'hospital_name' => 'Hospital',
-            'hospital_logo' => ''
-        ];
-    }
+    return $data;
+}
 
-    // Function to safely get POST data
-    function getPostData($key, $default = "") {
-        return isset($_POST[$key]) ? $_POST[$key] : $default;
-    }
+// Get the doctor ID from session (or fallback to GET)
+$doctor_id = isset($_SESSION['doctor_id']) ? $_SESSION['doctor_id'] : (isset($_GET['doctor_id']) ? $_GET['doctor_id'] : null);
 
-    // Function to fetch data from the database
-    function fetchData($conn, $query) {
-        $data = [];
-        if (isset($conn)) {
-            $result = $conn->query($query);
-            if ($result && $result->num_rows > 0) {
-                while ($row = $result->fetch_assoc()) {
-                    $data[] = $row;
-                }
+// ----- PATIENT QUERY: Patients assigned to this doctor (by doctor_id in patients table) -----
+if ($doctor_id) {
+    $patients = fetchData($conn, "
+        SELECT patient_id, patient_name, mobile, email, address, date_of_birth, age, gender, blood_group
+        FROM patients
+        WHERE hospital_id = '$hid'
+        AND delete_flag = 0
+        AND doctor_id = '$doctor_id'
+        ORDER BY patient_name ASC
+    ");
+} else {
+    // If no doctor ID, show all patients (for admin or fallback)
+    $patients = fetchData($conn, "
+        SELECT patient_id, patient_name, mobile, email, address, date_of_birth, age, gender, blood_group 
+        FROM patients 
+        WHERE (delete_flag=0 OR delete_flag IS NULL) AND hospital_id='$hid' 
+        ORDER BY patient_name ASC
+    ");
+}
+// ---------------------------------------------------------------------
+
+// Fetch doctors (unchanged)
+$doctors = fetchData($conn, "SELECT doctor_id, doctor_name, department, specialization, qualification, experience, consultation_fee, mobile, email FROM doctor WHERE (delete_flag=0 OR delete_flag IS NULL) AND hospital_id='$hid' ORDER BY doctor_name ASC");
+
+// Fetch wards with available rooms count (unchanged)
+$wards = fetchData($conn, "SELECT ward_id, ward_name, ward_type, floor_no, (SELECT COUNT(*) FROM room_master WHERE ward_id = ward_master.ward_id AND status != 'Occupied' AND delete_flag = 0) as available_rooms FROM ward_master WHERE status='Available' AND (delete_flag=0 OR delete_flag IS NULL)and hospital_id='$hid'  ORDER BY ward_name ASC");
+
+// Get unique departments from doctors (unchanged)
+$departments = [];
+foreach ($doctors as $doctor) {
+    if (!in_array($doctor['department'], $departments)) {
+        $departments[] = $doctor['department'];
+    }
+}
+sort($departments);
+
+// ========== FIX: Appointment number generation with session persistence ==========
+// Generate a new appointment number only if not already set in session
+if (!isset($_SESSION['appointment_no'])) {
+    $_SESSION['appointment_no'] = "APP-" . rand(1, 9999);
+}
+$appointment_no = $_SESSION['appointment_no'];
+
+// Initialize form data with session values or defaults (unchanged)
+$form_data = isset($_SESSION['appointment_form_data']) ? $_SESSION['appointment_form_data'] : [];
+$patient_name = $form_data['patient_name'] ?? "";
+$patient_age = $form_data['patient_age'] ?? "";
+$patient_gender = $form_data['patient_gender'] ?? "";
+$patient_blood_group = $form_data['patient_blood_group'] ?? "";
+$patient_mobile = $form_data['patient_mobile'] ?? "";
+$patient_email = $form_data['patient_email'] ?? "";
+
+// ----- Pre-select doctor if doctor_id is in session or GET (only when not submitting) -----
+if ($_SERVER['REQUEST_METHOD'] != 'POST') {
+    $pre_selected_doctor_id = isset($_SESSION['doctor_id']) ? $_SESSION['doctor_id'] : (isset($_GET['doctor_id']) ? $_GET['doctor_id'] : null);
+    if ($pre_selected_doctor_id) {
+        // Fetch doctor details
+        $doctor_query = "SELECT * FROM doctor WHERE doctor_id = '$pre_selected_doctor_id' AND hospital_id='$hid' AND (delete_flag=0 OR delete_flag IS NULL)";
+        $doctor_result = $conn->query($doctor_query);
+        if ($doctor_result && $doctor_result->num_rows > 0) {
+            $doctor_data = $doctor_result->fetch_assoc();
+            // Set form_data for doctor fields (only if not already set by session)
+            if (empty($form_data['doctor_id'])) {
+                $form_data['doctor_id'] = $doctor_data['doctor_id'];
+                $form_data['doctor_name'] = $doctor_data['doctor_name'];
+                $form_data['department'] = $doctor_data['department'];
+                $form_data['doctor_specialization'] = $doctor_data['specialization'];
+                $form_data['doctor_qualification'] = $doctor_data['qualification'];
+                $form_data['doctor_experience'] = $doctor_data['experience'];
+                $form_data['doctor_fee'] = $doctor_data['consultation_fee'];
+                $form_data['doctor_mobile'] = $doctor_data['mobile'];
+                $form_data['doctor_email'] = $doctor_data['email'];
             }
         }
-        return $data;
     }
+}
+// ---------------------------------------------------------------------------------------------
 
-    // Get the doctor ID from session (or fallback to GET)
-    $doctor_id = $_SESSION['doctor_id'] ?? ($_GET['doctor_id'] ?? null);
-
-    // ----- PATIENT QUERY: Patients assigned to this doctor -----
-    if ($doctor_id) {
-        $patients = fetchData($conn, "
-            SELECT patient_id, patient_name, mobile, email, address, date_of_birth, age, gender, blood_group
-            FROM patients
-            WHERE hospital_id = '$hid'
-            AND delete_flag = 0
-            AND doctor_id = '$doctor_id'
-            ORDER BY patient_name ASC
-        ");
-    } else {
-        $patients = fetchData($conn, "
-            SELECT patient_id, patient_name, mobile, email, address, date_of_birth, age, gender, blood_group 
-            FROM patients 
-            WHERE (delete_flag=0 OR delete_flag IS NULL) AND hospital_id='$hid' 
-            ORDER BY patient_name ASC
-        ");
+// --- Form Submission Handling (unchanged) ---
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Store all POST data in session to preserve on refresh
+    $_SESSION['appointment_form_data'] = $_POST;
+    
+    // Get form inputs
+    $appointment_no = mysqli_real_escape_string($conn, getPostData('appointment_no'));
+    $patient_id = mysqli_real_escape_string($conn, getPostData('patient_id'));
+    $doctor_id = mysqli_real_escape_string($conn, getPostData('doctor_id'));
+    $appointment_type = mysqli_real_escape_string($conn, getPostData('appointment_type'));
+    $appointment_date = mysqli_real_escape_string($conn, getPostData('appointment_date'));
+    $appointment_time = mysqli_real_escape_string($conn, getPostData('appointment_time'));
+    $duration = mysqli_real_escape_string($conn, getPostData('duration'));
+    $reason = mysqli_real_escape_string($conn, getPostData('reason'));
+    $symptoms = mysqli_real_escape_string($conn, getPostData('symptoms'));
+    $since_when = mysqli_real_escape_string($conn, getPostData('since_when'));
+    $severity = mysqli_real_escape_string($conn, getPostData('severity'));
+    $allergies = mysqli_real_escape_string($conn, getPostData('allergies'));
+    $current_medicines = mysqli_real_escape_string($conn, getPostData('current_medicines'));
+    $note = mysqli_real_escape_string($conn, getPostData('note'));
+    $opd_ipd_type = mysqli_real_escape_string($conn, getPostData('opd_ipd_type', 'OPD'));
+    $status = mysqli_real_escape_string($conn, getPostData('status', 'Scheduled'));
+    $previous_history = isset($_POST['previous_history']) ? implode(", ", $_POST['previous_history']) : "";
+    // IPD specific fields
+    $admission_date = mysqli_real_escape_string($conn, getPostData('admission_date', date('Y-m-d')));
+    $diagnosis = mysqli_real_escape_string($conn, getPostData('diagnosis'));
+    $treatment_plan = mysqli_real_escape_string($conn, getPostData('treatment_plan'));
+    $ward_id = mysqli_real_escape_string($conn, getPostData('ward_id'));
+    $room_id = mysqli_real_escape_string($conn, getPostData('room_id'));
+    $bed_id = mysqli_real_escape_string($conn, getPostData('bed_id'));
+    
+    // File upload handling - Store file names
+    $upload_dir = "uploads/documents/";
+    if (!file_exists($upload_dir)) {
+        mkdir($upload_dir, 0777, true);
     }
-
-    // Fetch doctors
-    $doctors = fetchData($conn, "SELECT doctor_id, doctor_name, department, specialization, qualification, experience, consultation_fee, mobile, email FROM doctor WHERE (delete_flag=0 OR delete_flag IS NULL) AND hospital_id='$hid' ORDER BY doctor_name ASC");
-
-    // Fetch wards
-    $wards = fetchData($conn, "SELECT ward_id, ward_name, ward_type, floor_no, (SELECT COUNT(*) FROM room_master WHERE ward_id = ward_master.ward_id AND status != 'Occupied' AND delete_flag = 0) as available_rooms FROM ward_master WHERE status='Available' AND (delete_flag=0 OR delete_flag IS NULL) AND hospital_id='$hid' ORDER BY ward_name ASC");
-
-    // Get unique departments from doctors
-    $departments = [];
-    foreach ($doctors as $doctor) {
-        if (!in_array($doctor['department'], $departments)) {
-            $departments[] = $doctor['department'];
-        }
-    }
-    sort($departments);
-
-    // ========== FIX: Appointment number generation with session persistence ==========
-    if (!isset($_SESSION['appointment_no'])) {
-        $_SESSION['appointment_no'] = "APP-" . rand(1, 9999);
-    }
-    $appointment_no = $_SESSION['appointment_no'];
-
-    // Initialize form data
-    $form_data = isset($_SESSION['appointment_form_data']) ? $_SESSION['appointment_form_data'] : [];
-
-    // ----- Pre-select doctor if doctor_id is in session or GET -----
-    if ($_SERVER['REQUEST_METHOD'] != 'POST') {
-        $pre_selected_doctor_id = $_SESSION['doctor_id'] ?? ($_GET['doctor_id'] ?? null);
-        if ($pre_selected_doctor_id) {
-            $doctor_query = "SELECT * FROM doctor WHERE doctor_id = '$pre_selected_doctor_id' AND hospital_id='$hid' AND (delete_flag=0 OR delete_flag IS NULL)";
-            $doctor_result = $conn->query($doctor_query);
-            if ($doctor_result && $doctor_result->num_rows > 0) {
-                $doctor_data = $doctor_result->fetch_assoc();
-                if (empty($form_data['doctor_id'])) {
-                    $form_data['doctor_id'] = $doctor_data['doctor_id'];
-                    $form_data['doctor_name'] = $doctor_data['doctor_name'];
-                    $form_data['department'] = $doctor_data['department'];
-                    $form_data['doctor_specialization'] = $doctor_data['specialization'];
-                    $form_data['doctor_qualification'] = $doctor_data['qualification'];
-                    $form_data['doctor_experience'] = $doctor_data['experience'];
-                    $form_data['doctor_fee'] = $doctor_data['consultation_fee'];
-                    $form_data['doctor_mobile'] = $doctor_data['mobile'];
-                    $form_data['doctor_email'] = $doctor_data['email'];
-                }
+    
+    // Function to upload file
+    function uploadFile($file, $upload_dir) {
+        if (isset($file) && $file['error'] == 0 && !empty($file['name'])) {
+            $file_name = time() . '_' . basename($file['name']);
+            $target_path = $upload_dir . $file_name;
+            if (move_uploaded_file($file['tmp_name'], $target_path)) {
+                return $file_name;
             }
         }
+        return '';
+    }
+    
+    // IPD Document Uploads
+    $prescription_file = uploadFile($_FILES['prescription_file'] ?? null, $upload_dir);
+    $lab_report_file = uploadFile($_FILES['lab_report_file'] ?? null, $upload_dir);
+    $xray_file = uploadFile($_FILES['xray_file'] ?? null, $upload_dir);
+    $mri_file = uploadFile($_FILES['mri_file'] ?? null, $upload_dir);
+    $ctscan_file = uploadFile($_FILES['ctscan_file'] ?? null, $upload_dir);
+    $other_document = uploadFile($_FILES['other_document'] ?? null, $upload_dir);
+    
+    // OPD Document Uploads
+    $opd_prescription_file = uploadFile($_FILES['opd_prescription_file'] ?? null, $upload_dir);
+    $opd_lab_report_file = uploadFile($_FILES['opd_lab_report_file'] ?? null, $upload_dir);
+    $opd_xray_file = uploadFile($_FILES['opd_xray_file'] ?? null, $upload_dir);
+    $opd_mri_file = uploadFile($_FILES['opd_mri_file'] ?? null, $upload_dir);
+    $opd_ctscan_file = uploadFile($_FILES['opd_ctscan_file'] ?? null, $upload_dir);
+    $opd_other_document = uploadFile($_FILES['opd_other_document'] ?? null, $upload_dir);
+    
+    // Get patient details from DB
+    $patient_details = [];
+    if (!empty($patient_id)) {
+        $result = $conn->query("SELECT patient_name, mobile, email, address, date_of_birth, age, gender, blood_group FROM patients WHERE patient_id = '$patient_id' and hospital_id='$hid'");
+        if ($result && $result->num_rows > 0) {
+            $patient_details = $result->fetch_assoc();
+        }
     }
 
-    // --- Form Submission Handling ---
-    if ($_SERVER["REQUEST_METHOD"] == "POST") {
-        $_SESSION['appointment_form_data'] = $_POST;
-        
-        $appointment_no = mysqli_real_escape_string($conn, getPostData('appointment_no'));
-        $patient_id = mysqli_real_escape_string($conn, getPostData('patient_id'));
-        $doctor_id = mysqli_real_escape_string($conn, getPostData('doctor_id'));
-        $appointment_type = mysqli_real_escape_string($conn, getPostData('appointment_type'));
-        $appointment_date = mysqli_real_escape_string($conn, getPostData('appointment_date'));
-        $appointment_time = mysqli_real_escape_string($conn, getPostData('appointment_time'));
-        $duration = mysqli_real_escape_string($conn, getPostData('duration'));
-        $reason = mysqli_real_escape_string($conn, getPostData('reason'));
-        $symptoms = mysqli_real_escape_string($conn, getPostData('symptoms'));
-        $since_when = mysqli_real_escape_string($conn, getPostData('since_when'));
-        $severity = mysqli_real_escape_string($conn, getPostData('severity'));
-        $allergies = mysqli_real_escape_string($conn, getPostData('allergies'));
-        $current_medicines = mysqli_real_escape_string($conn, getPostData('current_medicines'));
-        $note = mysqli_real_escape_string($conn, getPostData('note'));
-        $opd_ipd_type = mysqli_real_escape_string($conn, getPostData('opd_ipd_type', 'OPD'));
-        $status = mysqli_real_escape_string($conn, getPostData('status', 'Scheduled'));
-        $previous_history = isset($_POST['previous_history']) ? implode(", ", $_POST['previous_history']) : "";
-        $admission_date = mysqli_real_escape_string($conn, getPostData('admission_date', date('Y-m-d')));
-        $diagnosis = mysqli_real_escape_string($conn, getPostData('diagnosis'));
-        $treatment_plan = mysqli_real_escape_string($conn, getPostData('treatment_plan'));
-        $ward_id = mysqli_real_escape_string($conn, getPostData('ward_id'));
-        $room_id = mysqli_real_escape_string($conn, getPostData('room_id'));
-        $bed_id = mysqli_real_escape_string($conn, getPostData('bed_id'));
-        
-        $upload_dir = "uploads/documents/";
-        if (!file_exists($upload_dir)) {
-            mkdir($upload_dir, 0777, true);
+    // Get doctor details from DB
+    $doctor_details = [];
+    if (!empty($doctor_id)) {
+        $result = $conn->query("SELECT doctor_name, department, specialization, qualification, experience, consultation_fee, mobile, email FROM doctor WHERE doctor_id = '$doctor_id' and hospital_id='$hid'");
+        if ($result && $result->num_rows > 0) {
+            $doctor_details = $result->fetch_assoc();
         }
-        
-        function uploadFile($file, $upload_dir) {
-            if (isset($file) && $file['error'] == 0 && !empty($file['name'])) {
-                $file_name = time() . '_' . basename($file['name']);
-                $target_path = $upload_dir . $file_name;
-                if (move_uploaded_file($file['tmp_name'], $target_path)) {
-                    return $file_name;
-                }
-            }
-            return '';
-        }
-        
-        $prescription_file = uploadFile($_FILES['prescription_file'] ?? null, $upload_dir);
-        $lab_report_file = uploadFile($_FILES['lab_report_file'] ?? null, $upload_dir);
-        $xray_file = uploadFile($_FILES['xray_file'] ?? null, $upload_dir);
-        $mri_file = uploadFile($_FILES['mri_file'] ?? null, $upload_dir);
-        $ctscan_file = uploadFile($_FILES['ctscan_file'] ?? null, $upload_dir);
-        $other_document = uploadFile($_FILES['other_document'] ?? null, $upload_dir);
-        
-        $opd_prescription_file = uploadFile($_FILES['opd_prescription_file'] ?? null, $upload_dir);
-        $opd_lab_report_file = uploadFile($_FILES['opd_lab_report_file'] ?? null, $upload_dir);
-        $opd_xray_file = uploadFile($_FILES['opd_xray_file'] ?? null, $upload_dir);
-        $opd_mri_file = uploadFile($_FILES['opd_mri_file'] ?? null, $upload_dir);
-        $opd_ctscan_file = uploadFile($_FILES['opd_ctscan_file'] ?? null, $upload_dir);
-        $opd_other_document = uploadFile($_FILES['opd_other_document'] ?? null, $upload_dir);
-        
-        // Get patient details from DB safely
-        $patient_details = [];
-        if (!empty($patient_id)) {
-            $result = $conn->query("SELECT patient_name, mobile, email, address, date_of_birth, age, gender, blood_group FROM patients WHERE patient_id = '$patient_id' and hospital_id='$hid'");
-            if ($result && $result->num_rows > 0) {
-                $patient_details = $result->fetch_assoc();
-            }
-        }
+    }
 
-        // Get doctor details from DB safely
-        $doctor_details = [];
-        if (!empty($doctor_id)) {
-            $result = $conn->query("SELECT doctor_name, department, specialization, qualification, experience, consultation_fee, mobile, email FROM doctor WHERE doctor_id = '$doctor_id' and hospital_id='$hid'");
-            if ($result && $result->num_rows > 0) {
-                $doctor_details = $result->fetch_assoc();
-            }
-        }
+    // Assign details to variables
+    $patient_name = $patient_details['patient_name'] ?? '';
+    $patient_mobile = $patient_details['mobile'] ?? '';
+    $patient_email = $patient_details['email'] ?? '';
+    $patient_address = $patient_details['address'] ?? '';
+    $patient_dob = $patient_details['date_of_birth'] ?? '';
+    $patient_age = $patient_details['age'] ?? '';
+    $patient_gender = $patient_details['gender'] ?? '';
+    $patient_blood_group = $patient_details['blood_group'] ?? '';
 
-        $patient_name = $patient_details['patient_name'] ?? '';
-        $patient_mobile = $patient_details['mobile'] ?? '';
-        $patient_email = $patient_details['email'] ?? '';
-        $patient_address = $patient_details['address'] ?? '';
-        $patient_dob = $patient_details['date_of_birth'] ?? '';
-        $patient_age = $patient_details['age'] ?? '';
-        $patient_gender = $patient_details['gender'] ?? '';
-        $patient_blood_group = $patient_details['blood_group'] ?? '';
+    $doctor_name = $doctor_details['doctor_name'] ?? '';
+    $department = $doctor_details['department'] ?? '';
+    $doctor_specialization = $doctor_details['specialization'] ?? '';
+    $doctor_qualification = $doctor_details['qualification'] ?? '';
+    $doctor_experience = $doctor_details['experience'] ?? '';
+    $doctor_fee = $doctor_details['consultation_fee'] ?? '';
+    $doctor_mobile = $doctor_details['mobile'] ?? '';
+    $doctor_email = $doctor_details['email'] ?? '';
 
-        $doctor_name = $doctor_details['doctor_name'] ?? '';
-        $department = $doctor_details['department'] ?? '';
-        $doctor_specialization = $doctor_details['specialization'] ?? '';
-        $doctor_qualification = $doctor_details['qualification'] ?? '';
-        $doctor_experience = $doctor_details['experience'] ?? '';
-        $doctor_fee = $doctor_details['consultation_fee'] ?? '';
-        $doctor_mobile = $doctor_details['mobile'] ?? '';
-        $doctor_email = $doctor_details['email'] ?? '';
+    // --- Validation ---
+    $error = false;
+    if (empty($appointment_no) || empty($patient_id) || empty($doctor_id) || empty($appointment_date) || empty($appointment_time) || empty($reason)) {
+        $message = "Please fill in all required fields!";
+        $messageType = "error";
+        $error = true;
+    }
 
-        $error = false;
-        if (empty($appointment_no) || empty($patient_id) || empty($doctor_id) || empty($appointment_date) || empty($appointment_time) || empty($reason)) {
-            $message = "Please fill in all required fields!";
+    // For IPD, validate ward, room, bed and diagnosis
+    if ($opd_ipd_type == 'IPD' && !$error) {
+        if (empty($ward_id) || empty($room_id) || empty($bed_id) || empty($diagnosis)) {
+            $message = "Please fill in all IPD admission details!";
             $messageType = "error";
             $error = true;
         }
+    }
 
-        if ($opd_ipd_type == 'IPD' && !$error) {
-            if (empty($ward_id) || empty($room_id) || empty($bed_id) || empty($diagnosis)) {
-                $message = "Please fill in all IPD admission details!";
-                $messageType = "error";
-                $error = true;
-            }
-        }
+    // If no errors, proceed with insertion
+    if (!$error) {
+        // Insert into appointments table
+        $sql = "INSERT INTO appointments(
+                    appointment_no, 
+                    patient_id, 
+                    doctor_id, 
+                    department, 
+                    appointment_type, 
+                    opd_ipd_type,
+                    appointment_date, 
+                    appointment_time, 
+                    duration, 
+                    reason, 
+                    status, 
+                    notes, 
+                    delete_flag,
+                    hospital_id
+                ) VALUES (
+                    '$appointment_no',
+                    '$patient_id',
+                    '$doctor_id',
+                    '$department',
+                    '$appointment_type',
+                    '$opd_ipd_type',
+                    '$appointment_date',
+                    '$appointment_time',
+                    '$duration',
+                    '$reason',
+                    '$status',
+                    '$note',
+                    '0',
+                    '$hid'
+                )";
 
-        if (!$error) {
-            $sql = "INSERT INTO appointments(
-                        appointment_no, patient_id, doctor_id, department, appointment_type, opd_ipd_type,
-                        appointment_date, appointment_time, duration, reason, status, notes, delete_flag, hospital_id
-                    ) VALUES (
-                        '$appointment_no', '$patient_id', '$doctor_id', '$department', '$appointment_type', '$opd_ipd_type',
-                        '$appointment_date', '$appointment_time', '$duration', '$reason', '$status', '$note', '0', '$hid'
-                    )";
-
-            if ($conn->query($sql)) {
-                $appointment_id = $conn->insert_id;
+        if ($conn->query($sql)) {
+            $appointment_id = $conn->insert_id;
+            
+            // If IPD, insert into ipd_admissions
+            if ($opd_ipd_type == 'IPD') {
+                $admission_no = "IPD-" . date('Ymd') . "-" . rand(1000, 9999);
                 
-                if ($opd_ipd_type == 'IPD') {
-                    $admission_no = "IPD-" . date('Ymd') . "-" . rand(1000, 9999);
-                    
-                    $ward_result = $conn->query("SELECT ward_name FROM ward_master WHERE ward_id = '$ward_id' and hospital_id='$hid'");
-                    $ward_row = ($ward_result && $ward_result->num_rows > 0) ? $ward_result->fetch_assoc() : null;
-                    $ward_name = $ward_row['ward_name'] ?? '';
-                    
-                    $room_result = $conn->query("SELECT room_no FROM room_master WHERE room_id = '$room_id' and hospital_id='$hid'");
-                    $room_row = ($room_result && $room_result->num_rows > 0) ? $room_result->fetch_assoc() : null;
-                    $room_no = $room_row['room_no'] ?? '';
-                    
-                    $bed_result = $conn->query("SELECT bed_no FROM bed_master WHERE bed_id = '$bed_id' and hospital_id='$hid'");
-                    $bed_row = ($bed_result && $bed_result->num_rows > 0) ? $bed_result->fetch_assoc() : null;
-                    $bed_no = $bed_row['bed_no'] ?? '';
-                    
-                    $sql_ipd = "INSERT INTO ipd_admissions (
-                                    admission_no, appointment_id, appointment_type, patient_id, doctor_id, department,
-                                    ward_id, room_no, bed_no, admission_date, appointment_time, duration, disease_reason,
-                                    notes, symptoms, since_when, severity, previous_history, current_medicines, status,
-                                    prescription_file, lab_report_file, xray_file, mri_file, ctscan_file, other_document,
-                                    delete_flag, hospital_id
-                                ) VALUES (
-                                    '$admission_no', '$appointment_id', '$appointment_type', '$patient_id', '$doctor_id', '$department',
-                                    '$ward_id', '$room_no', '$bed_no', '$admission_date', '$appointment_time', '$duration', '$reason',
-                                    '$note', '$symptoms', '$since_when', '$severity', '$previous_history', '$current_medicines', 'Admitted',
-                                    '$prescription_file', '$lab_report_file', '$xray_file', '$mri_file', '$ctscan_file', '$other_document',
-                                    '0', '$hid'
-                                )";
-                    
-                    if ($conn->query($sql_ipd)) {
-                        $conn->query("INSERT INTO bed_allocation (patient_id, bed_id, admit_date, status, hospital_id) VALUES ('$patient_id', '$bed_id', NOW(), 'Occupied', '$hid')");
-                        $conn->query("UPDATE bed_master SET status='Occupied' WHERE bed_id='$bed_id'");
-                        
-                        $room_check = $conn->query("SELECT COUNT(*) as total, SUM(CASE WHEN status = 'Occupied' THEN 1 ELSE 0 END) as occupied FROM bed_master WHERE room_id = '$room_id' AND delete_flag = 0");
-                        $room_data = ($room_check && $room_check->num_rows > 0) ? $room_check->fetch_assoc() : null;
-                        if ($room_data && $room_data['total'] == $room_data['occupied'] && $room_data['total'] > 0) {
-                            $conn->query("UPDATE room_master SET status='Occupied' WHERE room_id='$room_id'");
-                        }
-                        
-                        $ward_check = $conn->query("SELECT COUNT(*) as total, SUM(CASE WHEN status = 'Occupied' THEN 1 ELSE 0 END) as occupied FROM room_master WHERE ward_id = '$ward_id' AND delete_flag = 0");
-                        $ward_data = ($ward_check && $ward_check->num_rows > 0) ? $ward_check->fetch_assoc() : null;
-                        if ($ward_data && $ward_data['total'] == $ward_data['occupied'] && $ward_data['total'] > 0) {
-                            $conn->query("UPDATE ward_master SET status='Occupied' WHERE ward_id='$ward_id'");
-                        }
-                        
-                        $conn->query("UPDATE appointments SET status='Confirmed' WHERE appointment_id='$appointment_id'");
-                        
-                        unset($_SESSION['appointment_form_data']);
-                        unset($_SESSION['appointment_no']);
-                        echo "<script>alert('IPD Admission completed successfully!'); window.location='show_ipd_appointments.php';</script>";
-                        exit();
-                    } else {
-                        $message = "Error inserting IPD admission: " . $conn->error;
-                        $messageType = "error";
-                    }
-                } else {
-                    $sql_opd = "INSERT INTO opd (
-                                appointment_id, patient_id, doctor_id, appointment_no, department, appointment_type,
-                                appointment_date, appointment_time, duration, reason, notes, symptoms, since_when, severity,
-                                previous_history, allergies, current_medicines, prescription_file, lab_report_file, xray_file,
-                                mri_file, ctscan_file, other_document, diagnosis, visit_date, hospital_id, delete_flag
+                // Get ward, room, bed details
+                $ward_result = $conn->query("SELECT ward_name FROM ward_master WHERE ward_id = '$ward_id' and hospital_id='$hid'");
+                $ward_row = $ward_result->fetch_assoc();
+                $ward_name = $ward_row['ward_name'] ?? '';
+                
+                $room_result = $conn->query("SELECT room_no FROM room_master WHERE room_id = '$room_id' and hospital_id='$hid'");
+                $room_row = $room_result->fetch_assoc();
+                $room_no = $room_row['room_no'] ?? '';
+                
+                $bed_result = $conn->query("SELECT bed_no FROM bed_master WHERE bed_id = '$bed_id' and hospital_id='$hid'");
+                $bed_row = $bed_result->fetch_assoc();
+                $bed_no = $bed_row['bed_no'] ?? '';
+                
+                // Insert IPD admission with document fields
+                $sql_ipd = "INSERT INTO ipd_admissions (
+                                admission_no, 
+                                appointment_id, 
+                                appointment_type, 
+                                patient_id, 
+                                doctor_id, 
+                                department,
+                                ward_id, 
+                                room_no, 
+                                bed_no, 
+                                admission_date, 
+                                appointment_time, 
+                                duration, 
+                                disease_reason,
+                                notes, 
+                                symptoms, 
+                                since_when, 
+                                severity, 
+                                previous_history, 
+                                current_medicines, 
+                                status,
+                                prescription_file,
+                                lab_report_file,
+                                xray_file,
+                                mri_file,
+                                ctscan_file,
+                                other_document,
+                                delete_flag,
+                                hospital_id
                             ) VALUES (
-                                '$appointment_id', '$patient_id', '$doctor_id', '$appointment_no', '$department', '$appointment_type',
-                                '$appointment_date', '$appointment_time', '$duration', '$reason', '$note', '$symptoms', '$since_when', '$severity',
-                                '$previous_history', '$allergies', '$current_medicines', '$opd_prescription_file', '$opd_lab_report_file', '$opd_xray_file',
-                                '$opd_mri_file', '$opd_ctscan_file', '$opd_other_document', NULL, '$appointment_date', '$hid', '0'
+                                '$admission_no',
+                                '$appointment_id',
+                                '$appointment_type',
+                                '$patient_id',
+                                '$doctor_id',
+                                '$department',
+                                '$ward_id',
+                                '$room_no',
+                                '$bed_no',
+                                '$admission_date',
+                                '$appointment_time',
+                                '$duration',
+                                '$reason',
+                                '$note',
+                                '$symptoms',
+                                '$since_when',
+                                '$severity',
+                                '$previous_history',
+                                '$current_medicines',
+                                'Admitted',
+                                '$prescription_file',
+                                '$lab_report_file',
+                                '$xray_file',
+                                '$mri_file',
+                                '$ctscan_file',
+                                '$other_document',
+                                '0',
+                                '$hid'
                             )";
+                
+                if ($conn->query($sql_ipd)) {
+                    // Allocate bed
+                    $conn->query("INSERT INTO bed_allocation (patient_id, bed_id, admit_date, status,hospital_id) VALUES ('$patient_id', '$bed_id', NOW(), 'Occupied','$hid')");
+                    
+                    // Update bed status
+                    $conn->query("UPDATE bed_master SET status='Occupied' WHERE bed_id='$bed_id'");
+                    // Check if all beds in this room are occupied
+                    $room_check = $conn->query("
+                        select count(*) total,
+                        sum(case when status='Occupied' then 1 else 0 end) occupied
+                        from bed_master
+                        where room_id='$room_id'
+                        and (delete_flag=0 or delete_flag is null)
+                    ");
 
-                    if ($conn->query($sql_opd)) {
-                        unset($_SESSION['appointment_form_data']);
-                        unset($_SESSION['appointment_no']);
-                        echo "<script>alert('OPD Appointment scheduled successfully!'); window.location='show_opd_appointments.php';</script>";
-                        exit();
+                    $room = $room_check->fetch_assoc();
+
+                    if($room['total'] == $room['occupied']) {
+                        $conn->query("update room_master set status='Occupied' where room_id='$room_id'");
                     } else {
-                        $message = "Error inserting OPD record: " . $conn->error;
-                        $messageType = "error";
-                        $conn->query("DELETE FROM appointments WHERE appointment_id = '$appointment_id'");
+                        $conn->query("update room_master set status='Available' where room_id='$room_id'");
                     }
+
+                    // Check if all rooms in this ward are occupied
+                    $ward_check = $conn->query("
+                        select count(*) total,
+                        sum(case when status='Occupied' then 1 else 0 end) occupied
+                        from room_master
+                        where ward_id='$ward_id'
+                        and (delete_flag=0 or delete_flag is null)
+                    ");
+
+                    $ward = $ward_check->fetch_assoc();
+
+                    if($ward['total'] == $ward['occupied']) {
+                        $conn->query("update ward_master set status='Occupied' where ward_id='$ward_id'");
+                    } else {
+                        $conn->query("update ward_master set status='Available' where ward_id='$ward_id'");
+                    }
+                    
+                    // Check if all beds in room are occupied
+                    $room_check = $conn->query("SELECT COUNT(*) as total, SUM(CASE WHEN status = 'Occupied' THEN 1 ELSE 0 END) as occupied FROM bed_master WHERE room_id = '$room_id' AND delete_flag = 0");
+                    $room_data = $room_check->fetch_assoc();
+                    if ($room_data && $room_data['total'] == $room_data['occupied'] && $room_data['total'] > 0) {
+                        $conn->query("UPDATE room_master SET status='Occupied' WHERE room_id='$room_id'");
+                    }
+                    
+                    // Check if all rooms in ward are occupied
+                    $ward_check = $conn->query("SELECT COUNT(*) as total, SUM(CASE WHEN status = 'Occupied' THEN 1 ELSE 0 END) as occupied FROM room_master WHERE ward_id = '$ward_id' AND delete_flag = 0");
+                    $ward_data = $ward_check->fetch_assoc();
+                    if ($ward_data && $ward_data['total'] == $ward_data['occupied'] && $ward_data['total'] > 0) {
+                        $conn->query("UPDATE ward_master SET status='Occupied' WHERE ward_id='$ward_id'");
+                    }
+                    
+                    // Update appointment status
+                    $conn->query("UPDATE appointments SET status='Confirmed' WHERE appointment_id='$appointment_id'");
+                    
+                    unset($_SESSION['appointment_form_data']);
+                    unset($_SESSION['appointment_no']); // Clear the generated number
+                    echo "<script>alert('IPD Admission completed successfully!'); window.location='show_ipd_appointments.php';</script>";
+                    exit();
+                } else {
+                    $message = "Error inserting IPD admission: " . $conn->error;
+                    $messageType = "error";
                 }
             } else {
-                $message = "Error inserting appointment: " . $conn->error;
-                $messageType = "error";
+                // ========== OPD: Insert into opd table ==========
+                $sql_opd = "INSERT INTO opd (
+                            appointment_id,
+                            patient_id,
+                            doctor_id,
+                            appointment_no,
+                            department,
+                            appointment_type,
+                            appointment_date,
+                            appointment_time,
+                            duration,
+                            reason,
+                            notes,
+                            symptoms,
+                            since_when,
+                            severity,
+                            previous_history,
+                            allergies,
+                            current_medicines,
+                            prescription_file,
+                            lab_report_file,
+                            xray_file,
+                            mri_file,
+                            ctscan_file,
+                            other_document,
+                            diagnosis,
+                            visit_date,
+                            hospital_id,
+                            delete_flag
+                        ) VALUES (
+                            '$appointment_id',
+                            '$patient_id',
+                            '$doctor_id',
+                            '$appointment_no',
+                            '$department',
+                            '$appointment_type',
+                            '$appointment_date',
+                            '$appointment_time',
+                            '$duration',
+                            '$reason',
+                            '$note',
+                            '$symptoms',
+                            '$since_when',
+                            '$severity',
+                            '$previous_history',
+                            '$allergies',
+                            '$current_medicines',
+                            '$opd_prescription_file',
+                            '$opd_lab_report_file',
+                            '$opd_xray_file',
+                            '$opd_mri_file',
+                            '$opd_ctscan_file',
+                            '$opd_other_document',
+                            NULL,
+                            '$appointment_date',
+                            '$hid',
+                            '0'
+                        )";
+
+                if ($conn->query($sql_opd)) {
+                    // Success – clear session and redirect
+                    unset($_SESSION['appointment_form_data']);
+                    unset($_SESSION['appointment_no']);
+                    echo "<script>alert('OPD Appointment scheduled successfully!'); window.location='show_opd_appointments.php';</script>";
+                    exit();
+                } else {
+                    // If OPD insert fails, we might want to rollback the appointment insertion
+                    // but we haven't started a transaction. For simplicity, we'll show an error.
+                    $message = "Error inserting OPD record: " . $conn->error;
+                    $messageType = "error";
+                    // Optionally, delete the appointment to maintain consistency
+                    $conn->query("DELETE FROM appointments WHERE appointment_id = '$appointment_id'");
+                }
             }
+        } else {
+            $message = "Error inserting appointment: " . $conn->error;
+            $messageType = "error";
         }
     }
+}
 ?>
 
 <!DOCTYPE html>
@@ -341,15 +526,29 @@
 <head>
     <meta charset='utf-8' />
     <meta name='viewport' content='width=device-width, initial-scale=1' />
-    <title><?php echo htmlspecialchars($hospital['hospital_name']); ?> - Add New Appointment</title>
-    <link rel="icon" type="image/png" href="../<?php echo htmlspecialchars($hospital['hospital_logo']); ?>">
+    
+    <title><?php echo isset($hospital['hospital_name']) ? $hospital['hospital_name'] : 'Hospital'; ?> - Add New Appointment</title>
+    <?php if (isset($hospital['hospital_logo']) && !empty($hospital['hospital_logo'])): ?>
+        <link rel="icon" type="image/png" href="../<?php echo $hospital['hospital_logo']; ?>">
+    <?php endif; ?>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         body { font-family: 'Inter', sans-serif; background: #f8fafc; }
-        .main-content { margin-left: 260px; padding: 24px 28px; min-height: 100vh; margin-top: 70px; }
-        @media (max-width: 1024px) { .main-content { margin-left: 0; padding: 16px; margin-top: 60px; } }
+        .main-content { 
+            margin-left: 260px; 
+            padding: 24px 28px; 
+            min-height: 100vh; 
+            margin-top: 70px;
+        }
+        @media (max-width: 1024px) { 
+            .main-content { 
+                margin-left: 0; 
+                padding: 16px; 
+                margin-top: 60px;
+            } 
+        }
         .form-card { background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; padding: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
         .form-group { margin-bottom: 1.5rem; }
         .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: #333; font-size: 14px; }
@@ -365,6 +564,11 @@
         .btn-primary:hover { background-color: #4f46e5; }
         .btn-secondary { background-color: #e2e8f0; color: #4a5568; padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; transition: 0.2s; }
         .btn-secondary:hover { background-color: #d1d5db; }
+        .search-box { position: relative; }
+        .search-results { position: absolute; background: white; border: 1px solid #e2e8f0; border-radius: 8px; width: 100%; max-height: 200px; overflow-y: auto; z-index: 10; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: none; }
+        .search-results .result-item { padding: 0.75rem 1rem; cursor: pointer; border-bottom: 1px solid #e2e8f0; }
+        .search-results .result-item:hover { background-color: #f7fafc; }
+        .selected-item { background-color: #e0f2fe; border: 1px solid #90cdf4; border-radius: 8px; padding: 0.75rem 1rem; margin-top: 0.5rem; display: none; }
         .ipd-section { display: none; }
         .ipd-summary { background-color: #f0f9ff; border: 1px solid #bfdbfe; border-left: 4px solid #3b82f6; padding: 1.5rem; border-radius: 8px; margin-top: 2rem; display: none; }
         .checkbox-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; }
@@ -377,16 +581,24 @@
 
 <body class='bg-gray-50 text-gray-900'>
     <div class='flex min-h-screen flex-col bg-gray-50'>
-        <?php include '../header.php'; ?> 
+        <?php 
+        if (file_exists('../header.php')) {
+            include '../header.php'; 
+        }
+        ?>
         
         <div class='flex flex-1 items-start'>
-            <?php include '../Sidebar.php'; ?>
+            <?php 
+            if (file_exists('../Sidebar.php')) {
+                include '../Sidebar.php';
+            }
+            ?>
 
             <main class='flex-1 overflow-auto duration-300 p-4 xl:p-6 xl:ml-64'>
                 <?php if (!empty($message)): ?>
                     <div class="alert <?php echo $messageType === 'success' ? 'alert-success' : 'alert-error'; ?>">
                         <i data-lucide="<?php echo $messageType === 'success' ? 'check-circle' : 'alert-circle'; ?>" class="w-5 h-5 mr-3"></i>
-                        <span><?php echo $message; ?></span>
+                        <span><?php echo htmlspecialchars($message); ?></span>
                     </div>
                 <?php endif; ?>
 
@@ -399,6 +611,7 @@
                         <p class="text-gray-500 text-sm">Schedule a new appointment for patients.</p>
                     </div>
                 </div>
+            
 
                 <div class="form-card">
                     <form action="add_appointment.php" method="POST" id="appointmentForm" enctype="multipart/form-data">
@@ -412,6 +625,7 @@
                                 <label for="opd_ipd_type"> Type <span class="required">*</span></label>
                                 <select id="opd_ipd_type" name="opd_ipd_type" required onchange="toggleSections();">
                                     <option value="OPD" <?php echo ($form_data['opd_ipd_type'] ?? '') == 'OPD' ? 'selected' : ''; ?>>OPD</option>
+                                    <option value="IPD" <?php echo ($form_data['opd_ipd_type'] ?? '') == 'IPD' ? 'selected' : ''; ?>>IPD</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -455,16 +669,27 @@
 
                         <div class="section-title">2. Doctor Selection</div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                            <!-- Doctor Name (fixed) -->
                             <div class="form-group">
                                 <label for="doctor_name_display">Doctor <span class="required">*</span></label>
-                                <input type="text" id="doctor_name_display" class="w-full p-2 border border-gray-300 rounded-lg bg-gray-100" value="<?php echo htmlspecialchars($form_data['doctor_name'] ?? ''); ?>" readonly>
-                                <input type="hidden" id="doctor_id" name="doctor_id" value="<?php echo htmlspecialchars($form_data['doctor_id'] ?? ''); ?>">
-                                <input type="hidden" id="doctor_name" name="doctor_name" value="<?php echo htmlspecialchars($form_data['doctor_name'] ?? ''); ?>">
+                                <input type="text" id="doctor_name_display" 
+                                    class="w-full p-2 border border-gray-300 rounded-lg bg-gray-100" 
+                                    value="<?php echo htmlspecialchars($form_data['doctor_name'] ?? ''); ?>" 
+                                    readonly>
+                                <input type="hidden" id="doctor_id" name="doctor_id" 
+                                    value="<?php echo htmlspecialchars($form_data['doctor_id'] ?? ''); ?>">
+                                <input type="hidden" id="doctor_name" name="doctor_name" 
+                                    value="<?php echo htmlspecialchars($form_data['doctor_name'] ?? ''); ?>">
                             </div>
+                            <!-- Department (fixed) -->
                             <div class="form-group">
                                 <label for="department_display">Department <span class="required">*</span></label>
-                                <input type="text" id="department_display" class="w-full p-2 border border-gray-300 rounded-lg bg-gray-100" value="<?php echo htmlspecialchars($form_data['department'] ?? ''); ?>" readonly>
-                                <input type="hidden" name="department" value="<?php echo htmlspecialchars($form_data['department'] ?? ''); ?>">
+                                <input type="text" id="department_display" 
+                                    class="w-full p-2 border border-gray-300 rounded-lg bg-gray-100" 
+                                    value="<?php echo htmlspecialchars($form_data['department'] ?? ''); ?>" 
+                                    readonly>
+                                <input type="hidden" name="department" 
+                                    value="<?php echo htmlspecialchars($form_data['department'] ?? ''); ?>">
                             </div>
                         </div>
 
@@ -571,7 +796,13 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                             <div class="form-group">
                                 <label for="allergies">Known Allergies</label>
-                                <input type="text" id="allergies" name="allergies" placeholder="e.g., Penicillin, Dust, Pollen" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" value="<?php echo htmlspecialchars($form_data['allergies'] ?? ''); ?>" maxlength="100">
+                                <input type="text"
+                                    id="allergies"
+                                    name="allergies"
+                                    placeholder="e.g., Penicillin, Dust, Pollen"
+                                    class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    value="<?php echo htmlspecialchars($form_data['allergies'] ?? ''); ?>"
+                                    maxlength="100">
                             </div>
                             <div class="form-group">
                                 <label for="current_medicines">Current Medications</label>
@@ -585,6 +816,7 @@
                             <textarea id="note" name="note" rows="3" placeholder="Any additional notes or instructions" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"><?php echo htmlspecialchars($form_data['note'] ?? ''); ?></textarea>
                         </div>
 
+                        <!-- IPD Admission Details -->
                         <div id="ipdSection" class="ipd-section">
                             <div class="section-title">8. IPD Admission Details</div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -608,7 +840,8 @@
                                     <select id="ward_id" name="ward_id" onchange="loadRooms(this.value)" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                                         <option value="">Select Ward</option>
                                         <?php foreach ($wards as $ward): ?>
-                                            <option value="<?php echo $ward['ward_id']; ?>" <?php echo (($form_data['ward_id'] ?? '') == $ward['ward_id']) ? 'selected' : ''; ?>>
+                                            <option value="<?php echo $ward['ward_id']; ?>" 
+                                                    <?php echo (($form_data['ward_id'] ?? '') == $ward['ward_id']) ? 'selected' : ''; ?>>
                                                 <?php echo htmlspecialchars($ward['ward_name']); ?> (Available Rooms: <?php echo $ward['available_rooms']; ?>)
                                             </option>
                                         <?php endforeach; ?>
@@ -629,26 +862,55 @@
                             </div>
                         </div>
 
+                        <!-- Document Upload Section -->
                         <div id="documentSection" class="mt-6 pt-4 border-t border-gray-200">
-                            <div class="section-title">8. Document Uploads</div>
+                            <div class="section-title">9. Document Uploads</div>
                             <div class="document-upload-grid">
-                                <div class="form-group"><label for="prescription_file">Prescription File</label><input type="file" id="prescription_file" name="prescription_file" class="block w-full p-2 border border-gray-300 rounded-lg"></div>
-                                <div class="form-group"><label for="lab_report_file">Lab Report File</label><input type="file" id="lab_report_file" name="lab_report_file" class="block w-full p-2 border border-gray-300 rounded-lg"></div>
-                                <div class="form-group"><label for="xray_file">X-Ray File</label><input type="file" id="xray_file" name="xray_file" class="block w-full p-2 border border-gray-300 rounded-lg"></div>
-                                <div class="form-group"><label for="mri_file">MRI File</label><input type="file" id="mri_file" name="mri_file" class="block w-full p-2 border border-gray-300 rounded-lg"></div>
-                                <div class="form-group"><label for="ctscan_file">CT Scan File</label><input type="file" id="ctscan_file" name="ctscan_file" class="block w-full p-2 border border-gray-300 rounded-lg"></div>
-                                <div class="form-group"><label for="other_document">Other Document</label><input type="file" id="other_document" name="other_document" class="block w-full p-2 border border-gray-300 rounded-lg"></div>
+                                <div class="form-group">
+                                    <label for="prescription_file">Prescription File</label>
+                                    <input type="file" id="prescription_file" name="prescription_file" class="block w-full p-2 border border-gray-300 rounded-lg">
+                                </div>
+                                <div class="form-group">
+                                    <label for="lab_report_file">Lab Report File</label>
+                                    <input type="file" id="lab_report_file" name="lab_report_file" class="block w-full p-2 border border-gray-300 rounded-lg">
+                                </div>
+                                <div class="form-group">
+                                    <label for="xray_file">X-Ray File</label>
+                                    <input type="file" id="xray_file" name="xray_file" class="block w-full p-2 border border-gray-300 rounded-lg">
+                                </div>
+                                <div class="form-group">
+                                    <label for="mri_file">MRI File</label>
+                                    <input type="file" id="mri_file" name="mri_file" class="block w-full p-2 border border-gray-300 rounded-lg">
+                                </div>
+                                <div class="form-group">
+                                    <label for="ctscan_file">CT Scan File</label>
+                                    <input type="file" id="ctscan_file" name="ctscan_file" class="block w-full p-2 border border-gray-300 rounded-lg">
+                                </div>
+                                <div class="form-group">
+                                    <label for="other_document">Other Document</label>
+                                    <input type="file" id="other_document" name="other_document" class="block w-full p-2 border border-gray-300 rounded-lg">
+                                </div>
                             </div>
                         </div>
 
+                        <!-- Navigation Buttons -->
                         <div class="flex justify-end space-x-4 mt-8">
-                            <button type="button" id="nextToIPD" class="btn-primary" style="display:none;" onclick="showIPDSummary()">Next: Review IPD Admission</button>
-                            <button type="button" id="backToIPD" class="btn-secondary" style="display:none;" onclick="hideIPDSummary()">Back to IPD Details</button>
-                            <button type="submit" id="submitOPD" class="btn-primary">Schedule OPD Appointment</button>
-                            <button type="submit" id="submitIPD" class="btn-primary" style="display:none;">Confirm IPD Admission</button>
+                            <button type="button" id="nextToIPD" class="btn-primary" style="display:none;" onclick="showIPDSummary()">
+                                Next: Review IPD Admission
+                            </button>
+                            <button type="button" id="backToIPD" class="btn-secondary" style="display:none;" onclick="hideIPDSummary()">
+                                Back to IPD Details
+                            </button>
+                            <button type="submit" id="submitOPD" class="btn-primary">
+                                Schedule OPD Appointment
+                            </button>
+                            <button type="submit" id="submitIPD" class="btn-primary" style="display:none;">
+                                Confirm IPD Admission
+                            </button>
                         </div>
                     </form>
 
+                    <!-- IPD Summary Section -->
                     <div id="ipdSummary" class="ipd-summary">
                         <h3 class="text-lg font-bold text-gray-800 mb-4">IPD Admission Summary</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -730,11 +992,13 @@
         function updateIPDInfo() {
             const doctorName = document.getElementById('doctor_name').value;
             const patientName = document.getElementById('displayName').value;
+            
             document.getElementById('summaryPatient').textContent = patientName || '-';
             document.getElementById('summaryDoctor').textContent = doctorName || '-';
         }
 
         async function loadRooms(wardId) {
+            console.log("Ward Selected:", wardId);
             const roomSelect = document.getElementById('room_id');
             const bedSelect = document.getElementById('bed_id');
             roomSelect.innerHTML = '<option value="">Select Room</option>';
@@ -772,7 +1036,11 @@
                 const selectedBedId = '<?php echo $form_data['bed_id'] ?? ''; ?>';
                 data.forEach(bed => {
                     const selected = (selectedBedId == bed.bed_id) ? 'selected' : '';
-                    options += `<option value="${bed.bed_id}" ${selected}>${bed.bed_no} - ${bed.bed_type}</option>`;
+                    options += `
+                        <option value="${bed.bed_id}" ${selected}>
+                            ${bed.bed_no} - ${bed.bed_type}
+                        </option>
+                    `;
                 });
                 bedSelect.innerHTML = options;
             } catch (error) {
@@ -782,10 +1050,22 @@
         }
 
         function showIPDSummary() {
-            if (!document.getElementById('patient_id').value) { alert('Please select a patient first!'); return false; }
-            if (!document.getElementById('doctor_id').value) { alert('Please select a doctor first!'); return false; }
-            if (!document.getElementById('ward_id').value || !document.getElementById('room_id').value || !document.getElementById('bed_id').value) { alert('Please select Ward, Room, and Bed!'); return false; }
-            if (!document.getElementById('diagnosis').value) { alert('Please enter preliminary diagnosis!'); return false; }
+            if (!document.getElementById('patient_id').value) {
+                alert('Please select a patient first!');
+                return false;
+            }
+            if (!document.getElementById('doctor_id').value) {
+                alert('Please select a doctor first!');
+                return false;
+            }
+            if (!document.getElementById('ward_id').value || !document.getElementById('room_id').value || !document.getElementById('bed_id').value) {
+                alert('Please select Ward, Room, and Bed!');
+                return false;
+            }
+            if (!document.getElementById('diagnosis').value) {
+                alert('Please enter preliminary diagnosis!');
+                return false;
+            }
 
             const wardSelect = document.getElementById('ward_id');
             const roomSelect = document.getElementById('room_id');
@@ -806,6 +1086,7 @@
             document.getElementById('backToIPD').style.display = 'inline-flex';
             document.getElementById('submitIPD').style.display = 'inline-flex';
             document.getElementById('submitOPD').style.display = 'none';
+            
             window.scrollTo({ top: document.getElementById('ipdSummary').offsetTop - 100, behavior: 'smooth' });
         }
 
@@ -821,12 +1102,32 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             toggleSections();
+            
             const patientSelect = document.getElementById('patient_id');
-            if (patientSelect && patientSelect.value) { loadPatientDetails(); }
+            if (patientSelect && patientSelect.value) {
+                loadPatientDetails();
+            }
+            
+            // Pre-select doctor if hidden field has value
+            const doctorId = document.getElementById('doctor_id').value;
+            if (doctorId) {
+                const selectedDoctor = ALL_DOCTORS.find(doc => doc.doctor_id == doctorId);
+                if (selectedDoctor) {
+                    // Just update the display
+                    document.getElementById('doctor_name_display').value = selectedDoctor.doctor_name;
+                    document.getElementById('department_display').value = selectedDoctor.department;
+                }
+            }
+            
             const wardId = document.getElementById('ward_id').value;
-            if (wardId) { loadRooms(wardId); }
+            if (wardId) {
+                loadRooms(wardId);
+            }
+            
             const roomId = document.getElementById('room_id').value;
-            if (roomId) { loadBeds(roomId); }
+            if (roomId) {
+                loadBeds(roomId);
+            }
         });
     </script>
 </body>
