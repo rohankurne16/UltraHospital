@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// OUTPUT BUFFERING - prevent "headers already sent" errors
+// OUTPUT BUFFERING - Prevents "headers already sent" errors
 // ============================================================
 if (ob_get_level() === 0) {
     ob_start();
@@ -13,10 +13,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// ============================================================
-// SUPPRESS NON-FATAL ERRORS DURING LOGOUT
-// (we don't want warnings to break the redirect)
-// ============================================================
+// Suppress non-fatal warnings that might break the redirect
 error_reporting(E_ERROR | E_PARSE);
 
 // ============================================================
@@ -33,15 +30,17 @@ include_once '../config/permission.php';
  $session_id  = session_id();
 
 // ============================================================
-// GET HOSPITAL ID
+// GET HOSPITAL ID (Always use the ENCRYPTED string)
 // ============================================================
  $hid = '';
+
+// 1. Check URL parameter first (it is already encrypted)
 if (isset($_GET['hid']) && $_GET['hid'] !== '') {
     $hid = trim($_GET['hid']);
-} elseif (isset($_SESSION['hid']) && $_SESSION['hid'] !== '') {
+} 
+// 2. Check session for the encrypted string
+elseif (isset($_SESSION['hid']) && $_SESSION['hid'] !== '') {
     $hid = trim($_SESSION['hid']);
-} elseif (isset($_SESSION['hospital_id']) && $_SESSION['hospital_id'] !== '') {
-    $hid = trim($_SESSION['hospital_id']);
 }
 
 // ============================================================
@@ -51,9 +50,7 @@ if (isset($_GET['hid']) && $_GET['hid'] !== '') {
 
 if ($register_id > 0 && isset($conn) && $conn instanceof mysqli) {
 
-    // --------------------------------------------------------
-    // CASE 1: Update by login_id + register_id
-    // --------------------------------------------------------
+    // CASE 1: Update by login_id
     if ($login_id > 0) {
         $stmt = mysqli_prepare(
             $conn,
@@ -74,9 +71,7 @@ if ($register_id > 0 && isset($conn) && $conn instanceof mysqli) {
         }
     }
 
-    // --------------------------------------------------------
-    // CASE 2: Fallback by session_id + register_id
-    // --------------------------------------------------------
+    // CASE 2: Fallback by session_id
     if (!$logoutUpdated && $session_id !== '') {
         $stmt = mysqli_prepare(
             $conn,
@@ -97,10 +92,7 @@ if ($register_id > 0 && isset($conn) && $conn instanceof mysqli) {
         }
     }
 
-    // --------------------------------------------------------
-    // CASE 3: Final fallback - latest active login only
-    // (Runs ONLY if CASE 1 and CASE 2 both failed)
-    // --------------------------------------------------------
+    // CASE 3: Final fallback - ONLY if Case 1 & 2 failed
     if (!$logoutUpdated) {
         $stmt = mysqli_prepare(
             $conn,
@@ -126,7 +118,7 @@ if ($register_id > 0 && function_exists('logAudit')) {
     try {
         logAudit('Logout', 'User logged out');
     } catch (Throwable $e) {
-        // Silent fail - logout must continue
+        // Silent fail
     }
 }
 
@@ -166,7 +158,8 @@ header('Expires: 0');
 header('Clear-Site-Data: "cache", "cookies", "storage"');
 
 // ============================================================
-// BUILD RELATIVE REDIRECT URL (Safest for your setup)
+// BUILD REDIRECT URL
+// We use relative path back to the index.php
 // ============================================================
  $redirect_url = '../index.php';
 if ($hid !== '') {
@@ -189,7 +182,7 @@ if (!headers_sent()) {
     echo '<script>window.location.href="' . htmlspecialchars($redirect_url, ENT_QUOTES) . '";</script>';
     echo '</head><body>Redirecting…</body></html>';
 } else {
-    // Headers already sent - use HTML/JS fallback
+    // Fallback if headers are already sent
     echo '<!DOCTYPE html><html><head>';
     echo '<meta http-equiv="refresh" content="0;url=' . htmlspecialchars($redirect_url, ENT_QUOTES) . '">';
     echo '<script>window.location.href="' . htmlspecialchars($redirect_url, ENT_QUOTES) . '";</script>';
