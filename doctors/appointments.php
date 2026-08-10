@@ -8,29 +8,29 @@ if (!isset($_SESSION['id'])) {
     exit();
 }
 
-$register_id  = (int) $_SESSION['id'];
-$hospital_id  = isset($_SESSION['hospital_id']) ? (int) $_SESSION['hospital_id'] : 0;
+ $register_id  = (int) $_SESSION['id'];
+ $hospital_id  = isset($_SESSION['hospital_id']) ? (int) $_SESSION['hospital_id'] : 0;
 
 // Server's current date – used for "Today" counts and client-side filtering
-$todayDate = date('Y-m-d');
+ $todayDate = date('Y-m-d');
 
 // Hospital details
-$hospital = [
+ $hospital = [
     'hospital_name' => 'Hospital',
     'hospital_logo' => ''
 ];
 
-$hospitalQuery = "SELECT hospital_name, hospital_logo 
+ $hospitalQuery = "SELECT hospital_name, hospital_logo 
                   FROM hospital_master 
                   WHERE hospital_id = $hospital_id AND (delete_flag = 0 OR delete_flag IS NULL)";
-$hospitalResult = mysqli_query($conn, $hospitalQuery);
+ $hospitalResult = mysqli_query($conn, $hospitalQuery);
 if ($hospitalResult && mysqli_num_rows($hospitalResult) > 0) {
     $hospital = mysqli_fetch_assoc($hospitalResult);
 }
 
 // Doctor details
-$doctor_id   = isset($_SESSION['doctor_id']) ? (int) $_SESSION['doctor_id'] : 0;
-$doctor_name = 'Doctor';
+ $doctor_id   = isset($_SESSION['doctor_id']) ? (int) $_SESSION['doctor_id'] : 0;
+ $doctor_name = 'Doctor';
 
 if ($doctor_id) {
     $docQuery = "SELECT doctor_name FROM doctor 
@@ -61,7 +61,7 @@ if (!$doctor_id) {
 }
 
 // Main query – all columns from appointments + patient_name
-$sql = "SELECT a.*, p.patient_name 
+ $sql = "SELECT a.*, p.patient_name 
         FROM appointments a 
         LEFT JOIN patients p ON a.patient_id = p.patient_id
         WHERE a.doctor_id = $doctor_id 
@@ -69,8 +69,8 @@ $sql = "SELECT a.*, p.patient_name
           AND (a.delete_flag = 0 OR a.delete_flag IS NULL) 
         ORDER BY a.appointment_date DESC, a.appointment_time ASC";
 
-$re = mysqli_query($conn, $sql);
-$totalCount = mysqli_num_rows($re);
+ $re = mysqli_query($conn, $sql);
+ $totalCount = mysqli_num_rows($re);
 
 // Helper function for counts
 function getCount($conn, $sql) {
@@ -78,47 +78,47 @@ function getCount($conn, $sql) {
     return $res ? (int) mysqli_fetch_assoc($res)['count'] : 0;
 }
 
-$upcomingCount = getCount($conn,
+ $upcomingCount = getCount($conn,
     "SELECT COUNT(*) as count FROM appointments 
      WHERE doctor_id = $doctor_id AND hospital_id = $hospital_id 
        AND (delete_flag = 0 OR delete_flag IS NULL) AND status = 'Confirmed'"
 );
 
-$todayQuery = "SELECT COUNT(*) as count FROM appointments 
+ $todayQuery = "SELECT COUNT(*) as count FROM appointments 
                WHERE doctor_id = $doctor_id AND hospital_id = $hospital_id 
                  AND (delete_flag = 0 OR delete_flag IS NULL) AND appointment_date = '$todayDate'";
-$todayResult = mysqli_query($conn, $todayQuery);
-$todayCount = $todayResult ? (int) mysqli_fetch_assoc($todayResult)['count'] : 0;
+ $todayResult = mysqli_query($conn, $todayQuery);
+ $todayCount = $todayResult ? (int) mysqli_fetch_assoc($todayResult)['count'] : 0;
 
-$completedCount = getCount($conn,
+ $completedCount = getCount($conn,
     "SELECT COUNT(*) as count FROM appointments 
      WHERE doctor_id = $doctor_id AND hospital_id = $hospital_id 
        AND (delete_flag = 0 OR delete_flag IS NULL) AND status = 'Completed'"
 );
 
-$cancelledCount = getCount($conn,
+ $cancelledCount = getCount($conn,
     "SELECT COUNT(*) as count FROM appointments 
      WHERE doctor_id = $doctor_id AND hospital_id = $hospital_id 
        AND (delete_flag = 0 OR delete_flag IS NULL) AND status = 'Cancelled'"
 );
 
-$opdCount = getCount($conn,
+ $opdCount = getCount($conn,
     "SELECT COUNT(*) as count FROM appointments 
      WHERE doctor_id = $doctor_id AND hospital_id = $hospital_id 
        AND (delete_flag = 0 OR delete_flag IS NULL) AND opd_ipd_type = 'OPD'"
 );
 
-$ipdCount = getCount($conn,
+ $ipdCount = getCount($conn,
     "SELECT COUNT(*) as count FROM appointments 
      WHERE doctor_id = $doctor_id AND hospital_id = $hospital_id 
        AND (delete_flag = 0 OR delete_flag IS NULL) AND opd_ipd_type = 'IPD'"
 );
 
-$successMessage = $_SESSION['success_message'] ?? '';
-$errorMessage   = $_SESSION['error_message'] ?? '';
+ $successMessage = $_SESSION['success_message'] ?? '';
+ $errorMessage   = $_SESSION['error_message'] ?? '';
 unset($_SESSION['success_message'], $_SESSION['error_message']);
 
-$page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointments";
+ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointments";
 
 ?>
 <!DOCTYPE html>
@@ -137,7 +137,7 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointmen
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
-        body { font-family: 'Inter', sans-serif; background: #f8fafc; }
+        body { font-family: 'Inter', sans-serif; background: #f8fafc; margin: 0; }
         .sidebar-active { background-color: #f3f4f6; color: #111827; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -206,8 +206,8 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointmen
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
             scrollbar-width: thin;
-              padding: 16px 9px;
-            margin-bottom: -31px;
+            padding: 16px 20px;
+            border-bottom: 1px solid #f1f5f9;
         }
         .tabs-wrapper::-webkit-scrollbar {
             height: 4px;
@@ -220,11 +220,13 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointmen
             background: #cbd5e1;
             border-radius: 4px;
         }
-        .tabs-wrapper .flex-wrap {
+        .tabs-inner {
+            display: flex;
+            gap: 8px;
             flex-wrap: nowrap;
         }
         @media (min-width: 640px) {
-            .tabs-wrapper .flex-wrap {
+            .tabs-inner {
                 flex-wrap: wrap;
             }
         }
@@ -247,9 +249,26 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointmen
         .table-row-hover:hover { background: #f8fafc; }
         .btn-primary-custom { background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; padding: 10px 24px; border-radius: 10px; font-weight: 600; border: none; transition: all 0.3s ease; }
         .btn-primary-custom:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(59, 130, 246, 0.35); }
-        .main-content { margin-left: 260px; padding: 20px 28px; min-height: 100vh; width: 100%; }
-        @media (max-width: 1024px) { .main-content { margin-left: 0; padding: 16px; } }
-        @media (max-width: 768px) { .main-content { padding: 12px; } }
+        
+        /* FIX: Proper alignment for sidebar and header spacing */
+        .main-content { 
+            margin-left: 275px; 
+            padding: 100px 30px 40px; 
+            min-height: 100vh; 
+            width: calc(100% - 275px); 
+            box-sizing: border-box; 
+        }
+        @media (max-width: 1024px) { 
+            .main-content { 
+                margin-left: 0; 
+                padding: 90px 16px 16px; 
+                width: 100%; 
+            } 
+        }
+        @media (max-width: 768px) { 
+            .main-content { padding: 80px 12px 12px; } 
+        }
+        
         /* Small enhancement for doctor+dept display */
         .doctor-dept { font-size: 0.7rem; color: #94a3b8; font-weight: 500; margin-top: 2px; }
         table tbody tr td:last-child .action-btn { padding: 6px 10px; font-size: 12px; }
@@ -268,31 +287,13 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointmen
             border: none;
             cursor: pointer;
         }
-        .action-btn.view {
-            background-color: #e0f2fe;
-            color: #0284c7;
-        }
-        .action-btn.view:hover {
-            background-color: #bae6fd;
-        }
-        .action-btn.edit {
-            background-color: #fff7ed;
-            color: #ea580c;
-        }
-        .action-btn.edit:hover {
-            background-color: #fed7aa;
-        }
-        .action-btn.delete {
-            background-color: #fee2e2;
-            color: #dc2626;
-        }
-        .action-btn.delete:hover {
-            background-color: #fecaca;
-        }
-        .action-btn i {
-            width: 16px;
-            height: 16px;
-        }
+        .action-btn.view { background-color: #e0f2fe; color: #0284c7; }
+        .action-btn.view:hover { background-color: #bae6fd; }
+        .action-btn.edit { background-color: #fff7ed; color: #ea580c; }
+        .action-btn.edit:hover { background-color: #fed7aa; }
+        .action-btn.delete { background-color: #fee2e2; color: #dc2626; }
+        .action-btn.delete:hover { background-color: #fecaca; }
+        .action-btn i { width: 16px; height: 16px; }
     </style>
 </head>
 <body>
@@ -343,9 +344,13 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointmen
                                     <p class="text-gray-500 text-sm mt-1">Welcome, Dr. <?php echo htmlspecialchars($doctor_name); ?> - Manage your appointments and schedules.</p>
                                 </div>
                             </div>
+                            <!-- FIX: Combined both buttons into a single flex container -->
                             <div class="flex flex-wrap gap-3">
-                                <a href="add_appointment.php"
-                                   class="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-all shadow-sm hover:shadow-md">
+                                <a href="calendar.php" class="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-all shadow-sm hover:shadow-md">
+                                    <i data-lucide="calendar" class="w-4 h-4 mr-2"></i>
+                                    View Calendar
+                                </a>
+                                <a href="add_appointment.php" class="inline-flex items-center px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-all shadow-sm hover:shadow-md">
                                     <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
                                     Add Appointment
                                 </a>
@@ -353,35 +358,34 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointmen
                         </div>
                     </div>
 
-                    <!-- ===== RESPONSIVE TABS (now outside the table container) ===== -->
-
-                    <div class="bg-white rounded-xl border border-gray-200 shad ow-sm overflow-hidden">
-                          <div class="tabs-wrapper">
-                        <div class="flex flex-wrap gap-2 mb-6" style="flex-wrap: nowrap;">
-                            <div class="tab-btn tab-active" id="tab-all" onclick="filterAppointments('all')">
-                                All <span class="badge-count"><?php echo $totalCount; ?></span>
-                            </div>
-                            <div class="tab-btn tab-inactive" id="tab-today" onclick="filterAppointments('today')">
-                                Today <span class="badge-count"><?php echo $todayCount; ?></span>
-                            </div>
-                            <div class="tab-btn tab-inactive" id="tab-confirmed" onclick="filterAppointments('confirmed')">
-                                Confirmed <span class="badge-count"><?php echo $upcomingCount; ?></span>
-                            </div>
-                            <div class="tab-btn tab-inactive" id="tab-cancelled" onclick="filterAppointments('cancelled')">
-                                Cancelled <span class="badge-count"><?php echo $cancelledCount; ?></span>
-                            </div>
-                            <div class="tab-btn tab-inactive" id="tab-opd" onclick="filterAppointments('opd')">
-                                OPD <span class="badge-count"><?php echo $opdCount; ?></span>
-                            </div>
-                            <div class="tab-btn tab-inactive" id="tab-ipd" onclick="filterAppointments('ipd')">
-                                IPD <span class="badge-count"><?php echo $ipdCount; ?></span>
+                    <!-- ===== MAIN CARD CONTAINER ===== -->
+                    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                        
+                        <!-- ===== RESPONSIVE TABS (Now inside the card container) ===== -->
+                        <div class="tabs-wrapper">
+                            <div class="tabs-inner">
+                                <div class="tab-btn tab-active" id="tab-all" onclick="filterAppointments('all')">
+                                    All <span class="badge-count"><?php echo $totalCount; ?></span>
+                                </div>
+                                <div class="tab-btn tab-inactive" id="tab-today" onclick="filterAppointments('today')">
+                                    Today <span class="badge-count"><?php echo $todayCount; ?></span>
+                                </div>
+                                <div class="tab-btn tab-inactive" id="tab-confirmed" onclick="filterAppointments('confirmed')">
+                                    Confirmed <span class="badge-count"><?php echo $upcomingCount; ?></span>
+                                </div>
+                                <div class="tab-btn tab-inactive" id="tab-cancelled" onclick="filterAppointments('cancelled')">
+                                    Cancelled <span class="badge-count"><?php echo $cancelledCount; ?></span>
+                                </div>
+                                <div class="tab-btn tab-inactive" id="tab-opd" onclick="filterAppointments('opd')">
+                                    OPD <span class="badge-count"><?php echo $opdCount; ?></span>
+                                </div>
+                                <div class="tab-btn tab-inactive" id="tab-ipd" onclick="filterAppointments('ipd')">
+                                    IPD <span class="badge-count"><?php echo $ipdCount; ?></span>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                  
-                    <!-- ===== END TABS ===== -->
+                        <!-- ===== END TABS ===== -->
 
-                    
                         <div class="p-4 border-b border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                             <div>
                                 <h2 class="text-lg font-semibold text-gray-900" id="table-title">All Appointments</h2>
@@ -462,20 +466,14 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointmen
             </span>
         </td>
         <td class="px-4 py-3 text-right" onclick="event.stopPropagation();" style="text-align: center;">
-            <a href="view_appointment.php?id=<?php echo $appointmentId; ?>" 
-              
-               title="View">
-                
+            <!-- FIX: Added missing icon for View button -->
+            <a href="view_appointment.php?id=<?php echo $appointmentId; ?>" class="action-btn view" title="View">
+                <i data-lucide="eye" class="w-4 h-4"></i>
             </a>
-            <a href="edit_appointment.php?id=<?php echo $appointmentId; ?>" 
-               class="action-btn edit" 
-               title="Edit">
+            <a href="edit_appointment.php?id=<?php echo $appointmentId; ?>" class="action-btn edit" title="Edit">
                 <i data-lucide="edit" class="w-4 h-4"></i>
             </a>
-            <a href="delete_appointment.php?id=<?php echo $appointmentId; ?>" 
-               class="action-btn delete" 
-               title="Delete"
-               onclick="return confirm('Are you sure you want to delete this appointment?');">
+            <a href="delete_appointment.php?id=<?php echo $appointmentId; ?>" class="action-btn delete" title="Delete" onclick="return confirm('Are you sure you want to delete this appointment?');">
                 <i data-lucide="trash-2" class="w-4 h-4"></i>
             </a>
         </td>
@@ -483,7 +481,12 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointmen
     <?php } ?>
 <?php } else { ?>
     <tr>
-        <td colspan="6" style="text-align:center;padding:20px;">No Appointments Found</td>
+        <td colspan="6" style="text-align:center;padding:40px 20px;">
+            <div class="flex flex-col items-center text-gray-400">
+                <i data-lucide="calendar-off" class="w-12 h-12 mb-2"></i>
+                <span>No Appointments Found</span>
+            </div>
+        </td>
     </tr>
 <?php } ?>
 </tbody>
@@ -495,6 +498,7 @@ $page_title = ($hospital['hospital_name'] ?? 'Hospital') . " - Doctor Appointmen
                             <div class="text-xs text-gray-400"><i class="fas fa-sync-alt mr-1"></i> Live updates</div>
                         </div>
                     </div>
+                    <!-- ===== END MAIN CARD CONTAINER ===== -->
                 </div>
             </main>
         </div>
