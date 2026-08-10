@@ -200,7 +200,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                         previous_history = '$previous_history',
                                         current_medicines = '$current_medicines'
                                       WHERE appointment_id = '$id' AND hospital_id = '$hid'";
-                    // FIX: Check for IPD update errors
                     if (!mysqli_query($conn, $ipdUpdateSql)) {
                         $_SESSION['toast'] = [
                             'type' => 'error',
@@ -223,7 +222,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                         '$reason', '$note', '$symptoms', '$severity', '$previous_history',
                                         '$current_medicines', 'Admitted', '0', '$hid'
                                     )";
-                    // FIX: Check for IPD insert errors
                     if (!mysqli_query($conn, $ipdInsertSql)) {
                         $_SESSION['toast'] = [
                             'type' => 'error',
@@ -246,7 +244,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             } else {
                 header("Location: show_opd_appointments.php");
             }
-            // FIX: Clean the buffer before exiting
             if (ob_get_level() > 0) { ob_end_clean(); }
             exit();
         } else {
@@ -267,74 +264,158 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <title> <?php echo $hospital['hospital_name'] ?> - Edit Appointment</title>
-    <link rel="icon" type="image/png" href="../<?php echo $hospital['hospital_logo'] ?>">
+    <title><?php echo htmlspecialchars($hospital['hospital_name'] ?? 'Hospital'); ?> - Edit Appointment</title>
+    <link rel="icon" type="image/png" href="../<?php echo htmlspecialchars($hospital['hospital_logo'] ?? ''); ?>">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background: #f8fafc; }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: #f8fafc; 
+            margin: 0;
+        }
+        
         .main-content {
-    margin-left: 275px;
-    padding: 100px 30px 40px;
-    min-height: 100vh;
-    box-sizing: border-box;
-    width: calc(100% - 275px);
-}
+            margin-left: 275px;
+            padding: 100px 30px 40px;
+            min-height: 100vh;
+            box-sizing: border-box;
+            width: calc(100% - 275px);
+        }
 
-.page-content {
-    width: 100%;
-    max-width: 1400px;
-    margin: 0 auto;
-}
-.header {
-    position: fixed;
-    top: 0;
-    left: 275px;
-    right: 0;
-    height: 75px;
-    z-index: 1000;
-    background: #fff;
-    border-bottom: 1px solid #e5e7eb;
-}
-        .form-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; max-width: 950px; margin: 0 auto; }
-        .form-card .header { padding: 16px 24px; border-bottom: 1px solid #e5e7eb; background: #f8fafc; }
-        .form-card .header h3 { font-size: 16px; font-weight: 600; color: #0f172a; }
-        .form-card .body { padding: 24px; }
-        .form-group { margin-bottom: 16px; }
-        .form-group label { display: block; font-size: 13px; font-weight: 500; color: #0f172a; margin-bottom: 4px; }
-        .form-group label .required { color: #ef4444; }
-        .form-group input, .form-group select, .form-group textarea {
-            width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px;
-            font-size: 14px; transition: all 0.2s ease; outline: none; background: white;
+        .page-content {
+            width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
         }
-        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-            border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+
+        .form-card { 
+            background: white; 
+            border-radius: 12px; 
+            border: 1px solid #e5e7eb; 
+            overflow: hidden; 
+            max-width: 950px; 
+            margin: 0 auto; 
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
         }
-        .appointment-container {
-    width: 100%;
-    max-width: 1400px;
-    margin: 0 auto;
-    background: #fff;
-    border-radius: 12px;
-    padding: 30px;
-    box-sizing: border-box;
-}
-        .form-group input[readonly] { background: #f1f5f9; cursor: not-allowed; }
-        .btn-primary { padding: 10px 24px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
-        .btn-primary:hover { background: #2563eb; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,0.3); }
-        .btn-secondary { padding: 10px 24px; background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; text-decoration: none; display: inline-block; }
-        .btn-secondary:hover { background: #e2e8f0; }
-        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-        .status-scheduled { background: #dbeafe; color: #1e40af; }
-        .status-confirmed { background: #fef3c7; color: #92400e; }
-        .status-completed { background: #d1fae5; color: #065f46; }
-        .status-cancelled { background: #fee2e2; color: #991b1b; }
-        .ipd-section { display: none; }
-        @media (max-width: 1024px) { .main-content { margin-left: 0; padding: 16px; } }
-        @media (max-width: 768px) { .form-card .body { padding: 16px; } }
+        
+        .form-card .card-header { 
+            padding: 16px 24px; 
+            border-bottom: 1px solid #e5e7eb; 
+            background: #f8fafc; 
+        }
+        
+        .form-card .card-header h3 { 
+            font-size: 16px; 
+            font-weight: 600; 
+            color: #0f172a; 
+            margin: 0;
+        }
+        
+        .form-card .body { 
+            padding: 24px; 
+        }
+        
+        .form-group { 
+            margin-bottom: 16px; 
+        }
+        
+        .form-group label { 
+            display: block; 
+            font-size: 13px; 
+            font-weight: 500; 
+            color: #0f172a; 
+            margin-bottom: 4px; 
+        }
+        
+        .form-group label .required { 
+            color: #ef4444; 
+        }
+        
+        .form-group input, 
+        .form-group select, 
+        .form-group textarea {
+            width: 100%; 
+            padding: 8px 12px; 
+            border: 1px solid #e2e8f0; 
+            border-radius: 8px;
+            font-size: 14px; 
+            transition: all 0.2s ease; 
+            outline: none; 
+            background: white;
+            box-sizing: border-box;
+        }
+        
+        .form-group input:focus, 
+        .form-group select:focus, 
+        .form-group textarea:focus {
+            border-color: #3b82f6; 
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+        }
+        
+        .form-group input[readonly] { 
+            background: #f1f5f9; 
+            cursor: not-allowed; 
+        }
+        
+        .btn-primary { 
+            padding: 10px 24px; 
+            background: #3b82f6; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: all 0.2s ease; 
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .btn-primary:hover { 
+            background: #2563eb; 
+            transform: translateY(-1px); 
+            box-shadow: 0 4px 12px rgba(59,130,246,0.3); 
+        }
+        
+        .btn-secondary { 
+            padding: 10px 24px; 
+            background: #f1f5f9; 
+            color: #475569; 
+            border: 1px solid #e2e8f0; 
+            border-radius: 8px; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: all 0.2s ease; 
+            text-decoration: none; 
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .btn-secondary:hover { 
+            background: #e2e8f0; 
+        }
+        
+        .ipd-section { 
+            display: none; 
+        }
+        
+        @media (max-width: 1024px) { 
+            .main-content { 
+                margin-left: 0; 
+                padding: 90px 16px 16px; 
+                width: 100%;
+            } 
+        }
+        
+        @media (max-width: 768px) { 
+            .form-card .body { 
+                padding: 16px; 
+            } 
+        }
         
         .bed-available { color: #22c55e; font-weight: 500; }
         .bed-occupied { color: #ef4444; font-weight: 500; }
@@ -348,7 +429,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         <div class="flex flex-1 items-start">
             <?php include '../Sidebar.php'; ?>
             <main class="main-content w-full">
-                <div class="max-w-5xl mx-auto w-full">
+                <div class="page-content">
                     
                     <!-- Back Button -->
                     <div class="mb-6 flex items-center gap-4">
@@ -362,7 +443,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     </div>
 
                     <div class="form-card">
-                        <div class="header">
+                        <div class="card-header">
                             <h3>Appointment #<?php echo htmlspecialchars($appointment['appointment_no']); ?></h3>
                         </div>
                         <div class="body">
@@ -429,18 +510,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                         </select>
                                     </div>
                                    <div class="form-group">
-                                    <label for="department_display">Department</label>
-                                    <input type="text" id="department_display" class="w-full p-2 border border-gray-300 rounded-lg bg-gray-100" 
-                                        value="<?php echo htmlspecialchars($appointment['department'] ?? ''); ?>" readonly>
-                                    <input type="hidden" name="department" value="<?php echo htmlspecialchars($appointment['department'] ?? ''); ?>">
-                                </div>
-                                <div class="form-group">
-                                    <label for="doctor_name_display">Doctor <span class="required">*</span></label>
-                                    <input type="text" id="doctor_name_display" class="w-full p-2 border border-gray-300 rounded-lg bg-gray-100" 
-                                        value="<?php echo htmlspecialchars($appointment['doctor_name']); ?>" readonly>
-                                    <input type="hidden" id="doctor_id" name="doctor_id" value="<?php echo htmlspecialchars($appointment['doctor_id']); ?>">
-                                </div>
-                                                                    <div class="form-group">
+                                        <label for="department_display">Department</label>
+                                        <input type="text" id="department_display" class="w-full p-2 border border-gray-300 rounded-lg bg-gray-100" 
+                                            value="<?php echo htmlspecialchars($appointment['department'] ?? ''); ?>" readonly>
+                                        <input type="hidden" name="department" value="<?php echo htmlspecialchars($appointment['department'] ?? ''); ?>">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="doctor_name_display">Doctor <span class="required">*</span></label>
+                                        <input type="text" id="doctor_name_display" class="w-full p-2 border border-gray-300 rounded-lg bg-gray-100" 
+                                            value="<?php echo htmlspecialchars($appointment['doctor_name']); ?>" readonly>
+                                        <input type="hidden" id="doctor_id" name="doctor_id" value="<?php echo htmlspecialchars($appointment['doctor_id']); ?>">
+                                    </div>
+                                    <div class="form-group">
                                         <label for="duration">Duration (minutes)</label>
                                         <select id="duration" name="duration">
                                             <option value="15" <?php echo ($appointment['duration'] == '15') ? 'selected' : ''; ?>>15 min</option>
