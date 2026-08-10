@@ -276,7 +276,29 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         body { font-family: 'Inter', sans-serif; background: #f8fafc; }
-        .main-content { margin-left: 260px; padding: 84px 28px 20px 28px; min-height: 100vh; }
+        .main-content {
+    margin-left: 275px;
+    padding: 100px 30px 40px;
+    min-height: 100vh;
+    box-sizing: border-box;
+    width: calc(100% - 275px);
+}
+
+.page-content {
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+.header {
+    position: fixed;
+    top: 0;
+    left: 275px;
+    right: 0;
+    height: 75px;
+    z-index: 1000;
+    background: #fff;
+    border-bottom: 1px solid #e5e7eb;
+}
         .form-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; max-width: 950px; margin: 0 auto; }
         .form-card .header { padding: 16px 24px; border-bottom: 1px solid #e5e7eb; background: #f8fafc; }
         .form-card .header h3 { font-size: 16px; font-weight: 600; color: #0f172a; }
@@ -291,6 +313,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
             border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
         }
+        .appointment-container {
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 12px;
+    padding: 30px;
+    box-sizing: border-box;
+}
         .form-group input[readonly] { background: #f1f5f9; cursor: not-allowed; }
         .btn-primary { padding: 10px 24px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
         .btn-primary:hover { background: #2563eb; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,0.3); }
