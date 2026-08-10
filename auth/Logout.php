@@ -7,10 +7,10 @@ if (ob_get_level() === 0) {
 }
 
 // ============================================================
-// START SESSION (only if not already started)
+// START SESSION
 // ============================================================
 if (session_status() === PHP_SESSION_NONE) {
-    @session_start();
+    session_start();
 }
 
 // ============================================================
@@ -22,11 +22,11 @@ error_reporting(E_ERROR | E_PARSE);
 // ============================================================
 // LOAD CONFIGURATION
 // ============================================================
-@include_once '../config/hospital.php';
-@include_once '../config/permission.php';
+include_once '../config/hospital.php';
+include_once '../config/permission.php';
 
 // ============================================================
-// CAPTURE SESSION DATA BEFORE DESTROYING
+// SAVE REQUIRED SESSION DATA BEFORE DESTROYING SESSION
 // ============================================================
  $register_id = isset($_SESSION['id']) ? (int) $_SESSION['id'] : 0;
  $login_id    = isset($_SESSION['login_id']) ? (int) $_SESSION['login_id'] : 0;
@@ -157,34 +157,21 @@ if (ini_get('session.use_cookies')) {
 @session_destroy();
 
 // ============================================================
-// BUILD ABSOLUTE REDIRECT URL
-// (HTTP/1.1 requires absolute URI; some servers reject relative)
-// ============================================================
- $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-    || (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)
-    ? 'https' : 'http';
-
- $host   = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
- $script = isset($_SERVER['SCRIPT_NAME']) ? $_SERVER['SCRIPT_NAME'] : '';
-// We are in /logout/ (or similar) folder, go up one level to reach index.php
- $baseDir = rtrim(dirname(dirname($script)), '/\\') . '/';
-
- $indexUrl = $protocol . '://' . $host . $baseDir . 'index.php';
-
-if ($hid !== '') {
-    $redirect_url = $indexUrl . '?hid=' . urlencode($hid);
-} else {
-    $redirect_url = $indexUrl;
-}
-
-// ============================================================
-// PREVENT BROWSER CACHE (must be sent before Location)
+// PREVENT BROWSER CACHE
 // ============================================================
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Cache-Control: post-check=0, pre-check=0', false);
 header('Pragma: no-cache');
 header('Expires: 0');
 header('Clear-Site-Data: "cache", "cookies", "storage"');
+
+// ============================================================
+// BUILD RELATIVE REDIRECT URL (Safest for your setup)
+// ============================================================
+ $redirect_url = '../index.php';
+if ($hid !== '') {
+    $redirect_url .= '?hid=' . urlencode($hid);
+}
 
 // ============================================================
 // FLUSH OUTPUT BUFFER
@@ -198,8 +185,7 @@ if (ob_get_level() > 0) {
 // ============================================================
 if (!headers_sent()) {
     header('Location: ' . $redirect_url, true, 302);
-    echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url='
-        . htmlspecialchars($redirect_url, ENT_QUOTES) . '">';
+    echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=' . htmlspecialchars($redirect_url, ENT_QUOTES) . '">';
     echo '<script>window.location.href="' . htmlspecialchars($redirect_url, ENT_QUOTES) . '";</script>';
     echo '</head><body>Redirecting…</body></html>';
 } else {
